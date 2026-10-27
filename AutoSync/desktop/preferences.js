@@ -1,0 +1,28 @@
+const prefDefaults={reports:false,audioAdvanced:false,subtitleAdvanced:false,csv:false,savedPlans:false,activity:true};
+let prefs={...prefDefaults};try{const saved=JSON.parse(localStorage.getItem('autosync-preferences')||'{}');for(const key in prefDefaults)if(typeof saved[key]==='boolean')prefs[key]=saved[key];}catch{}
+const settingsNav=document.createElement('button');settingsNav.className='nav';settingsNav.dataset.task='Settings';settingsNav.textContent='Settings';document.querySelector('nav').append(settingsNav);
+const settingsPanel=document.createElement('section');settingsPanel.id='settings-panel';settingsPanel.className='panel hidden';settingsPanel.innerHTML='<h2>Settings</h2><p>Choose which optional features to show and use. Disabled advanced options use their defaults.</p>';
+for(const [key,label] of [['reports','Save reports and timing plans'],['audioAdvanced','Enable advanced audio settings'],['subtitleAdvanced','Enable advanced subtitle settings'],['csv','Enable CSV job import'],['savedPlans','Enable saved-plan rendering'],['activity','Show activity log']]){const labelEl=document.createElement('label');labelEl.className='preference-row';const input=document.createElement('input');input.type='checkbox';input.id='pref-'+key;input.checked=prefs[key];input.onchange=()=>{prefs[key]=input.checked;localStorage.setItem('autosync-preferences',JSON.stringify(prefs));if(!prefs.savedPlans&&workspace==='Saved plan')workspace='Sync jobs';applyWorkspace();};labelEl.append(input,document.createTextNode(' '+label));settingsPanel.append(labelEl);}
+const reportsFields=document.createElement('div');reportsFields.id='report-fields';settingsPanel.append(reportsFields);document.querySelector('main').append(settingsPanel);fileField('report-fields',['reports-destination','Reports folder','output','Choose a separate folder for reports']);settingsPanel.append($('setup-engine').closest('details'));
+const destinationPanel=document.createElement('section');destinationPanel.id='destination-panel';destinationPanel.className='panel';destinationPanel.innerHTML='<h2>Output folder</h2><p>Finished audio, videos and subtitles go directly here. Existing files are never overwritten.</p><div id="destination-fields"></div><p id="destination-reminder" role="alert" class="hidden"></p>';
+$('audio-section').before(destinationPanel);fileField('destination-fields',['output-destination','Save outputs to','output','Required — choose where to store finished files']);
+function applyPreferences(){
+ const settings=workspace==='Settings',saved=workspace==='Saved plan';settingsPanel.classList.toggle('hidden',!settings);destinationPanel.classList.toggle('hidden',settings);
+ $('audio-advanced').classList.toggle('hidden',!prefs.audioAdvanced||settings||(!saved&&!$('enable-audio').checked));
+ $('sub-options').closest('details').classList.toggle('hidden',!prefs.subtitleAdvanced);$('sub_semantic').parentElement.classList.toggle('hidden',!prefs.subtitleAdvanced||!['reference','audio'].includes($('sub_mode').value));
+ $('batch-field').closest('details').classList.toggle('hidden',!prefs.csv);if(!prefs.csv)$('use_csv').checked=false;
+ $('analyze-label').classList.toggle('hidden',settings||saved||!prefs.audioAdvanced||!$('enable-audio').checked);
+ $('report-fields').classList.toggle('hidden',!prefs.reports);$('report').classList.toggle('hidden',!prefs.reports);document.querySelector('[data-task="Saved plan"]').classList.toggle('hidden',!prefs.savedPlans);
+ document.querySelector('.log-panel').classList.toggle('hidden',!prefs.activity);$('start').classList.toggle('hidden',settings);
+ $('batch_out').closest('.field').classList.add('hidden');$('sub_out').closest('.field').classList.add('hidden');
+}
+function destinationRequest(jobs){
+ const out=$('output-destination').value.trim();const reports=$('reports-destination').value.trim();const note=$('destination-reminder');note.classList.add('hidden');
+ if(!out){note.textContent='Please specify where you want to store the outputs before starting.';note.classList.remove('hidden');$('output-destination').focus();throw Error(note.textContent);}
+ if(prefs.reports&&!reports){workspace='Settings';applyWorkspace();$('reports-destination').focus();throw Error('Please specify a reports folder in Settings, or disable Save reports.');}
+ return {task:'Managed queue',jobs,output_dir:out,save_reports:prefs.reports,reports_dir:reports};
+}
+function audioDefaultsWhenDisabled(values){if(prefs.audioAdvanced)return;for(const [id,,def] of advanced)values[id]=Array.isArray(def)?def[0]:def;for(const id of ['audio_only','reference_fallback','remove_unmatched_video','allow_uncertain_cuts','analyze_only'])values[id]=false;}
+function subtitleDefaultsWhenDisabled(values){if(prefs.subtitleAdvanced)return;Object.assign(values,{encoding:'utf-8-sig',source_fps:'',target_fps:'',source_crop:'',target_crop:'',whisper_model:'small',language:'',semantic:false,sushi_window:'10',sushi_max_window:'30'});}
+// One global destination replaces the old per-section output fields.
+window.autosync.onDrop(({target,paths})=>{if(!running&&paths.length===1&&['output-destination','reports-destination'].includes(target))$(target).value=paths[0];});
