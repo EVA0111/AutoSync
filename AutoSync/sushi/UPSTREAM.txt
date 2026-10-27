@@ -1,6 +1,0 @@
-Sushi by Victor Efimov (tp7), MIT license.
-Source: https://github.com/tp7/Sushi
-Unmodified Windows release 0.5.1 (upstream marks it prerelease):
-https://github.com/tp7/Sushi/releases/tag/0.5.1
-Release archive SHA-256: 1cd97fbebbcddff03ecec12c1e05f08ea8610cff02217ce0c7abefa6fd2361b2
-AutoSync invokes the executable with PCM WAVs and proxy SRT cues; it imports timing results into the original subtitle document.
