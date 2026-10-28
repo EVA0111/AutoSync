@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/34083729/README.md)
 # AutoSync
 
 By [EVA0111](https://github.com/EVA0111).
