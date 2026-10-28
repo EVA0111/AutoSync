@@ -1,3 +1,0 @@
-source,target,audio,reference,out,audio_stream,reference_stream,audio_delay,reference_delay
-H:\source\episode_01.mkv,H:\target\episode_01.mkv,H:\source\episode_01.mkv,,H:\synced\EP001,0,0,0,0
-H:\source\episode_02.mkv,H:\target\episode_02.mkv,H:\source\episode_02.mkv,,H:\synced\EP002,0,0,0,0
