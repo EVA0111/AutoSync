@@ -1,4 +1,5 @@
 let workspace='Sync jobs';
+let activeTab='audio';
 const audioSection=document.createElement('section');audioSection.id='audio-section';
 const audioHeader=document.createElement('div');audioHeader.className='section-heading';audioHeader.innerHTML='<h2><label><input id="enable-audio" type="checkbox" checked> Audio</label></h2>';
 audioSection.append(audioHeader);$('mode-section').before(audioSection);for(const id of ['mode-section','single','batch-panel','audio-tracks','audio-advanced'])audioSection.append($(id));
@@ -13,7 +14,7 @@ function applyWorkspace(){
  for(const id of ['mode-section','audio-advanced'])$(id).classList.toggle('hidden',!audio);$('single').classList.toggle('hidden',!audio||task!=='Single episode');$('batch-panel').classList.toggle('hidden',!audio||task!=='Batch CSV');$('analyze-label').classList.toggle('hidden',!audio);$('subtitles-panel').classList.toggle('hidden',!sub);
  // Saved-plan export overrides remain available in their own panel.
  if(saved){$('saved').append($('audio-advanced'));$('audio-advanced').classList.remove('hidden');}else audioSection.append($('audio-advanced'));
- subtitleMode();subtitleBatchLayout();refreshTracks();$('audio-tracks').classList.toggle('hidden',!audio||(task==='Batch CSV'&&$('use_csv').checked));if(typeof applyPreferences==='function')applyPreferences();if(typeof refreshReadiness==='function')refreshReadiness();
+ subtitleMode();subtitleBatchLayout();refreshTracks();$('audio-tracks').classList.toggle('hidden',!audio||(task==='Batch CSV'&&$('use_csv').checked));if(typeof applyPreferences==='function')applyPreferences();if(typeof refreshReadiness==='function')refreshReadiness();if(typeof applyRemodel==='function')applyRemodel();
 }
 for(const id of ['enable-audio','enable-subtitles'])$(id).onchange=()=>{applyWorkspace();};
 document.querySelector('nav').addEventListener('click',e=>{const button=e.target.closest('.nav');if(!button||running)return;workspace=button.dataset.task;document.querySelectorAll('.nav').forEach(b=>b.classList.toggle('active',b===button));applyWorkspace();});

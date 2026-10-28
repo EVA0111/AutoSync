@@ -1,4 +1,4 @@
-# Subtitle sync — AutoSync v4.0.0
+# Subtitle sync — AutoSync v1.1.0
 
 Open `AutoSync.exe`, enable **Subtitles** in **Sync jobs**, choose a timing reference and add one file or many to the lists. Choose the global Output folder before starting. Enable advanced subtitle options and optional report saving in Settings. The same lists handle one episode or multiple episodes.
 
@@ -54,7 +54,7 @@ The engine builds monotonic piecewise speed/offset sections, rejects ambiguous t
 
 A saved native map uses seconds:
 
-```json
+```
 {"direction":"source_to_target","evidence":"manual","sections":[{"start":0,"end":120,"scale":1.0,"offset":2.0,"anchors":[],"quality":"estimated: manual map"}]}
 ```
 
@@ -62,7 +62,7 @@ Target time = source time × scale + offset. Sections must be ordered, positive-
 
 ## Command line
 
-```bat
+```
 .venv\Scripts\python.exe subtitle_sync.py --mode reference --subtitle input.ass --reference-subtitle reference.srt --out subtitle_job
 .venv\Scripts\python.exe subtitle_sync.py --mode encodes --subtitle input.ass --source-video source.mkv --target-media target.mkv --out subtitle_job
 .venv\Scripts\python.exe subtitle_sync.py --mode audio --subtitle input.srt --target-media target.mkv --audio-track 0 --out subtitle_job

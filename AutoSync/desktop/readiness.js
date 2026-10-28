@@ -21,7 +21,7 @@ function readinessIssue(){
   if(prefs.audioAdvanced&&$('analyze_only').checked&&!prefs.reports)return ['Enable Save reports in Settings for Analyze only.','pref-reports'];
   if(prefs.csv&&$('use_csv').checked){if(!$('batch').value.trim())return ['Choose the job CSV.','batch'];}
   else{
-   if(!batchFiles.source.length)return ['Add source videos to the left column.','source-drop'];
+   if(!batchFiles.source.length)return ['Add source videos to the Source column.','source-drop'];
    if(batchFiles.source.length!==batchFiles.target.length)return ['Both audio columns need the same number of videos.','target-drop'];
    try{batchFiles.source.forEach((s,i)=>manualPairValues(s,batchFiles.target[i],mode));}catch(e){return [e.message,'source-drop'];}
    if(!$('pairs_reviewed').checked)return ['Check the audio pairs, then tick the confirmation box.','pairs_reviewed'];
@@ -48,7 +48,7 @@ function refreshReadiness(){
  const mode=document.querySelector('[name=mode][value="Sync full target audio"]').closest('.mode');
  const hint=mode.querySelector('span');if(hint){if(!hint.dataset.original)hint.dataset.original=hint.textContent;hint.textContent=prefs.audioAdvanced&&$('remove_unmatched_video').checked?'Export edited video + matching FLAC. Target-only sections are removed.':hint.dataset.original;}
 }
-$('setup-focus').onclick=()=>{if(!setupFocus)return;if(['reports-destination','pref-reports'].includes(setupFocus)){workspace='Settings';applyWorkspace();}const el=$(setupFocus);el?.scrollIntoView({block:'center',behavior:'smooth'});el?.focus();};
+$('setup-focus').onclick=()=>{if(!setupFocus)return;if(['reports-destination','pref-reports'].includes(setupFocus)){workspace='Settings';applyWorkspace();}if(['source-drop','target-drop','pairs_reviewed','audio_only','enable-audio'].includes(setupFocus)){activeTab='audio';applyRemodel();}else if(setupFocus?.startsWith('sb-')||setupFocus==='subtitle-reviewed'||setupFocus==='sub_timing_map'){activeTab='subtitles';applyRemodel();}const el=$(setupFocus);el?.scrollIntoView({block:'center',behavior:'smooth'});el?.focus();};
 for(const [a,b] of [['remove_unmatched_video','reference_fallback'],['reference_fallback','remove_unmatched_video']])$(a).addEventListener('change',()=>{if($(a).checked)$(b).checked=false;});
 for(const event of ['input','change','click'])document.addEventListener(event,()=>queueMicrotask(refreshReadiness));
 window.autosync.onDrop(()=>setTimeout(refreshReadiness,0));

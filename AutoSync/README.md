@@ -1,4 +1,4 @@
-# AutoSync v1
+# AutoSync v1.1
 
 By [EVA0111](https://github.com/EVA0111).
 
@@ -6,7 +6,7 @@ AutoSync is a Windows desktop app that syncs audio and subtitles between differe
 
 ## Download and use
 
-Download **AutoSync-v1-Windows-Portable.zip** from this repository's **Releases** page. Extract the entire ZIP to a new folder, then open **AutoSync.exe**. The portable download includes Python, FFmpeg, and the core dependencies.
+Download **AutoSync-v1.1-Windows-Portable.zip** from this repository's **Releases** page. Extract the entire ZIP to a new folder, then open **AutoSync.exe**. The portable download includes Python, FFmpeg, and the core dependencies.
 
 1. Drop source videos into the left column and matching target videos into the right column. One pair or many pairs use the same workflow.
 2. Choose audio tracks and an output mode: full target, main episode only, or keep target opening/ending.
@@ -55,3 +55,15 @@ Tests:
 Project profile: [EVA0111](https://github.com/EVA0111).
 
 Built with Electron, Python, NumPy, SciPy, and FFmpeg. Optional subtitle matching integrates [tp7/Sushi](https://github.com/tp7/Sushi). Keep the bundled third-party license notices with redistributed binaries. This source package does not assign a new license to the project's own code; the owner can add their chosen license separately.
+
+## Updated interface
+
+The interface is English-only.
+
+- **Audio**: drop one file or a folder into Source and Target, select each file's audio track, and open its preview icon to trim before syncing. Open **Review pairing & reorder** for manual ordering. Opening/ending track selection is under **Track settings for selected pair**.
+- **Subtitles**: choose a timing reference and add the matching files. The existing subtitle modes, including Sushi, remain available.
+- **Include audio jobs / Include subtitle jobs** determine which sections are processed. Both can run in the same queue; switching tabs does not clear files or enable a section automatically.
+- Choose the single **Output folder** and confirm the pairs before starting. **Settings** controls optional reports, advanced options, CSV import, and saved plans.
+- **Jobs** shows completed results, failures, and items that need review. It also contains the optional activity log. Progress stays visible at the bottom.
+
+The preview shows individual frames and is silent. The synchronization engine and its formats are unchanged in this interface update.
