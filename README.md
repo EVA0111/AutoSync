@@ -1,4 +1,4 @@
-# AutoSync
+# AutoSync v1.2.0
 
 An Electron + Python/FFmpeg tool for matching audio and subtitles between
 different video editions, including different playback speeds, openings,
@@ -13,7 +13,7 @@ build\windows\build-portable.cmd
 ```
 
 The builder installs dependencies in a private build environment and produces
-`dist/AutoSync-Source-Windows-Portable.zip`. Unzip the result and run
+`dist/AutoSync-v1.2.0-Windows-Portable.zip`. Unzip the result and run
 `AutoSync.exe`; the finished portable application includes Electron,
 Python 3.12, NumPy, SciPy, FFmpeg and FFprobe.
 
