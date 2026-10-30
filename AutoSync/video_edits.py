@@ -6,6 +6,55 @@ import visual_core as vc
 from cut_detection import source_cuts
 
 
+
+def protect_opening(plan, source_features, target_features, source_length):
+    """Protect unmatched target openings before destructive video trimming.
+
+    Matching pictures are not required: alternate-language OPs may use different
+    visuals over the same music. When a source-audio match is verified, map the
+    opening to that source. If audio evidence is inconclusive, preserve the
+    target's *video and existing music* for review instead of deleting it.
+    Explicitly different audio may still be removed when requested by the user.
+    """
+    p=copy.deepcopy(plan)
+    segments=p.get('segments') or []
+    if not segments or not p.get('target_video'):return p
+    opening=segments[0]
+    a=float(opening['target_start']);b=float(opening['target_end'])
+    if opening.get('kind')!='reference' or abs(a)>1e-3 or not .1<b<=45:
+        return p
+    speed=float((p.get('models') or [{}])[0].get('speed', 1.))
+    from main_episode import opening_audio_correspondence
+    evidence=opening_audio_correspondence(source_features,target_features,b,speed)
+    outcome=None
+    if evidence and evidence.get('matched'):
+        source_start=float(evidence['offset'])
+        if (source_start>=0 and source_start+speed*b<=float(source_length)+.025):
+            segments[0]=dict(kind='audio',target_start=a,target_end=b,
+                             source_start=source_start,speed=speed,
+                             confidence='supported',reason='Shared opening music independently matched source audio')
+            outcome='Shared opening music: kept target video and mapped matching source audio'
+    if outcome is None and (evidence is None or not evidence.get('different')):
+        # The program must not delete music on the strength of a picture
+        # difference alone. A target-outer interval renders existing target
+        # audio with the video even when remove-unmatched-video is selected.
+        if p.get('reference')==p.get('target_video'):
+            segments[0]=dict(kind='target_outer',target_start=a,target_end=b,
+                             reference_target_start=a,
+                             reason='Opening audio inconclusive; preserve target music instead of cutting video')
+            p['outer_stream']=int(p.get('reference_stream',0))
+            p['outer_shift']=float(p.get('reference_shift',0.))
+            outcome='Opening match uncertain: kept target video and target audio for manual review'
+        else:
+            outcome='Opening match uncertain but target audio source differs; retain for manual review (requires reference fallback)'
+    if outcome is not None:
+        p.setdefault('review',[]).append(dict(start=0.,end=b,confidence='estimated',
+                                                  reason=outcome+'; listen near the opening join'))
+        p.setdefault('warnings',[]).append(outcome)
+        p['source_cuts']=source_cuts(segments)
+    return p
+
+
 def remove_missing(plan):
     if plan.get('video_edits'):return copy.deepcopy(plan)
     p=copy.deepcopy(plan);kept=[];removed=[];segments=[];cursor=0.
