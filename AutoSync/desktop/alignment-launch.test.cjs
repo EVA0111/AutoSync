@@ -30,6 +30,7 @@ test('Preview & Edit auto-analyzes selected source/target and saves edits in an 
   show(){}
   focus(){}
   isDestroyed(){return false;}
+  close(){this.emit('closed');}
  }
  const electron={
   BrowserWindow:FakeWindow,
