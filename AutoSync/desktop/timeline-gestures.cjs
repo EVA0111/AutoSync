@@ -62,8 +62,25 @@ function slipClip(segments,duration,index,delta){
 function trimClip(segments,duration,index,edge,newTime){
  const s=segments[index];if(!s)throw Error('Select a clip to trim.');
  if(edge!=='start'&&edge!=='end')throw Error('Choose a clip edge.');
- const position=clamp(newTime,s.target_start+MIN,s.target_end-MIN);
- return trimTo(segments,duration,index,position,edge==='start'?'left':'right');
+ const position=clamp(newTime,edge==='start'?0:s.target_start+MIN,
+  edge==='end'?duration:s.target_end-MIN);
+ if(edge==='start'){
+  if(position<s.target_start-MIN){
+   const extra=s.target_start-position;
+   const sourceStart=s.kind==='audio'?s.source_start-extra*s.speed:null;
+   if(s.kind==='audio'&&sourceStart<0)throw Error('No earlier source audio is available.');
+   return pasteClip(segments,duration,position,
+    {kind:s.kind,duration:extra,source_start:sourceStart,speed:s.speed});
+  }
+  return trimTo(segments,duration,index,position,'left');
+ }
+ if(position>s.target_end+MIN){
+  const extra=position-s.target_end;
+  const sourceStart=s.kind==='audio'?s.source_start+(s.target_end-s.target_start)*s.speed:null;
+  return pasteClip(segments,duration,s.target_end,
+   {kind:s.kind,duration:extra,source_start:sourceStart,speed:s.speed});
+ }
+ return trimTo(segments,duration,index,position,'right');
 }
 function splitClip(segments,duration,index,time){
  const rows=clone(segments),s=rows[index];
