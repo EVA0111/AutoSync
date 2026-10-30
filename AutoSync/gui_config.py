@@ -41,6 +41,11 @@ def build_command(values, job_type):
             if v.get(flag):cmd.append('--'+flag.replace('_','-'))
         cmd+=['--video-codec',v['video_codec'],'--video-preset',v['video_preset']]
         return cmd,Path(v['plan']).resolve().parent
+    sync_method=v.get('sync_method','standard')
+    if sync_method not in ('standard','ai_assisted'):
+        raise ValueError('Unknown syncing method.')
+    if sync_method=='ai_assisted' and job_type!='Saved plan':
+        cmd+=['--sync-method','ai_assisted']
     mode=MODES[v['mode']][0]
     if mode:cmd.append(mode)
     if job_type=='Batch CSV':
