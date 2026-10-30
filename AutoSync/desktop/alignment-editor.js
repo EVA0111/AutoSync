@@ -254,41 +254,72 @@ function refreshSelectionOnly(){
  $('split').disabled=!current()||playhead<=current().target_start+.05||playhead>=current().target_end-.05;
 }
 function pause(){
- playing=false;playToken++;audio.pause();audio.removeAttribute('src');$('play').textContent='▶ Play';
+ playing=false;playToken++;nextAudioChunk=null;audio.pause();audio.removeAttribute('src');$('play').textContent='▶ Play';
  for(const v of Object.values(videos))v.pause();
 }
 async function play(){
  if(playing){pause();return;}
  playing=true;$('play').textContent='❚❚ Pause';await playChunk();
 }
+let nextAudioChunk=null;
+function chunkAt(t){
+ const i=locate(t),s=segments[Math.max(0,i)];
+ if(!s||t>=plan.duration-.001)return null;
+ const mode=$('audition').value;
+ const length=Math.min(11.5,plan.duration-t,s.target_end-t);
+ if(length<=.001)return null;
+ const track=mode==='output'?(s.kind==='audio'?'source':'target'):mode;
+ const start=track==='source'?mapSource(t):mapTarget(t);
+ const speed=track==='source'&&s.kind==='audio'?s.speed:1;
+ if(start==null)return null;
+ return {t,length,track,start,speed,key:[t,length,track,start,speed].map(n=>String(n)).join('|')};
+}
 async function playChunk(){
  if(!playing||playhead>=plan.duration-.001){pause();return;}
- const token=++playToken,t0=playhead,i=locate(t0),s=segments[Math.max(0,i)];
- if(!s){pause();return;}
- const mode=$('audition').value;
- const length=Math.min(11.5,plan.duration-t0,s.target_end-t0);
- if(length<=0.001){movePlayhead(Math.min(plan.duration,s.target_end+.002),false);return playChunk();}
- let track=mode==='output'?(s.kind==='audio'?'source':'target'):mode;
- let start=track==='source'?mapSource(t0):mapTarget(t0),speed=track==='source'&&s.kind==='audio'?s.speed:1;
- if(start==null){report('No mapped source audio here. Switch to target or edited output.',true);pause();return;}
+ const token=++playToken,t0=playhead;
+ const chunk=chunkAt(t0);
+ if(!chunk){
+  const seg=segments[Math.max(0,locate(t0))];
+  if(seg&&seg.target_end-t0<=.001){
+   movePlayhead(Math.min(plan.duration,seg.target_end+.002),false);
+   return playChunk();
+  }
+  report('No source audio is mapped here. Switch to target or edited output.',true);
+  pause();return;
+ }
+ const {length,track,start,speed,key}=chunk;
  try{
-  const url=await window.alignment.audio(track,start,length,speed);
+  // Fetch the next chunk while the current one plays to eliminate FFmpeg
+  // launch delays and audible gaps between preview windows.
+  const request=nextAudioChunk?.key===key?nextAudioChunk.promise:window.alignment.audio(track,start,length,speed);
+  nextAudioChunk=null;
+  const url=await request;
   if(token!==playToken||!playing)return;
   audio.pause();audio.src=url;audio.currentTime=0;
   audio.ontimeupdate=()=>{
    if(token!==playToken||!playing)return;
    playhead=clamp(t0+Math.min(length,audio.currentTime),0,plan.duration);
-   updateClock();draw();refreshSelectionOnly();
-   syncVideos();
+   updateClock();draw();refreshSelectionOnly();syncVideos();
   };
   audio.onended=()=>{
    if(token!==playToken||!playing)return;
+   for(const v of Object.values(videos))v.pause();
    playhead=clamp(t0+length,0,plan.duration);
-   if(loop&&playhead>=current().target_end-.01){movePlayhead(current().target_start,false);}
+   if(loop&&playhead>=current().target_end-.01)movePlayhead(current().target_start,false);
    playChunk();
   };
   await audio.play();
   syncVideos(true);
+  const nextAt=t0+length;
+  if(nextAt<plan.duration-.002){
+   const upcoming=chunkAt(nextAt);
+   if(upcoming){
+    const promise=window.alignment.audio(upcoming.track,upcoming.start,upcoming.length,upcoming.speed);
+    // Keep errors attached to the promise so background prefetch is safe.
+    promise.catch(()=>{});
+    nextAudioChunk={key:upcoming.key,promise};
+   }
+  }
  }catch(e){if(token===playToken){pause();report('Audio preview failed: '+e.message,true);}}
 }
 function bound(index,time){
