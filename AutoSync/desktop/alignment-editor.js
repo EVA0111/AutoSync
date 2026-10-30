@@ -9,7 +9,9 @@ const canvas=$('timeline'),ctx=canvas.getContext('2d'),audio=$('audio-player');
 const videos={source:$('source-video'),target:$('target-video')};
 const videoStatus={source:'pending',target:'pending'},videoLastSync={source:0,target:0};
 const videoProxyStarted=new Set();let fallbackFrameTimer=null;
-const rowTops=[44,141,238],rowNames=['SOURCE','TARGET','OUTPUT'];
+const rowTops=[40,132,224,316],rowNames=['V1','A1','A2','MIX'];
+const rowDescriptions=['TARGET VIDEO','SOURCE AUDIO','TARGET AUDIO','EDITED OUTPUT'];
+let tool='select',snapEnabled=true;
 const trimTime=t=>{const ms=Math.max(0,Math.round(t*1000));return [Math.floor(ms/3600000),Math.floor(ms/60000)%60,Math.floor(ms/1000)%60].map(n=>String(n).padStart(2,'0')).join(':')+'.'+String(ms%1000).padStart(3,'0');};
 const fmt=n=>Number(n).toFixed(3);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -64,8 +66,8 @@ function refresh(){
 }
 function range(){
  const w=canvas.clientWidth||800;
- const scale=(w-116)/Math.max(1,view);
- return {w,scale,left:98,right:w-18};
+ const scale=(w-150)/Math.max(1,view);
+ return {w,scale,left:130,right:w-18};
 }
 const xFor=t=>range().left+(t-scroll)*range().scale;
 const tFor=x=>clamp(scroll+(x-range().left)/range().scale,0,plan.duration);
@@ -121,18 +123,18 @@ function scheduleFineWaveforms(){
 }
 function draw(){
  if(!plan)return;
- const dpr=window.devicePixelRatio||1,w=canvas.clientWidth||800,h=345;
+ const dpr=window.devicePixelRatio||1,w=canvas.clientWidth||800,h=425;
  if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){
   canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
  }
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
  ctx.fillStyle='#101923';ctx.fillRect(0,0,w,h);
  const {scale,left,right}=range();
- for(let row=0;row<3;row++){
+ for(let row=0;row<4;row++){
   const y=rowTops[row];
-  ctx.fillStyle=row===2?'#1e2032':'#182433';ctx.fillRect(left,y,w-left-12,79);
+  ctx.fillStyle=row===3?'#24203a':row===0?'#152a40':'#182433';ctx.fillRect(left,y,w-left-12,79);
   ctx.fillStyle='#9daec1';ctx.font='11px Segoe UI';ctx.fillText(rowNames[row],9,y+16);
-  ctx.font='10px Consolas';ctx.fillText(row===2?'EDITED':'AUDIO',9,y+33);
+  ctx.font='10px Consolas';ctx.fillText(rowDescriptions[row],9,y+33);
   ctx.save();ctx.beginPath();ctx.rect(left,y,w-left-12,79);ctx.clip();
   for(let i=0;i<segments.length;i++){
    const s=segments[i],x=xFor(s.target_start),rightX=xFor(s.target_end);
@@ -145,7 +147,7 @@ function draw(){
    ctx.beginPath();ctx.moveTo(x,y+2);ctx.lineTo(x,y+77);ctx.stroke();
    if(stop-start>38){ctx.fillStyle='#d0e1f0';ctx.font='11px Segoe UI';ctx.fillText('R'+(i+1)+(s.kind==='audio'?' · source':' · target'),start+5,y+16,stop-start-8);}
   }
-  ctx.strokeStyle=row===0?'#69adf1':row===1?'#62c8aa':'#b9a8fa';ctx.lineWidth=1;
+  ctx.strokeStyle=row===1?'#69adf1':row===2?'#62c8aa':'#b9a8fa';ctx.lineWidth=1;
   for(let x=left+2;x<right;x+=3){
    const t=tFor(x),i=locate(t),s=segments[Math.max(0,i)];
    const sourceSec=mapSource(t),targetSec=mapTarget(t);
@@ -160,12 +162,12 @@ function draw(){
  const tick=[1,2,5,10].map(n=>n*step).find(n=>view/n<=12)||step*10;
  ctx.font='10px Consolas';ctx.strokeStyle='#3c4d60';ctx.fillStyle='#b6c1d0';
  for(let t=Math.ceil(scroll/tick)*tick;t<=scroll+view;t+=tick){
-  const x=xFor(t);ctx.beginPath();ctx.moveTo(x,23);ctx.lineTo(x,320);ctx.stroke();
+  const x=xFor(t);ctx.beginPath();ctx.moveTo(x,23);ctx.lineTo(x,407);ctx.stroke();
   ctx.fillText(trimTime(t),x+2,17);
  }
  const px=xFor(playhead);
  ctx.strokeStyle='#ffcf72';ctx.lineWidth=2;
- ctx.beginPath();ctx.moveTo(px,22);ctx.lineTo(px,326);ctx.stroke();
+ ctx.beginPath();ctx.moveTo(px,22);ctx.lineTo(px,409);ctx.stroke();
  ctx.fillStyle='#ffcf72';ctx.beginPath();ctx.moveTo(px-6,20);ctx.lineTo(px+6,20);ctx.lineTo(px,29);ctx.fill();
 }
 function updateClock(){ $('clock').textContent=trimTime(playhead);$('source-time').textContent=mapSource(playhead)==null?'Unmatched':trimTime(mapSource(playhead));$('target-time').textContent=trimTime(mapTarget(playhead)); }
