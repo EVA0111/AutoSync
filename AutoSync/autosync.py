@@ -215,8 +215,12 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
         cursor=end
     if not np.isfinite(plan['duration']) or abs(cursor-plan['duration'])>.0001:raise RuntimeError('Plan does not cover its declared duration.')
     audio=plan['audio'];stream=int(plan['audio_stream']);ref=plan.get('reference');refstream=int(plan.get('reference_stream',0))
-    if any(s['kind']=='reference' for s in plan['segments']) and not ref:
-        raise RuntimeError('The target contains a section with no usable source audio. No silence or repeated source audio was written. Enable --reference-fallback to use the target soundtrack there (possibly another language), or inspect the reported interval.')
+    references=[section for section in plan['segments'] if section['kind']=='reference']
+    if references and (not ref or (not reference_fallback and
+                       any(not section.get('verified_insert',False) for section in references))):
+        raise RuntimeError('The target contains a section with no usable source audio. No silence or repeated source audio was written. '
+                           'Only picture-verified target-only inserts automatically use target audio. '
+                           'For other unmatched regions, enable --reference-fallback or inspect the reported interval.')
     if any(s['kind']=='verified_gap' for s in plan['segments']) and not ref:raise RuntimeError('Verified pause requires reference audio.')
     streams=audio_streams(audio);ch=int(streams[stream]['channels']);layout=streams[stream].get('channel_layout') or {1:'mono',2:'stereo',6:'5.1'}.get(ch)
     if not layout:raise RuntimeError('Unknown channel layout.')
