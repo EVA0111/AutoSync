@@ -66,7 +66,7 @@ def publish(source,root,name):
 def run_managed(request,runner):
     output=folder(request.get('output_dir'),'outputs')
     reports=folder(request.get('reports_dir'),'reports') if request.get('save_reports') else None
-    if reports and (output==reports or output in reports.parents or reports in output.parents):raise ValueError('Choose separate, non-nested output and report folders.')
+    if reports and (output==reports or reports in output.parents):raise ValueError('Outputs cannot be saved inside the reports folder. Choose another output folder.')
     jobs=flatten(request.get('jobs',[]))
     # Analysis-only runs still publish their plan to the chosen output folder.
     output.mkdir(parents=True,exist_ok=True)
