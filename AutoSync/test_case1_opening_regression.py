@@ -56,6 +56,12 @@ class OpeningCutRegression(unittest.TestCase):
         self.assertAlmostEqual(result['duration'], 24.2)
         self.assertEqual(len(result['video_edits']['removed']), 1)
 
+    def test_inconclusive_opening_cannot_be_dropped_if_target_audio_missing(self):
+        plan = dict(self.plan)
+        plan['reference'] = 'separate_audio.wav'
+        with self.assertRaisesRegex(ValueError, 'cannot be safely removed'):
+            protect_opening(plan, None, None, 28.)
+
     def test_missing_source_length_preserves_target_audio(self):
         protected = protect_opening(self.plan, self.source, self.target, 4.)
         self.assertEqual(protected['segments'][0]['kind'], 'target_outer')
