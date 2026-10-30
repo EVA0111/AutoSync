@@ -53,6 +53,17 @@ test('dragging an edge trims only that edge, fills with target audio',()=>{
  assert.equal(b.at(-1).kind,'reference');
  assert.equal(b.at(-1).target_end,14);
 });
+test('outward trims extend source clip into adjacent target fallback without ripple',()=>{
+ const left=trimClip(rows,14,2,'start',7);
+ assert.equal(sourceTime(left,7),23);
+ assert.equal(sourceTime(left,8),24);
+ const right=trimClip(rows,14,0,'end',6.5);
+ assert.ok(Math.abs(sourceTime(right,6)-14.6)<1e-7);
+ assert.equal(right.at(-1).target_end,14);
+ validateSegments(left,14);validateSegments(right,14);
+ assert.throws(()=>trimClip([{kind:'audio',target_start:0,target_end:2,source_start:0,speed:1},
+ {kind:'reference',target_start:2,target_end:4}],4,1,'start',-1),/Put|Invalid|source/);
+});
 test('razor split preserves sample mapping and duration',()=>{
  const cut=splitClip(rows,14,0,2.5);
  assert.equal(cut.length,4);
