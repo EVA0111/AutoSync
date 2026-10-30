@@ -163,7 +163,8 @@ def _audio_vectors(file, stream, progress):
         pcm = Path(temp) / "mono.f32"
         vc.run([vc.binary("ffmpeg"), "-v", "error", "-nostdin", "-y", "-i", str(file),
                 "-map", f"0:a:{int(stream)}", "-ac", "1", "-ar", "16000", "-f", "f32le", str(pcm)])
-        audio = np.memmap(pcm, dtype="<f4", mode="r")
+        # Read into RAM so the FFmpeg scratch file can close on Windows.
+        audio = np.fromfile(pcm, dtype="<f4")
         duration = len(audio) / 16000.
         times = np.arange(4., duration - 4., AUDIO_HOP, dtype=np.float32)
         if len(times) == 0:
@@ -206,7 +207,7 @@ def _image_vectors(file, progress):
         vc.run([vc.binary("ffmpeg"), "-v", "error", "-nostdin", "-y", "-i", str(file),
                 "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", vf, "-fps_mode", "vfr",
                 "-f", "rawvideo", "-pix_fmt", "rgb24", str(raw)])
-        data = np.memmap(raw, dtype=np.uint8, mode="r")
+        data = np.fromfile(raw, dtype=np.uint8)
         count = len(data) // (224 * 224 * 3)
         if count == 0:
             return np.empty(0), np.empty((0, 384), dtype=np.float32)
