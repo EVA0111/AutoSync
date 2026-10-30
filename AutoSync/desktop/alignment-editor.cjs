@@ -7,6 +7,7 @@ const {pathToFileURL}=require('node:url');
 const {randomUUID,createHash}=require('node:crypto');
 const {validateSegments}=require('./alignment-model.cjs');
 const clips=require('./audio-clip-tools.cjs');
+const timelineGestures=require('./timeline-gestures.cjs');
 
 function createAlignmentEditor(root,python){
  let editor=null,project=null,exportChild=null,prepareChild=null,lastPrepared=null;
@@ -211,6 +212,10 @@ function createAlignmentEditor(root,python){
   const rows=validateSegments(payload.segments,project.plan.duration);
   if(op==='copy')return clips.copyClip(rows,payload.index,payload.inPoint??null,payload.outPoint??null);
   if(op==='paste')return clips.pasteClip(rows,project.plan.duration,payload.at,payload.clip);
+  if(op==='move')return timelineGestures.placeClip(rows,project.plan.duration,payload.index,payload.at,{copy:!!payload.copy});
+  if(op==='slip')return timelineGestures.slipClip(rows,project.plan.duration,payload.index,payload.delta);
+  if(op==='edge')return timelineGestures.trimClip(rows,project.plan.duration,payload.index,payload.edge,payload.at);
+  if(op==='razor')return timelineGestures.splitClip(rows,project.plan.duration,payload.index,payload.at);
   if(op==='trim-left'||op==='trim-right')
    return clips.trimTo(rows,project.plan.duration,payload.index,payload.at,op==='trim-left'?'left':'right');
   throw Error('Unknown clip operation.');
