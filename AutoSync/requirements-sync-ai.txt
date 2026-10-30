@@ -1,0 +1,6 @@
+# Optional: installed only when AI-assisted syncing is selected and enabled
+# Trained audio and visual encoders (AST and DINOv2).
+torch>=2.4,<3
+transformers>=4.48,<5
+pillow>=10,<12
+torchaudio>=2.4,<3
