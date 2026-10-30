@@ -268,7 +268,8 @@ function createAlignmentEditor(root,python){
    project.outputPlan=path.join(folder,'plan.json');
    project.exported=false;
   }
-  const value={...project.plan,segments:revised,source_cuts:[],editor_revision:1,editor_origin_plan:project.file};
+  const value={...project.plan,segments:revised,source_cuts:[],editor_revision:2,editor_origin_plan:project.file,
+   ...(timeline?{editor_timeline:timeline}:{})};
   // The previous cut-review annotations describe old boundaries, not the edited timeline.
   value.review=[{start:0,end:Math.min(1,value.duration),confidence:'manual',reason:'User-edited sync plan. Verify output joins.'}];
   await fs.promises.writeFile(project.outputPlan,JSON.stringify(value,null,2)+'\n','utf8');
