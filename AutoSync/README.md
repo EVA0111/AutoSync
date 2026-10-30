@@ -14,7 +14,7 @@ Build the complete application from this source repository using **`build/window
 4. Output is optional: if blank, files go into `AutoSync Outputs` next to the target. Choose any other folder or drive using Browse.
 5. Review flagged sections and joins before using the result.
 
-Settings enables optional reports, advanced options, saved plans, and subtitle AI setup. Reports use a separate folder. Subtitle jobs have their own section with batch pairing and track selection.
+Settings enables optional reports, advanced options, saved plans, and subtitle AI setup. Reports default to `AutoSync Reports` beside `AutoSync.exe`, with a separate folder for each job, including failed jobs. Choose another reports root in Settings if preferred. Open each job's reports directly from the Jobs tab. Subtitle jobs have their own section with batch pairing and track selection.
 
 ## Features
 
