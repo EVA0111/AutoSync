@@ -126,7 +126,7 @@ def run_managed(request,runner):
                 if reports and stage.exists():
                     prefix=f'{run_id}_{index+1:03}_{name}'
                     report_files=[p for p in stage.iterdir() if p.is_file() and p.suffix.lower() in ('.json','.csv','.txt','.log','.npz')]
-                    mapped={str(p):str(reports/(prefix+'.'+p.name)) for p in report_files};mapped.update(path_map)
+                    mapped={str(p):str(reports/(prefix+'.'+p.name)) for p in report_files};mapped.update({k:v for k,v in path_map.items() if k not in mapped})
                     for p in report_files:
                         dest=Path(mapped[str(p)])
                         if p.suffix=='.json':
