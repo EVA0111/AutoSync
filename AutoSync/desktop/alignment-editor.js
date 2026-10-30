@@ -42,6 +42,7 @@ function restore(stack,other){
 function setButtons(){
  $('undo').disabled=!undo.length;$('redo').disabled=!redo.length;
  $('export').disabled=exporting||!saved;
+ if($('paste-clip'))$('paste-clip').disabled=exporting||!clipboard;
  $('save').disabled=exporting;
  $('open-folder').disabled=!saved;
 }
@@ -55,6 +56,8 @@ function refresh(){
  $('region-speed').value=s.kind==='audio'?Number(s.speed).toFixed(6):'';
  $('region-source').disabled=s.kind!=='audio';$('region-speed').disabled=s.kind!=='audio';
  $('join').disabled=selected===0;
+ for(const id of ['copy-clip','cut-clip','mark-in','mark-out','clear-range','trim-left','trim-right'])$(id).disabled=!enabled;
+ $('paste-clip').disabled=!clipboard||exporting;
  $('source-mode').disabled=s.kind==='audio';$('target-mode').disabled=s.kind!=='audio';
  $('split').disabled=playhead<=s.target_start+.05||playhead>=s.target_end-.05;
  draw();
@@ -303,6 +306,7 @@ function offset(delta){
  saveHistory();s.source_start=value;refresh();
 }
 function select(index){
+ if(selected!==index){inMark=null;outMark=null;refreshMarkLabels();}
  selected=clamp(index,0,segments.length-1);refresh();
 }
 function change(){
@@ -423,6 +427,76 @@ function toggleAB(){
  if(playing){pause();play();}
 }
 $('ab-audio').onclick=toggleAB;
+
+function refreshMarkLabels(){
+ const inText=inMark==null?'In —':trimTime(inMark);
+ const outText=outMark==null?'Out —':trimTime(outMark);
+ $('clip-range').textContent=inText+' · '+outText;
+ $('clipboard-status').textContent=clipboard?'Copied '+clipboard.duration.toFixed(3)+' s':'Clipboard empty';
+ $('paste-clip').disabled=!clipboard||exporting;
+}
+function markPoint(side){
+ const seg=current();if(!seg)return;
+ if(playhead<seg.target_start||playhead>seg.target_end){report('Move the playhead inside the selected clip.',true);return;}
+ if(side==='in')inMark=playhead;else outMark=playhead;
+ refreshMarkLabels();
+}
+async function copySelected(){
+ if(exporting)return;
+ const seg=current();if(!seg)return;
+ try{
+  const from=inMark===null?seg.target_start:inMark;
+  const to=outMark===null?seg.target_end:outMark;
+  clipboard=await window.alignment.clipEdit('copy',{segments,index:selected,inPoint:from,outPoint:to});
+  refreshMarkLabels();
+  report('Copied '+clipboard.duration.toFixed(3)+' s. Move playhead and Paste to overwrite only the audio.');
+ }catch(e){report('Copy failed: '+e.message,true);}
+}
+async function pasteSelected(){
+ if(exporting||!clipboard)return;
+ try{
+  const result=await window.alignment.clipEdit('paste',{segments,at:playhead,clip:clipboard});
+  pause();saveHistory();segments=result;
+  selected=clamp(locate(playhead+.001),0,segments.length-1);
+  refresh();setButtons();
+  report('Pasted '+clipboard.duration.toFixed(3)+' s without shifting the video. Undo: Ctrl+Z.');
+ }catch(e){report('Paste failed: '+e.message,true);}
+}
+async function trimSelected(which){
+ if(exporting)return;
+ try{
+  const result=await window.alignment.clipEdit(which==='left'?'trim-left':'trim-right',{
+   segments,index:selected,at:playhead
+  });
+  pause();saveHistory();segments=result;
+  selected=clamp(locate(which==='left'?playhead+.001:playhead-.001),0,segments.length-1);
+  refresh();setButtons();
+  report('Trimmed '+which+' to the playhead. Unused audio switches to the target; video length is unchanged.');
+ }catch(e){report('Trim failed: '+e.message,true);}
+}
+async function cutSelected(){
+ if(exporting)return;
+ const seg=current();if(!seg)return;
+ try{
+  const captured=await window.alignment.clipEdit('copy',{segments,index:selected,
+   inPoint:seg.target_start,outPoint:seg.target_end});
+  const result=await window.alignment.clipEdit('paste',{
+   segments,at:seg.target_start,clip:{kind:'reference',duration:seg.target_end-seg.target_start}
+  });
+  pause();saveHistory();segments=result;clipboard=captured;
+  refreshMarkLabels();refresh();setButtons();
+  report('Cut the audio clip to the clipboard. The vacated range uses target audio (no ripple).');
+ }catch(e){report('Cut failed: '+e.message,true);}
+}
+$('mark-in').onclick=()=>markPoint('in');
+$('mark-out').onclick=()=>markPoint('out');
+$('clear-range').onclick=()=>{inMark=null;outMark=null;refreshMarkLabels();};
+$('copy-clip').onclick=copySelected;
+$('paste-clip').onclick=pasteSelected;
+$('cut-clip').onclick=cutSelected;
+$('trim-left').onclick=()=>trimSelected('left');
+$('trim-right').onclick=()=>trimSelected('right');
+
 $('nudge-left').onclick=()=>offset(-.04);$('nudge-right').onclick=()=>offset(.04);
 $('undo').onclick=()=>restore(undo,redo);$('redo').onclick=()=>restore(redo,undo);
 $('apply').onclick=change;$('split').onclick=split;$('join').onclick=join;
@@ -447,6 +521,14 @@ window.alignment.onEvent(({kind,payload})=>{
 window.addEventListener('keydown',e=>{
  if(e.target.matches('input,select,textarea'))return;
  if(e.code==='Space'){e.preventDefault();play();}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){e.preventDefault();copySelected();}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'){e.preventDefault();pasteSelected();}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='x'){e.preventDefault();cutSelected();}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='s'){e.preventDefault();split();}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='i'){e.preventDefault();markPoint('in');}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='o'){e.preventDefault();markPoint('out');}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='q'){e.preventDefault();trimSelected('left');}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='w'){e.preventDefault();trimSelected('right');}
  if(e.key.toLowerCase()==='j'){e.preventDefault();jumpReview(-1);}
  if(e.key.toLowerCase()==='l'){e.preventDefault();jumpReview(1);}
  if(e.key.toLowerCase()==='a'){e.preventDefault();toggleAB();}
@@ -464,6 +546,7 @@ window.addEventListener('resize',draw);
   $('review-count').textContent=reviewTimes().length+' joins / review points';
   if(!segments.length)throw Error('No editable regions in the selected plan.');
   setupVideos(data.media);
+  refreshMarkLabels();
   resetZoom();select(0);movePlayhead(0);setButtons();
   report('Loading source and target audio waveforms…');
   const results=await Promise.allSettled(['source','target'].map(x=>window.alignment.waveform(x)));
