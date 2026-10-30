@@ -510,6 +510,7 @@ def index_files(paths):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--version',action='version',version='AutoSync v1.2.0')
     for name in ['source','target','audio','reference']:p.add_argument('--'+name,default='')
     p.add_argument('--out',default='AutoSync_output')
     modes=p.add_mutually_exclusive_group()
