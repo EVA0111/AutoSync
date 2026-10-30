@@ -14,7 +14,7 @@ def main():
   if args.sync_ai:
    print('Installing optional AI-assisted sync dependencies. The package download may be large.',flush=True)
    subprocess.run([str(bundled),'-m','pip','install','--upgrade','--target',
-       str(bundled.parent/'Lib/site-packages'),'-r',str(root/'requirements-sync-ai.txt')],check=True)
+       str(bundled.parent/'ai-sync-packages'),'-r',str(root/'requirements-sync-ai.txt')],check=True)
    print('AI Sync setup complete. Pretrained AST and DINOv2 weights download on first analysis.',flush=True)
   elif args.ai:
    subprocess.run([str(bundled),'-m','pip','install','--upgrade','--target',
