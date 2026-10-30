@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('alignment',{
  nleFind:(project,id)=>nle.findClip(project,id),
  nleSnap:(project,t,opts)=>nle.snap(project,t,opts),
  audio:(track,start,length,speed)=>ipcRenderer.invoke('align-audio',track,start,length,speed),
- save:segments=>ipcRenderer.invoke('align-save',segments),
+ save:(segments,timeline)=>ipcRenderer.invoke('align-save',segments,timeline),
  export:()=>ipcRenderer.invoke('align-export'),
  openFolder:()=>ipcRenderer.invoke('align-open-folder'),
  onEvent:callback=>{const handler=(_,data)=>callback(data);ipcRenderer.on('alignment-event',handler);return()=>ipcRenderer.removeListener('alignment-event',handler);}
