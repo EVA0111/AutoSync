@@ -5,3 +5,10 @@ body{display:block;padding:0}main{margin:0 auto;width:100%;max-width:1500px;padd
 @media(max-width:760px){.batch-columns{grid-template-columns:1fr}.topbar{flex-wrap:wrap}.mode-bar{flex-wrap:wrap}.advanced-grid,#audio-tracks .advanced-grid{grid-template-columns:1fr}.field{grid-template-columns:1fr 80px}.field label{grid-column:1/-1}.section-heading{flex-wrap:wrap}}
 .list-scroll{height:180px}.empty-list{font-size:12px}#audio-tracks{padding:12px 16px}#destination-panel{padding:14px 16px}#destination-panel .field{margin-bottom:0}#range-status:empty{display:none}.topbar .brand{direction:ltr}.jobs-scroll:has(tbody:empty){display:none}
 .topbar .brand{margin-left:0;margin-right:auto}.result-badge.failed{color:#ffb4aa;border-color:#9b5a53;background:#432822}
+
+/* Editor launch shares the compact run footer without covering the Start button. */
+.run{grid-template-columns:auto minmax(0,1fr) auto auto auto}
+.run #stop{grid-column:3;grid-row:2}
+.run #alignment-editor-open{grid-column:4;grid-row:2}
+.run #start{grid-column:5;grid-row:2}
+@media(max-width:950px){.run{grid-template-columns:auto minmax(0,1fr) auto auto}.run #stop{grid-column:3}.run #alignment-editor-open{grid-column:3;grid-row:3}.run #start{grid-column:4;grid-row:2}}

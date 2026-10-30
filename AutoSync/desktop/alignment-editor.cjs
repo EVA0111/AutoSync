@@ -5,6 +5,7 @@ const path=require('node:path');
 const {execFile,spawn}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
 const {randomUUID}=require('node:crypto');
+const {validateSegments}=require('./alignment-model.cjs');
 
 function createAlignmentEditor(root,python){
  let editor=null,project=null,exportChild=null;
@@ -37,27 +38,6 @@ function createAlignmentEditor(root,python){
   const target=p.target_video||p.reference;
   return {source:source&&fs.existsSync(source)?pathToFileURL(source).href:null,target:target&&fs.existsSync(target)?pathToFileURL(target).href:null};
  }
- function validate(segments){
-  const duration=Number(project.plan.duration);
-  if(!Array.isArray(segments)||!segments.length||segments.length>5000)throw Error('Invalid edited segments.');
-  let previous=0;
-  const validated=segments.map((row,i)=>{
-   if(!row||typeof row!=='object')throw Error('Invalid region '+(i+1));
-   const start=Number(row.target_start),end=Number(row.target_end);
-   if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start+1e-5||Math.abs(previous-start)>1e-3||end>duration+.001)throw Error('Regions must be contiguous, positive and inside the timeline (region '+(i+1)+').');
-   previous=end;
-   const kind=row.kind;
-   if(!['audio','reference','target_outer','verified_gap'].includes(kind))throw Error('Invalid region kind '+kind);
-   if(kind==='audio'){
-    const ss=Number(row.source_start),sp=Number(row.speed);
-    if(!Number.isFinite(ss)||ss<0||!Number.isFinite(sp)||sp<.5||sp>2)throw Error('Invalid source start or speed for region '+(i+1));
-    return {...row,target_start:start,target_end:end,source_start:ss,speed:sp};
-   }
-   return {...row,target_start:start,target_end:end};
-  });
-  if(Math.abs(previous-duration)>.001)throw Error('Regions must cover the entire output duration.');
-  return validated;
- }
  function send(kind,payload){
   if(editor&&!editor.isDestroyed())editor.webContents.send('alignment-event',{kind,payload});
  }
@@ -70,7 +50,7 @@ function createAlignmentEditor(root,python){
   if(!value||!Array.isArray(value.segments)||!Number.isFinite(Number(value.duration))||!value.audio)throw Error('Select a valid AutoSync plan.json file.');
   if(!fs.existsSync(value.audio))throw Error('The original source audio file is missing: '+value.audio);
   if(!fs.existsSync(value.reference||value.target_video))throw Error('The original target file is missing. Open a plan with valid media paths.');
-  project={file,plan:value,outputPlan:null,exporting:false};
+  project={file,plan:value,outputPlan:null,exporting:false,exported:false};
   editor=new BrowserWindow({parent,width:1450,height:920,minWidth:950,minHeight:690,backgroundColor:'#11151d',title:'AutoSync · Preview & Edit',show:false,webPreferences:{preload:path.join(__dirname,'alignment-editor-preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
   editor.removeMenu();
   editor.loadFile(html);
@@ -103,6 +83,24 @@ function createAlignmentEditor(root,python){
   const max=Math.max(.0001,...peaks);
   return {peaks:peaks.map(x=>Math.min(1,x/max)),duration:count/200};
  });
+
+ ipcMain.handle('align-waveform-range',async(e,track,start,end)=>{
+  trusted(e);
+  const {file,stream}=trackInfo(track);
+  const from=assertTime(start),to=assertTime(end);
+  if(to<=from||to-from>120)throw Error('Waveform range must be between 0 and 120 seconds.');
+  const data=await run('ffmpeg',['-v','error','-nostdin','-ss',String(from),'-t',String(to-from),'-i',file,'-map','0:a:'+stream,'-ac','1','-ar','2000','-f','f32le','pipe:1'],8*1024*1024);
+  const count=Math.floor(data.length/4),step=Math.max(1,Math.ceil(count/6000)),peaks=[];
+  for(let i=0;i<count;i+=step){
+   let max=0;
+   for(let j=i;j<Math.min(count,i+step);j++){
+    const x=data.readFloatLE(j*4);
+    if(Number.isFinite(x))max=Math.max(max,Math.abs(x));
+   }
+   peaks.push(Math.min(1,max));
+  }
+  return {start:from,duration:count/2000,peaks};
+ });
  ipcMain.handle('align-frame',async(e,track,time)=>{
   trusted(e);
   if(!['source','target'].includes(track))throw Error('Invalid preview track.');
@@ -124,14 +122,15 @@ function createAlignmentEditor(root,python){
  ipcMain.handle('align-save',async(e,segments)=>{
   trusted(e);
   if(project.exporting)throw Error('Cannot save while export is running.');
-  const revised=validate(segments);
+  const revised=validateSegments(segments,project.plan.duration);
   // Never overwrite the original, unedited alignment or FLAC.
-  if(!project.outputPlan){
+  if(!project.outputPlan||project.exported){
    const pick=await dialog.showOpenDialog(editor,{title:'Choose where to save the corrected sync',properties:['openDirectory','createDirectory']});
    if(pick.canceled)return null;
    const folder=path.join(pick.filePaths[0],'AutoSync_Edited_'+new Date().toISOString().replace(/[:.]/g,'-')+'_'+randomUUID().slice(0,6));
    await fs.promises.mkdir(folder,{recursive:false});
    project.outputPlan=path.join(folder,'plan.json');
+   project.exported=false;
   }
   const value={...project.plan,segments:revised,source_cuts:[],editor_revision:1,editor_origin_plan:project.file};
   // The previous cut-review annotations describe old boundaries, not the edited timeline.
@@ -152,7 +151,7 @@ function createAlignmentEditor(root,python){
    child.stdout.on('data',x=>{const s=x.toString();tail=(tail+s).slice(-2000);send('export-log',s);});
    child.stderr.on('data',x=>{const s=x.toString();tail=(tail+s).slice(-2000);send('export-log',s);});
    child.on('error',e=>{tail+='\n'+e.message;});
-   child.on('close',code=>{exportChild=null;if(project)project.exporting=false;send('export-done',{code,folder:path.dirname(project?.outputPlan||''),log:tail});resolve({code,folder:path.dirname(project?.outputPlan||'')});});
+   child.on('close',code=>{exportChild=null;if(project){project.exporting=false;if(code===0)project.exported=true;}send('export-done',{code,folder:path.dirname(project?.outputPlan||''),log:tail});resolve({code,folder:path.dirname(project?.outputPlan||'')});});
   });
  });
  ipcMain.handle('align-open-folder',async e=>{
