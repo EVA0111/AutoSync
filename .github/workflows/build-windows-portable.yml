@@ -6,6 +6,10 @@ on:
       - feature/windows-portable-preview-build
   workflow_dispatch:
 
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
+
 permissions:
   contents: read
 
@@ -26,6 +30,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - name: Provision FFmpeg for regression tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ffmpegZip = Join-Path $env:RUNNER_TEMP 'ffmpeg-essentials.zip'
+          $ffmpegUnpacked = Join-Path $env:RUNNER_TEMP 'autosync-ffmpeg'
+          Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile $ffmpegZip
+          Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegUnpacked -Force
+          $found = Get-ChildItem -Path $ffmpegUnpacked -Recurse -File -Filter 'ffmpeg.exe' | Select-Object -First 1
+          if (-not $found) { throw 'FFmpeg download did not include ffmpeg.exe' }
+          Add-Content -Path $env:GITHUB_PATH -Value $found.DirectoryName
 
       - name: Run Python regression tests
         shell: pwsh
@@ -72,10 +88,7 @@ jobs:
           & (Join-Path $pythonRoot 'python.exe') -c 'import numpy, scipy; print("Bundled Python OK:", numpy.__version__, scipy.__version__)'
           if ($LASTEXITCODE -ne 0) { throw 'Bundled Python import smoke test failed.' }
 
-          $ffmpegZip = Join-Path $env:RUNNER_TEMP 'ffmpeg-essentials.zip'
           $ffmpegUnpacked = Join-Path $env:RUNNER_TEMP 'autosync-ffmpeg'
-          Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile $ffmpegZip
-          Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegUnpacked -Force
           foreach ($name in @('ffmpeg.exe', 'ffprobe.exe')) {
             $found = Get-ChildItem -Path $ffmpegUnpacked -Recurse -File -Filter $name | Select-Object -First 1
             if (-not $found) { throw "Missing $name from FFmpeg archive." }
