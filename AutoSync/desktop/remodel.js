@@ -50,7 +50,7 @@ async function addInlineTrack(row,side,file){
  const select=document.createElement('select');select.className='inline-track';select.setAttribute('aria-label',side==='source'?'Source audio track':'Target reference audio');select.add(new Option('Detecting tracks…','0'));select.disabled=true;row.append(select);select.onclick=e=>e.stopPropagation();select.onkeydown=e=>e.stopPropagation();
  const role=side==='source'?'audio_stream':'reference_stream',key=role+'|'+file;
  try{const tracks=(await mediaTracks(file)).filter(t=>t.type==='audio');if(!row.isConnected)return;select.replaceChildren();if(!tracks.length)select.add(new Option('No audio tracks found','0'));for(const t of tracks)select.add(new Option(`Track ${t.index+1} · ${t.language||t.codec}${t.title?' · '+t.title:''}`,String(t.index)));select.value=trackChoices.get(key)||'0';select.disabled=running||!tracks.length;}catch{select.replaceChildren(new Option('Cannot detect tracks — see activity','0'));}
- select.onchange=()=>{trackChoices.set(key,select.value);$('pairs_reviewed').checked=false;refreshTracks();};
+ select.onchange=()=>{trackChoices.set(key,select.value);refreshTracks();};
 }
 // Reflect the selected-pair editors in file-row controls as well.
 for(const id of ['audio_stream','reference_stream'])$(id).addEventListener('change',()=>{const side=id==='audio_stream'?'source':'target',i=selectedIndex>=0?selectedIndex:0;const select=$(side+'-list').children[i]?.querySelector('.inline-track');if(select)select.value=$(id).value;});
