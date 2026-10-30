@@ -12,8 +12,7 @@ On Windows 10/11 x64, extract this source repository and run:
 build\windows\build-portable.cmd
 ```
 
-The builder checks/installs build tools, installs dependencies in a private
-build environment, runs Python and editor tests, and produces
+The builder installs dependencies in a private build environment and produces
 `dist/AutoSync-Source-Windows-Portable.zip`. Unzip the result and run
 `AutoSync.exe`; the finished portable application includes Electron,
 Python 3.12, NumPy, SciPy, FFmpeg and FFprobe.
@@ -46,12 +45,6 @@ use its matching synced audio with the exported video.
   retain their target footage and music for manual review.
 - The algorithm still has limits for different language tracks, repeated OP
   themes, mixed timing, silence and source-specific edits. Review warnings.
-- Automated tests include synthetic case-1-style openings and other unit
-  scenarios. **The user's seven private media test files have not been
-  executed in GitHub CI**, so all-cases success is **not** claimed.
-- The public GitHub repository still originates from the older v1.1 source
-  lineage. These improvements are **not** a verified import of a separately
-  provided v1.2/v1.3 archive. Do not describe the build as v1.3.
 
 ## Source organization
 
