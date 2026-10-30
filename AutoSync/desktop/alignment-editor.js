@@ -5,6 +5,7 @@ let plan=null,segments=[],waves={source:null,target:null},selected=0,playhead=0,
 let undo=[],redo=[],playing=false,playToken=0,frameToken=0,drag=null,saved=false,exporting=false,loop=false;
 let wavesFine={source:null,target:null},waveGeneration=0,waveTimer=null;
 let clipboard=null,inMark=null,outMark=null;
+let nleUI=null,nleApplying=false,nleRebuild=false;
 const canvas=$('timeline'),ctx=canvas.getContext('2d'),audio=$('audio-player');
 const videos={source:$('source-video'),target:$('target-video')};
 const videoStatus={source:'pending',target:'pending'},videoLastSync={source:0,target:0};
@@ -32,21 +33,23 @@ function mapTarget(t){
  return t;
 }
 function saveHistory(){
+ nleRebuild=true;
  undo.push(clone(segments));if(undo.length>100)undo.shift();redo=[];saved=false;setButtons();
 }
 function restore(stack,other){
  if(!stack.length)return;
- other.push(clone(segments));segments=stack.pop();selected=clamp(selected,0,segments.length-1);
+ other.push(clone(segments));segments=stack.pop();nleRebuild=true;selected=clamp(selected,0,segments.length-1);
  refresh();saved=false;setButtons();
 }
 function setButtons(){
- $('undo').disabled=!undo.length;$('redo').disabled=!redo.length;
+ $('undo').disabled=!undo.length&&!nleUI?.canUndo();$('redo').disabled=!redo.length&&!nleUI?.canRedo();
  $('export').disabled=exporting||!saved;
  if($('paste-clip'))$('paste-clip').disabled=exporting||!clipboard;
  $('save').disabled=exporting;
  $('open-folder').disabled=!saved;
 }
 function refresh(){
+ if(nleRebuild&&nleUI&&!nleApplying){nleUI.reset({...plan,segments});nleRebuild=false;}
  const s=current(),enabled=!!s;
  $('selection-summary').textContent=enabled?'Region '+(selected+1)+' / '+segments.length+' · '+(s.kind==='audio'?'Source audio':'Target / unfilled section'):'No region selected.';
  for(const id of ['region-start','region-end','region-source','region-speed','apply','split','join','source-mode','target-mode','nudge-left','nudge-right'])$(id).disabled=!enabled;
@@ -167,6 +170,7 @@ function draw(){
  ctx.strokeStyle='#ffcf72';ctx.lineWidth=2;
  ctx.beginPath();ctx.moveTo(px,22);ctx.lineTo(px,326);ctx.stroke();
  ctx.fillStyle='#ffcf72';ctx.beginPath();ctx.moveTo(px-6,20);ctx.lineTo(px+6,20);ctx.lineTo(px,29);ctx.fill();
+ if(nleUI)nleUI.draw();
 }
 function updateClock(){ $('clock').textContent=trimTime(playhead);$('source-time').textContent=mapSource(playhead)==null?'Unmatched':trimTime(mapSource(playhead));$('target-time').textContent=trimTime(mapTarget(playhead)); }
 // Chromium video decoding runs continuously. FFmpeg still-image extraction is
@@ -529,12 +533,13 @@ $('trim-left').onclick=()=>trimSelected('left');
 $('trim-right').onclick=()=>trimSelected('right');
 
 $('nudge-left').onclick=()=>offset(-.04);$('nudge-right').onclick=()=>offset(.04);
-$('undo').onclick=()=>restore(undo,redo);$('redo').onclick=()=>restore(redo,undo);
+$('undo').onclick=()=>nleUI?.canUndo()?nleUI.undo():restore(undo,redo);
+$('redo').onclick=()=>nleUI?.canRedo()?nleUI.redo():restore(redo,undo);
 $('apply').onclick=change;$('split').onclick=split;$('join').onclick=join;
 $('source-mode').onclick=()=>mode('audio');$('target-mode').onclick=()=>mode('reference');
 $('save').onclick=async()=>{
  pause();
- try{const location=await window.alignment.save(segments);if(!location){report('Save cancelled.');return;}
+ try{const location=await window.alignment.save(segments,nleUI?.project||null);if(!location){report('Save cancelled.');return;}
   saved=true;setButtons();report('Edited project saved: '+location+'. The corrected output will be exported to that folder.');
  }catch(e){report('Save failed: '+e.message,true);}
 };
@@ -552,6 +557,21 @@ window.alignment.onEvent(({kind,payload})=>{
 window.addEventListener('keydown',e=>{
  if(e.target.matches('input,select,textarea'))return;
  if(e.code==='Space'){e.preventDefault();play();}
+ if(nleUI){
+  const k=e.key.toLowerCase(),mod=e.ctrlKey||e.metaKey;
+  if(mod&&k==='c'&&nleUI.hasSelection()){e.preventDefault();nleUI.copy();return;}
+  if(mod&&k==='v'&&nleUI.hasSelection()){e.preventDefault();nleUI.paste(false);return;}
+  if(mod&&k==='x'&&nleUI.hasSelection()){e.preventDefault();nleUI.copy();nleUI.lift();return;}
+  if(mod&&k==='z'&&nleUI.canUndo()){e.preventDefault();nleUI.undo();return;}
+  if(mod&&k==='y'&&nleUI.canRedo()){e.preventDefault();nleUI.redo();return;}
+  if(e.key==='Delete'&&nleUI.hasSelection()){e.preventDefault();nleUI.lift();return;}
+  if(!mod&&k==='b'){e.preventDefault();nleUI.chooseTool('razor');return;}
+  if(!mod&&k==='v'){e.preventDefault();nleUI.chooseTool('select');return;}
+  if(!mod&&k==='n'){e.preventDefault();$('nle-snap').click();return;}
+  if(!mod&&k==='s'&&nleUI.hasSelection()){e.preventDefault();nleUI.razor();return;}
+  if(!mod&&k==='q'&&nleUI.hasSelection()){e.preventDefault();nleUI.trim('in');return;}
+  if(!mod&&k==='w'&&nleUI.hasSelection()){e.preventDefault();nleUI.trim('out');return;}
+ }
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){e.preventDefault();copySelected();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'){e.preventDefault();pasteSelected();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='x'){e.preventDefault();cutSelected();}
@@ -577,6 +597,19 @@ window.addEventListener('resize',draw);
   $('review-count').textContent=reviewTimes().length+' joins / review points';
   if(!segments.length)throw Error('No editable regions in the selected plan.');
   setupVideos(data.media);
+  nleUI=window.createNleEditor({
+   getPlan:()=>plan,getView:()=>view,getScroll:()=>scroll,getPlayhead:()=>playhead,
+   movePlayhead:t=>{pause();movePlayhead(t);},
+   waveSample,mapTarget,report,isExporting:()=>exporting,
+   onChange:(flattened,message)=>{
+    pause();nleApplying=true;
+    try{
+     segments=flattened;selected=clamp(locate(Math.max(0,playhead-.001)),0,segments.length-1);
+     saved=false;refresh();setButtons();updateFrames();
+    }finally{nleApplying=false;}
+    if(message)report(message);
+   }
+  });
   refreshMarkLabels();
   resetZoom();select(0);movePlayhead(0);setButtons();
   report('Loading source and target audio waveforms…');
