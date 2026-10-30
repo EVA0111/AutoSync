@@ -1,5 +1,6 @@
 'use strict';
 const {contextBridge,ipcRenderer}=require('electron');
+const nle=require('./nle-project.cjs');
 contextBridge.exposeInMainWorld('alignment',{
  getPlan:()=>ipcRenderer.invoke('align-get-plan'),
  waveform:track=>ipcRenderer.invoke('align-waveform',track),
