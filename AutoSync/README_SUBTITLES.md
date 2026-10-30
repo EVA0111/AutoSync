@@ -1,4 +1,4 @@
-# Subtitle sync — AutoSync v1.1.0
+# Subtitle sync — AutoSync v1.2.0
 
 Open `AutoSync.exe`, enable **Subtitles** in **Sync jobs**, choose a timing reference and add one file or many to the lists. Choose the global Output folder before starting. Enable advanced subtitle options and optional report saving in Settings. The same lists handle one episode or multiple episodes.
 
