@@ -184,7 +184,7 @@ def locate_target_insert(left,right,source_video,target_video,source_energy,dela
     lo=max(0.,left['last']-4);hi=right['first']+4
     if hi-lo>180 or abs(left['speed']-right['speed'])>.001:return None
     missing=(left['offset']-right['offset'])/left['speed']
-    if not .3<missing<15:return None
+    if not .3<missing<35:return None  # Different-edition midroll cards may be longer than a short black pause.
     q,qd=frames(target_video,lo,hi-lo,crop=target_crop,with_dark=True)
     scores=[]
     for m in (left,right):
