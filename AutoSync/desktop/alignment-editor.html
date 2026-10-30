@@ -6,6 +6,24 @@
 <main>
 <section class="pictures"><article><div class="heading"><strong>Source video</strong><span id="source-time"></span></div><div class="picture"><video id="source-video" muted playsinline preload="metadata" hidden aria-label="Source video playback"></video><img id="source-frame" alt="Source frame"><span id="source-wait">Loading source video…</span></div></article><article><div class="heading"><strong>Target video</strong><span id="target-time"></span></div><div class="picture"><video id="target-video" muted playsinline preload="metadata" hidden aria-label="Target video playback"></video><img id="target-frame" alt="Target frame"><span id="target-wait">Loading target video…</span></div></article></section>
 <section class="transport"><button id="back" title="Back one frame">◀|</button><button id="play" class="primary" title="Space">▶ Play</button><button id="forward" title="Forward one frame">|▶</button><label for="audition">Listen to</label><select id="audition"><option value="output">Edited output</option><option value="source">Source audio</option><option value="target">Target audio</option></select><output id="clock">00:00:00.000</output><span class="grow"></span><button id="loop">Loop selected region: Off</button><label for="zoom">Zoom</label><input id="zoom" type="range" min="0" max="100" value="35"><span id="zoom-label"></span></section>
+<section class="nle-section" aria-label="Clip editing timeline">
+ <div class="nle-toolbar">
+  <strong>Clip timeline</strong>
+  <button id="nle-select" class="tool-active" title="Select and drag clips (V)">↖ Select (V)</button>
+  <button id="nle-razor" title="Click a clip to cut at playhead (B)">✂ Razor (B)</button>
+  <button id="nle-snap" class="tool-active" title="Snap clip edges to cuts, other clips and playhead (N)">Snap: On (N)</button>
+  <span class="nle-separator"></span>
+  <button id="nle-copy" title="Copy selected clip (Ctrl+C)">Copy</button>
+  <button id="nle-paste" title="Paste copied clip on selected track (Ctrl+V)">Paste</button>
+  <button id="nle-overwrite" title="Overwrite existing clips at playhead">Overwrite</button>
+  <button id="nle-delete" title="Lift selected clip without moving other clips (Delete)">Lift / Delete</button>
+  <span id="nle-selection-info" role="status">Choose a clip to move, trim or split</span>
+ </div>
+ <canvas id="nle-timeline" tabindex="0" height="416"
+   aria-label="Video reference and three editable audio tracks. Drag clips and edges, razor split, mute solo or lock tracks."></canvas>
+ <div class="nle-hint">V1 video reference is locked. A1 is synchronized source audio; A2 is target audio; A3 is an extra audio lane. Drag the clip body to move, drag either edge to trim, or use Razor to split. Use M/S/L in each track header to mute, solo or lock. The highest active audio lane determines the output; overlapping clips are not mixed.</div>
+</section>
+<details class="legacy-detail"><summary>Advanced alignment map and precise source offsets</summary>
 <section class="review-toolbar" aria-label="Quick alignment review">
   <button id="jump-opening" title="Return to the start of the episode">Opening</button>
   <button id="previous-issue" title="Jump to previous uncertain join · shortcut J">◀ Previous issue</button>
@@ -18,6 +36,7 @@
 <section class="timeline-section"><div class="timeline-label"><strong>Audio alignment timeline</strong><small>Drag inside a source region to shift its audio · drag boundaries to change their positions · click to select</small></div>
 <canvas id="timeline" height="345" tabindex="0" aria-label="Three-track source, target and output alignment editor"></canvas><div class="scroll"><label for="scroll">Navigate</label><input id="scroll" type="range" min="0" max="0" value="0" step=".1"></div>
 <div class="key"><span class="source-dot">● Source audio</span><span class="target-dot">● Target audio</span><span class="output-dot">● Edited output</span><span class="warning-dot">● Uncertain region</span></div></section>
+</details>
 <section class="inspector"><div><h2>Selected region</h2><p id="selection-summary">Select a region in the timeline.</p><div class="fields"><label>Output start <input id="region-start" type="number" step=".04" min="0"></label><label>Output end <input id="region-end" type="number" step=".04" min="0"></label><label>Source starts at <input id="region-source" type="number" step=".04" min="0"></label><label>Speed <input id="region-speed" type="number" step=".0001" min=".5" max="2"></label></div><div class="controls"><button id="mark-in" title="Mark audio In at the playhead (I)">Set In (I)</button><button id="mark-out" title="Mark audio Out at the playhead (O)">Set Out (O)</button><button id="clear-range">Clear In/Out</button><span id="clip-range" role="status">Full selected clip</span><span id="clipboard-status" role="status">Clipboard empty</span></div><div class="controls"><button id="apply">Apply values</button><button id="nudge-left">Audio −40 ms</button><button id="nudge-right">Audio +40 ms</button><button id="split" title="Split current region at playhead (S)">Split (S)</button><button id="join">Join with previous</button><button id="copy-clip" title="Copy selected audio clip (Ctrl+C)">Copy clip</button><button id="paste-clip" title="Overwrite audio at playhead using copied clip (Ctrl+V)">Paste at playhead</button><button id="cut-clip" title="Copy and replace region with target audio (Ctrl+X)">Cut clip</button><button id="trim-left" title="Trim start to playhead, fill with target audio (Q)">Trim start (Q)</button><button id="trim-right" title="Trim end to playhead, fill with target audio (W)">Trim end (W)</button><button id="source-mode">Use source audio</button><button id="target-mode">Use target audio</button></div></div>
 <div class="review"><h2>Review & playback</h2><p>Click an issue to inspect the splice, press J/L for the previous/next flagged point, A to switch output/target audio, and Space to play or pause. Editing is non-destructive until export. Copy/paste overwrites audio without shifting video. Unsupported video formats can create a one-time low-resolution proxy for smooth playback.</p><p id="editor-status" role="status">Ready.</p><div class="controls"><button id="open-folder">Open edited output folder</button></div><pre id="export-log" aria-live="polite"></pre></div></section></main>
 <audio id="audio-player" preload="auto"></audio>
