@@ -144,11 +144,20 @@ function flatSegments(project){
  for(const track of active)for(const c of track.clips)points.push(c.start,c.end);
  points.sort((a,b)=>a-b);
  const bounds=points.filter((x,i)=>i===0||x-points[i-1]>EPS),rows=[];
+ // Sweep a cursor forward through each sorted track instead of re-scanning
+ // every clip for every output boundary (critical during real-time playback).
+ const cursors=new Map(active.map(t=>[t.id,0]));
  for(let i=0;i<bounds.length-1;i++){
   const start=bounds[i],end=bounds[i+1];
   if(end-start<EPS)continue;
   let chosen;
-  for(const t of active){chosen=t.clips.find(c=>c.start<=start+EPS&&c.end>=end-EPS);if(chosen)break;}
+  for(const t of active){
+   let j=cursors.get(t.id);
+   while(j<t.clips.length&&t.clips[j].end<=start+EPS)j++;
+   cursors.set(t.id,j);
+   const clip=t.clips[j];
+   if(clip&&clip.start<=start+EPS&&clip.end>=end-EPS){chosen=clip;break;}
+  }
   const row={kind:chosen?.kind||'verified_gap',target_start:start,target_end:end};
   if(row.kind==='audio'){row.source_start=chosen.sourceStart+(start-chosen.start)*chosen.speed;row.speed=chosen.speed;}
   const prev=rows.at(-1);
