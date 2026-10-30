@@ -27,6 +27,18 @@ app.whenReady().then(()=>{
   if(!request||typeof request!=='object'||JSON.stringify(request).length>100000)throw Error('Invalid Preview & Edit request.');
   if(request.plan)return alignmentEditor.open(win,request.plan);
   if(!request.job&&lastPlan&&fs.existsSync(lastPlan))return alignmentEditor.open(win,lastPlan);
+  // Reuse an already-completed analysis for this media pair.
+  if(request.job&&lastPlan&&fs.existsSync(lastPlan)){
+   try{
+    const previous=JSON.parse(await fs.promises.readFile(lastPlan,'utf8'));
+    const values=request.job.values||{};
+    const same=(a,b)=>typeof a==='string'&&typeof b==='string'&&path.resolve(a)===path.resolve(b);
+    if(same(previous.source_video,values.source)&&same(previous.target_video,values.target)&&
+       same(previous.audio,values.audio)&&same(previous.reference,values.reference)){
+     return alignmentEditor.open(win,lastPlan);
+    }
+   }catch(err){send('log','Could not reuse alignment: '+err.message+'\n');}
+  }
   if(request.job)return alignmentEditor.analyzeAndOpen(win,request.job,request.outputDirectory,message=>send('alignment-log',message));
   return alignmentEditor.open(win);
  });
