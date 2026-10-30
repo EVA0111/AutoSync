@@ -437,7 +437,8 @@ def _run_job(job,args):
         plan=manual_ranges.apply(plan,source_bounds,original_anchors)
         segments=plan['segments'];review=plan['review']
     if getattr(args,'remove_unmatched_video',False):
-        from video_edits import remove_missing,map_anchors
+        from video_edits import remove_missing,map_anchors,protect_opening
+        plan=protect_opening(plan,sf,ref,sl)
         plan=remove_missing(plan);anchors=map_anchors(anchors,plan)
         segments=plan['segments'];review=plan['review']
         (out/'video_edits.json').write_text(json.dumps(plan['video_edits'],indent=2),encoding='utf-8')
