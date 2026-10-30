@@ -128,7 +128,8 @@ $('alignment-editor-open').onclick=async()=>{
    // When nothing is selected, show the standard existing-plan picker.
   }
   $('status').textContent=request.job?'Analyzing the selected pair for Preview & Edit…':'Opening Preview & Edit…';
-  await window.autosync.openAlignmentEditor(request);
+  const opened=await window.autosync.openAlignmentEditor(request);
+  $('status').textContent=opened?'Preview & Edit opened':'Preview cancelled';
  }catch(e){error(e);}
  finally{editorOpening=false;button.textContent=caption;button.disabled=false;}
 };
