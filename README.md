@@ -63,3 +63,18 @@ Editor tests: `cd AutoSync && npm install && npm run test:editor`.
 
 By [EVA0111](https://github.com/EVA0111). Built using Electron, Python,
 NumPy, SciPy and FFmpeg; optional subtitle workflows support Sushi.
+
+## Clip timeline (Preview & Edit)
+
+The primary editor now uses a clip-based timeline inspired by familiar
+professional non-linear editors: reference video (V1), source audio (A1),
+target audio (A2), an extra audio lane (A3), and a program-output lane.
+Select clips, razor split, drag clips between tracks, drag clip edges to
+trim, snap to cut points, copy/paste, lift, mute/solo/lock individual audio
+tracks, and undo/redo. Track edits are stored in the edited project so they
+can be reopened.
+
+Audio lanes currently have **priority compositing**: when clips overlap, the
+highest active lane supplies the output; they are not mixed together. This is
+an audio synchronization editor, not a full general-purpose video compositor.
+V1 remains a locked reference to preserve the target video's timing.
