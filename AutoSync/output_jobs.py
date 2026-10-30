@@ -123,10 +123,17 @@ def run_managed(request,runner):
                     print('Exported: '+(', '.join(files) or 'Analysis only'),flush=True)
                 except Exception as e:
                     status='failed';failure=str(e);path_map={};print(label+': '+failure,flush=True)
-                if reports and stage.exists():
-                    prefix=f'{run_id}_{index+1:03}_{name}'
-                    report_files=[p for p in stage.iterdir() if p.is_file() and p.suffix.lower() in ('.json','.csv','.txt','.log','.npz')]
-                    mapped={str(p):str(reports/(prefix+'.'+p.name)) for p in report_files};mapped.update({k:v for k,v in path_map.items() if k not in mapped})
+                if reports:
+                    # One permanent directory per job, including failures and repeat
+                    # runs with identical episode names. No reports intermix.
+                    job_reports=reports/f'{run_id}_{index+1:03}_{name}'
+                    job_reports.mkdir(parents=True,exist_ok=False)
+                    report_files=[p for p in stage.iterdir() if p.is_file() and p.suffix.lower() in ('.json','.csv','.txt','.log','.npz')] if stage.exists() else []
+                    mapped={str(p):str(job_reports/p.name) for p in report_files}
+                    mapped.update({k:v for k,v in path_map.items() if k not in mapped})
+                    (job_reports/'job-status.json').write_text(
+                        json.dumps({'job':job['name'],'task':job['task'],'status':status,'error':failure,
+                                    'outputs':files},ensure_ascii=False,indent=2),encoding='utf-8')
                     for p in report_files:
                         dest=Path(mapped[str(p)])
                         if p.suffix=='.json':
