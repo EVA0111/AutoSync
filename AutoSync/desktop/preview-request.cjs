@@ -35,6 +35,13 @@ function reusablePreviewPlan(plan,values){
  // constructed using keep-target-outer / destructive video-edit operations.
  if(plan.main_trim||plan.keep_target_op_ed||plan.video_edits||plan.input_trims?.target)
   return false;
+ // Track selection must also match, or the previously produced mapping
+ // can silently refer to a different dub or target soundtrack.
+ const stream=(v)=>v===undefined||v===null||v===''?0:Number(v);
+ if(!Number.isInteger(stream(values.audio_stream))||!Number.isInteger(stream(values.reference_stream)))
+  return false;
+ if(stream(plan.audio_stream)!==stream(values.audio_stream)||
+    stream(plan.reference_stream)!==stream(values.reference_stream))return false;
  return sameFile(plan.source_video,values.source)&&
   sameFile(plan.target_video,values.target)&&
   sameFile(plan.audio,values.audio||values.source)&&
