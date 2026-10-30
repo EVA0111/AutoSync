@@ -33,6 +33,7 @@ function reusablePreviewPlan(plan,values){
   return false;
  // Full-timeline plans can be reused, but not plans previously trimmed or
  // constructed using keep-target-outer / destructive video-edit operations.
+ if((plan.sync_method||'standard')!==(values.sync_method||'standard'))return false;
  if(plan.main_trim||plan.keep_target_op_ed||plan.video_edits||plan.input_trims?.target)
   return false;
  // Track selection must also match, or the previously produced mapping
