@@ -8,6 +8,7 @@ import numpy as np
 from scipy import signal,ndimage
 import visual_core as vc
 from cut_detection import locate_cut, source_cuts
+from continuity_guard import source_rewinds, annotate_rewinds
 
 RATE=50
 
@@ -134,13 +135,15 @@ def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut
     for left,right in zip(models[:-1],models[1:]):
         cut=locate_cut(left,right,ref,energy,source)
         if refine_cut is not None:cut=refine_cut(left,right,cut)
-        if 'target_gap' in cut:gaps.append((*cut['target_gap'],cut.get('target_gap_kind','verified_gap')))
+        if 'target_gap' in cut:gaps.append((*cut['target_gap'],cut.get('target_gap_kind','verified_gap'),cut.get('confidence')=='supported'))
         t=cut['time']
         bounds.append(max(bounds[-1]+.001,min(duration-.001,t)))
         t=bounds[-1]
         finish=cut.get('target_gap',[t,t])[1]
         removed=(right['speed']*finish+right['offset'])-(left['speed']*t+left['offset'])
-        label=f'Source-only section: skip {removed:.3f}s; ' if removed>.25 else 'Timing change; '
+        label=('Target-only scene/card: preserve target audio; ' if 'target_gap' in cut and
+               cut.get('target_gap_kind')=='reference' else
+               f'Source-only section: skip {removed:.3f}s; ' if removed>.25 else 'Timing change; ')
         notes.append(dict(start=max(0,min(t-1,cut['uncertainty_start'])),end=min(duration,max(t+1,cut['uncertainty_end'])),reason=label+cut['method']+'; preview the join',splice=t,confidence=cut['confidence']))
     bounds.append(duration);segments=[]
     for m,start,end in zip(models,bounds[:-1],bounds[1:]):
@@ -156,7 +159,7 @@ def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut
         if end>supported_end:
             segments.append(dict(kind='reference',target_start=supported_end,target_end=end,reason='source ends early'))
             notes.append(dict(start=supported_end,end=end,reason='source audio unavailable; reference fallback needed'))
-    for ga,gb,gap_kind in gaps:
+    for ga,gb,gap_kind,verified_insert in gaps:
         updated=[]
         for section in segments:
             a,b=section['target_start'],section['target_end']
@@ -166,7 +169,9 @@ def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut
                 tail=dict(section,target_start=gb)
                 if tail['kind']=='audio':tail['source_start']+=(gb-a)*tail['speed']
                 updated.append(tail)
-        updated.append(dict(kind=gap_kind,target_start=ga,target_end=gb,reason='Target-only footage; target audio required' if gap_kind=='reference' else 'Verified black pause with near-silent target audio'))
+        updated.append(dict(kind=gap_kind,target_start=ga,target_end=gb,
+            verified_insert=bool(verified_insert and gap_kind=='reference'),
+            reason='Picture-verified target-only eyecatch/title-card; use selected target audio' if gap_kind=='reference' else 'Verified black pause with near-silent target audio'))
         segments=sorted(updated,key=lambda x:x['target_start'])
     # Audit unsupported spans but keep original-language audio playing using inferred mapping.
     points=np.r_[0,anchors[:,0],duration]
@@ -183,7 +188,22 @@ def unresolved_cuts(plan):
         if not notes or not any(r.get('confidence') in ('supported','manual') for r in notes):unresolved.append(c)
     return unresolved
 
+def requires_explicit_reference_fallback(segments):
+    """Verified target-only cards use target audio; other gaps need consent."""
+    return any(s['kind']=='reference' and not s.get('verified_insert',False) for s in segments)
+
+
 def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
+    rewinds=source_rewinds(plan.get('segments',[]))
+    if rewinds and not allow_uncertain_cuts:
+        details=', '.join(
+            f"{x['target_time']:.3f}s (-{x['replayed_source_seconds']:.3f}s)"
+            for x in rewinds)
+        raise RuntimeError(
+            'Unverified backwards source-audio joins at target '+details+
+            '. No FLAC exported: joining these source spans would replay earlier '
+            'audio. Review and correct the affected clips in Preview & Edit. '
+            '--allow-uncertain-cuts explicitly overrides this safety check.')
     unresolved=unresolved_cuts(plan)
     if unresolved and not allow_uncertain_cuts:
         times=', '.join(f"{c['target_time']:.3f}s" for c in unresolved)
@@ -202,8 +222,12 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
         cursor=end
     if not np.isfinite(plan['duration']) or abs(cursor-plan['duration'])>.0001:raise RuntimeError('Plan does not cover its declared duration.')
     audio=plan['audio'];stream=int(plan['audio_stream']);ref=plan.get('reference');refstream=int(plan.get('reference_stream',0))
-    if any(s['kind']=='reference' for s in plan['segments']) and (not reference_fallback or not ref):
-        raise RuntimeError('The target contains a section with no usable source audio. No silence or repeated source audio was written. Enable --reference-fallback to use the target soundtrack there (possibly another language), or inspect the reported interval.')
+    references=[section for section in plan['segments'] if section['kind']=='reference']
+    if references and (not ref or (not reference_fallback and
+                       requires_explicit_reference_fallback(references))):
+        raise RuntimeError('The target contains a section with no usable source audio. No silence or repeated source audio was written. '
+                           'Only picture-verified target-only inserts automatically use target audio. '
+                           'For other unmatched regions, enable --reference-fallback or inspect the reported interval.')
     if any(s['kind']=='verified_gap' for s in plan['segments']) and not ref:raise RuntimeError('Verified pause requires reference audio.')
     streams=audio_streams(audio);ch=int(streams[stream]['channels']);layout=streams[stream].get('channel_layout') or {1:'mono',2:'stereo',6:'5.1'}.get(ch)
     if not layout:raise RuntimeError('Unknown channel layout.')
@@ -418,9 +442,12 @@ def _run_job(job,args):
             return dict(time=t,confidence='manual',method='user supplied target join',uncertainty_start=t,uncertainty_end=t)
         if source_video and target and not args.audio_only and left['offset']-right['offset']>.3:
             from visual_cuts import calibrated_models,locate_target_insert
-            vl,vr=calibrated_models(left,right,visual)
-            inserted=locate_target_insert(vl,vr,source_video,target,se,delay,source_crop,target_crop,audio_models=(left,right))
-            if inserted is not None:return inserted
+            try:
+                vl,vr=calibrated_models(left,right,visual)
+                inserted=locate_target_insert(vl,vr,source_video,target,se,delay,source_crop,target_crop,audio_models=(left,right))
+                if inserted is not None:return inserted
+            except (RuntimeError,ValueError,OSError) as e:
+                warnings.append('Eyecatch/title-card verification unavailable: '+str(e))
         if cut['confidence']=='uncertain' and source_video and target and not args.audio_only:
             say(f'Checking pictures around uncertain cut: target {lo:.2f}–{hi:.2f}s')
             try:
@@ -442,7 +469,7 @@ def _run_job(job,args):
     if args.main_only or args.keep_target_op_ed:
         from main_episode import detect_main,trim_plan,keep_target_outer
         (out/'full_plan.json').write_text(json.dumps(rebase(plan,input_meta),indent=2),encoding='utf-8')
-        try:trim=detect_main(plan,visual,delay,args.main_start,args.main_end,source_features=sf,target_features=ref)
+        try:trim=detect_main(plan,visual,delay,args.main_start,args.main_end,source_features=sf,target_features=ref,keep_target_outer=bool(args.keep_target_op_ed))
         except (RuntimeError,ValueError,OSError) as e:
             (out/'trim_report.json').write_text(json.dumps({'status':'needs_review','reason':str(e)},indent=2))
             raise
@@ -470,7 +497,7 @@ def _run_job(job,args):
         plan=remove_missing(plan);anchors=map_anchors(anchors,plan)
         segments=plan['segments'];review=plan['review']
         (out/'video_edits.json').write_text(json.dumps(plan['video_edits'],indent=2),encoding='utf-8')
-    plan=rebase(plan,input_meta);segments=plan['segments'];review=plan['review']
+    plan=annotate_rewinds(rebase(plan,input_meta));segments=plan['segments'];review=plan['review']
     if 'audio' in input_meta:anchors[:,1]+=input_meta['audio']['offset']
     if input_meta:
         if plan.get('video_edits'):(out/'video_edits.json').write_text(json.dumps(plan['video_edits'],indent=2),encoding='utf-8')
@@ -482,8 +509,12 @@ def _run_job(job,args):
     if args.main_only:lines.insert(0,f"MAIN EPISODE: keep original target {plan['main_trim']['target_start']:.3f}–{plan['main_trim']['target_end']:.3f}s; output duration {plan['duration']:.3f}s. All review times below refer to the trimmed output.")
     if args.keep_target_op_ed:lines.insert(0,'KEEP TARGET OP/ED: complete target timeline; opening/ending use target audio. Main episode uses synced source audio.')
     for c in source_cuts(segments):lines.append(f"Skip source {c['source_start']:.3f}–{c['source_end']:.3f}s ({c['removed_seconds']:.3f}s) at target {c['target_time']:.3f}s")
+    for c in source_rewinds(segments):
+        lines.append(f"REPLAY RISK at target {c['target_time']:.3f}s: source rewinds {c['replayed_source_seconds']:.3f}s "
+                     f"(estimated {c['estimated_target_equivalent_seconds']:.3f}s of repeated material); location of any target-only segment is not verified.")
     for item in review:lines.append(f"{item['start']:.2f}–{item['end']:.2f}s: {item['reason']}")
     if unresolved_cuts(plan):lines.append('DEFAULT EXPORT BLOCKED: unresolved source-only cut(s). Picture/audio evidence did not locate the join reliably.')
+    if source_rewinds(segments):lines.append('DEFAULT EXPORT BLOCKED: backwards source-audio joins would repeat earlier audio. Open Preview & Edit to correct or explicitly override.')
     (out/'report.txt').write_text('\n'.join(lines),encoding='utf-8');say('\n'.join(lines))
     if not args.analyze_only:
         output=render(plan,out,args.reference_fallback,args.allow_uncertain_cuts)

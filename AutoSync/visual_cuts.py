@@ -118,18 +118,84 @@ def quiet_black_cut(visual_cut,left,right,source_energy,target_energy,rate=50):
     result.update(time=t,confidence='supported',method='picture-matched black transition; removed source audio verified near-silent',removed_source_start=a,removed_source_end=b)
     return result
 
+def locate_visual_insert_island(old,new,lo,left,right,audio_models=None,rate=RATE):
+    """Conservative target-only title-card/eyecatch interval, without requiring black.
+
+    A long unmatched *target* interval is an insertion only if strong matching
+    picture sequences bracket it AND both independent timing models meet at
+    the same source position. A title card with merely different lettering,
+    or the same scene repeated elsewhere, is not sufficient.
+    """
+    from scipy.ndimage import uniform_filter1d
+    n=min(len(old),len(new))
+    if n<50:return None
+    left,right=dict(left),dict(right)
+    speed=float(left['speed'])
+    if abs(speed-float(right['speed']))>.002 or not .5<=speed<=2:return None
+    missing=(float(left['offset'])-float(right['offset']))/speed
+    if not .5<missing<35:return None
+    a=uniform_filter1d(np.asarray(old[:n],dtype=float),size=11)
+    b=uniform_filter1d(np.asarray(new[:n],dtype=float),size=11)
+    strong_left=np.flatnonzero((np.asarray(old[:n])>.86)&(np.asarray(new[:n])<.64))
+    strong_right=np.flatnonzero((np.asarray(new[:n])>.86)&(np.asarray(old[:n])<.64))
+    if not len(strong_left) or not len(strong_right):return None
+    expected=int(round(missing*rate))
+    # Candidate cut endpoints must lie near the final old and first new
+    # independently matched pictures, not an unrelated match earlier in a
+    # repeated intro or credit sequence.
+    choices=[]
+    for i in strong_left[::-1]:
+        ti=lo+(i+1)/rate
+        if abs(ti-float(left['last']))>12:continue
+        good=strong_right[(strong_right>i+int(.6*rate)) &
+                          (np.abs(strong_right-i-expected)<=int(1.5*rate))]
+        if not len(good):continue
+        for j in good[:5]:
+            tj=lo+j/rate
+            if abs(tj-float(right['first']))>12:continue
+            if i<int(.5*rate) or j+int(.5*rate)>=n:continue
+            # Sustained independent picture agreement on both sides.
+            if np.mean(a[i-int(.5*rate):i])<.82 or np.mean(b[j:j+int(.5*rate)])<.82:
+                continue
+            # The target-only footage must actually be different from *both*
+            # source mappings, not simply missing from one audio matcher.
+            between=np.maximum(a[i+1:j],b[i+1:j])
+            if len(between)<int(.4*rate) or np.mean(between<.72)<.72:continue
+            source_before=speed*ti+float(left['offset'])
+            source_after=float(right['speed'])*tj+float(right['offset'])
+            delta=source_after-source_before
+            if abs(delta)>.20:continue
+            if audio_models is not None:
+                al,ar=audio_models
+                audit=(ar['speed']*tj+ar['offset'])-(al['speed']*ti+al['offset'])
+                if abs(audit)>.20:continue
+            choices.append((abs(delta)+abs((tj-ti)-missing)*.3,ti,tj))
+        if choices:break
+    if not choices:return None
+    _,ga,gb=min(choices)
+    return dict(time=ga,target_gap=[ga,gb],target_gap_kind='reference',
+                confidence='supported',
+                method='picture-verified target-only eyecatch/title-card interval; preserve target soundtrack',
+                uncertainty_start=ga,uncertainty_end=gb)
+
+
 def locate_target_insert(left,right,source_video,target_video,source_energy,delay=0.,source_crop='',target_crop='',audio_models=None):
     """Verify target-only footage replacing a silent black source pause."""
     lo=max(0.,left['last']-4);hi=right['first']+4
     if hi-lo>180 or abs(left['speed']-right['speed'])>.001:return None
     missing=(left['offset']-right['offset'])/left['speed']
-    if not .3<missing<15:return None
+    if not .3<missing<35:return None  # Different-edition midroll cards may be longer than a short black pause.
     q,qd=frames(target_video,lo,hi-lo,crop=target_crop,with_dark=True)
     scores=[]
     for m in (left,right):
         x=frames(source_video,m['speed']*lo+m['offset']+delay,hi-lo,m['speed'],source_crop)
         scores.append(compare(q,x))
     n=min(map(len,scores));old,new=[s[:n] for s in scores]
+    # Different-edition title cards and eyecatches are not necessarily black
+    # or silent. Detect a bounded target-only interval from bracketing picture
+    # evidence and source-time continuity before attempting the old black path.
+    card=locate_visual_insert_island(old,new,lo,left,right,audio_models)
+    if card is not None:return card
     from scipy.ndimage import uniform_filter1d
     a=uniform_filter1d(old,10);b=uniform_filter1d(new,10)
     before=np.flatnonzero((a>.85)&(a-b>.3));after=np.flatnonzero((b>.85)&(b-a>.3))

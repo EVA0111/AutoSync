@@ -105,8 +105,12 @@ def refine_estimated_boundary(plan,visual,delay,estimate,side):
     return fallback
 
 
-def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_features=None,target_features=None):
+def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_features=None,target_features=None,keep_target_outer=False):
     if not plan.get('source_video') or not plan.get('target_video'):raise ValueError('Main-episode detection requires both videos.')
+    # Keep-target-OP/ED does not delete target opening video/music: it only
+    # replaces *inside* a verified main-episode interval. A music match
+    # elsewhere in the source must not turn different OPs into a fake
+    # shared opening that imports source OP audio.
     duration=plan['duration'];results={}
     from chapter_boundaries import explicit_outer_chapters
     chapters={} if manual_start is not None and manual_end is not None else explicit_outer_chapters(plan['target_video'],duration)
@@ -133,7 +137,8 @@ def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_fe
         q,dark=frames(plan['target_video'],lo,hi-lo,crop=plan.get('target_crop',''),with_dark=True)
         x=frames(plan['source_video'],source_begin,hi-lo,m['speed'],plan.get('source_crop',''))
         results[side]=boundary_from_scores(compare(q,x),dark,lo,side)
-        if side == 'start' and results[side]['status'] == 'supported' and results[side]['time'] > 0:
+        if (side == 'start' and not keep_target_outer and
+                results[side]['status'] == 'supported' and results[side]['time'] > 0):
             evidence = opening_audio_correspondence(source_features, target_features, results[side]['time'], m['speed'])
             if evidence is None or not evidence.get('different'):
                 # A picture mismatch alone is not sufficient to delete target music.
