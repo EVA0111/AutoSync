@@ -63,7 +63,7 @@ const xFor=t=>range().left+(t-scroll)*range().scale;
 const tFor=x=>clamp(scroll+(x-range().left)/range().scale,0,plan.duration);
 function resetZoom(){
  const z=Number($('zoom').value);
- view=Math.min(plan.duration,Math.max(10,plan.duration*15/z));
+ view=Math.min(plan.duration,Math.max(1.5,plan.duration/Math.pow(2,z/10)));
  scroll=clamp(scroll,0,Math.max(0,plan.duration-view));
  $('scroll').max=String(Math.max(0,plan.duration-view));$('scroll').value=String(scroll);
  $('zoom-label').textContent=trimTime(view)+' visible';
@@ -293,7 +293,7 @@ $('export').onclick=async()=>{
 $('open-folder').onclick=()=>window.alignment.openFolder().catch(e=>report(e.message,true));
 window.alignment.onEvent(({kind,payload})=>{
  if(kind==='export-log'){$('export-log').textContent+=payload;$('export-log').scrollTop=$('export-log').scrollHeight;}
- if(kind==='export-done')report(payload.code===0?'Export finished: '+payload.folder:'Export failed. Check the log.',payload.code!==0);
+ if(kind==='export-done'){if(payload.code===0){saved=false;setButtons();}report(payload.code===0?'Export finished: '+payload.folder+'. Save again to create another corrected export.':'Export failed. Check the log.',payload.code!==0);}
 });
 window.addEventListener('keydown',e=>{
  if(e.target.matches('input,select,textarea'))return;
