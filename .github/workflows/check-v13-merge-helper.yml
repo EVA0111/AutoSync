@@ -47,6 +47,7 @@ jobs:
             throw "Unexpected script behavior for a valid quoted path: $output"
           }
           Write-Host 'Windows quoted-path regression passed.'
+          $global:LASTEXITCODE = 0  # The deliberately missing app produces a nonzero child exit.
       - name: Confirm helper never deletes the original installation
         shell: pwsh
         run: |
