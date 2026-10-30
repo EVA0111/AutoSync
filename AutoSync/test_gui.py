@@ -1,4 +1,4 @@
-import csv,tempfile,unittest
+import csv,os,tempfile,unittest
 from pathlib import Path
 from gui_config import build_command,FIELDS,MODES
 
@@ -13,8 +13,8 @@ class GUICommands(unittest.TestCase):
     def test_modes_and_optional_embedded_audio(self):
         for mode,(flag,_) in MODES.items():
             self.v['mode']=mode;cmd,_=build_command(self.v,'Single episode')
-            self.assertEqual(cmd[cmd.index('--audio')+1],str(self.file))
-            self.assertEqual(cmd[cmd.index('--reference')+1],str(self.file))
+            self.assertTrue(os.path.samefile(cmd[cmd.index('--audio')+1],self.file))
+            self.assertTrue(os.path.samefile(cmd[cmd.index('--reference')+1],self.file))
             self.assertEqual('--main-only' in cmd,flag=='--main-only')
             self.assertEqual('--keep-target-op-ed' in cmd,flag=='--keep-target-op-ed')
     def test_reject_invalid_boundary_mode_and_existing_plan(self):
@@ -31,7 +31,7 @@ class GUICommands(unittest.TestCase):
             with path.open('w',newline='') as f:
                 w=csv.DictWriter(f,fieldnames=['source','target','audio','out']);w.writeheader();w.writerows(rows)
         row=dict(source=self.file.name,target=self.file.name,audio=self.file.name,out='episode1')
-        write([row]);cmd,out=build_command(self.v,'Batch CSV');self.assertIn('--batch',cmd);self.assertEqual(out,self.root/'episode1')
+        write([row]);cmd,out=build_command(self.v,'Batch CSV');self.assertIn('--batch',cmd);self.assertEqual(out.resolve(),(self.root/'episode1').resolve())
         write([row,row])
         with self.assertRaises(ValueError):build_command(self.v,'Batch CSV')
 
