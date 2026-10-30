@@ -141,7 +141,9 @@ def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut
         t=bounds[-1]
         finish=cut.get('target_gap',[t,t])[1]
         removed=(right['speed']*finish+right['offset'])-(left['speed']*t+left['offset'])
-        label=f'Source-only section: skip {removed:.3f}s; ' if removed>.25 else 'Timing change; '
+        label=('Target-only scene/card: preserve target audio; ' if 'target_gap' in cut and
+               cut.get('target_gap_kind')=='reference' else
+               f'Source-only section: skip {removed:.3f}s; ' if removed>.25 else 'Timing change; ')
         notes.append(dict(start=max(0,min(t-1,cut['uncertainty_start'])),end=min(duration,max(t+1,cut['uncertainty_end'])),reason=label+cut['method']+'; preview the join',splice=t,confidence=cut['confidence']))
     bounds.append(duration);segments=[]
     for m,start,end in zip(models,bounds[:-1],bounds[1:]):
