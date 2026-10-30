@@ -543,7 +543,7 @@ async function onUp(e){
    note='Trimmed clip '+payload.edge+' to '+trimTime(action.at)+'. Removed area uses target audio.';
   }
   const result=await window.alignment.clipEdit(op,payload);
-  const newIndex=locate(action.mode==='move'?action.at+.001:action.at+.001);
+  const newIndex=result.findIndex((clip,i)=>clip.target_start<=action.at+.001&&(clip.target_end>action.at+.001||i===result.length-1));
   applyEdit(result,Math.max(0,newIndex),action.at,note);
  }catch(err){report('Timeline edit rejected: '+err.message,true);}
 }
@@ -698,6 +698,10 @@ window.alignment.onEvent(({kind,payload})=>{
 window.addEventListener('keydown',e=>{
  if(e.target.matches('input,select,textarea'))return;
  if(e.code==='Space'){e.preventDefault();play();}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='v'){e.preventDefault();setTool('select');}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='c'){e.preventDefault();setTool('razor');}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='y'){e.preventDefault();setTool('slip');}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='n'){$('snap-toggle').click();e.preventDefault();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){e.preventDefault();copySelected();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'){e.preventDefault();pasteSelected();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='x'){e.preventDefault();cutSelected();}
@@ -709,7 +713,7 @@ window.addEventListener('keydown',e=>{
  if(e.key.toLowerCase()==='j'){e.preventDefault();jumpReview(-1);}
  if(e.key.toLowerCase()==='l'){e.preventDefault();jumpReview(1);}
  if(e.key.toLowerCase()==='a'){e.preventDefault();toggleAB();}
- if(e.key==='Escape'){pause();}
+ if(e.key==='Escape'){if(drag){drag=null;draw();report('Drag cancelled.');}else pause();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();restore(undo,redo);}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();restore(redo,undo);}
  if(e.key==='ArrowLeft'){pause();movePlayhead(playhead-(e.shiftKey?1:.04));}
@@ -728,6 +732,6 @@ window.addEventListener('resize',draw);
   report('Loading source and target audio waveforms…');
   const results=await Promise.allSettled(['source','target'].map(x=>window.alignment.waveform(x)));
   results.forEach((r,i)=>{if(r.status==='fulfilled')waves[i===0?'source':'target']=r.value;});
-  draw();scheduleFineWaveforms();report('Ready. Click or drag a region, listen, then save and export.');
+  draw();scheduleFineWaveforms();report('Ready: V Select · C Razor · Y Slip · N Snap. Drag clip edges to trim or drag audio onto MIX.');
  }catch(e){report('Unable to load editor: '+e.message,true);}
 })();
