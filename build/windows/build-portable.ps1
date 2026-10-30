@@ -98,6 +98,10 @@ try {
     & npm install --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw 'Electron dependency installation failed.' }
     if (-not $SkipTests) {
+      foreach ($js in @('desktop/main.cjs','desktop/renderer.js','desktop/preferences.js','desktop/alignment-editor.js','desktop/alignment-editor.cjs','desktop/readiness.js','desktop/workspace.js')) {
+        & node --check $js
+        if ($LASTEXITCODE -ne 0) { throw "JavaScript syntax failed: $js" }
+      }
       & npm run test:editor
       if ($LASTEXITCODE -ne 0) { throw 'Editor regression tests failed; build stopped.' }
     }
