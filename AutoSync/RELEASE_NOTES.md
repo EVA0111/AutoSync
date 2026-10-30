@@ -1,24 +1,26 @@
-# AutoSync v1.1
+# AutoSync v1.2.0
 
-Windows portable release by [EVA0111](https://github.com/EVA0111).
+Windows x64 portable release by [EVA0111](https://github.com/EVA0111).
 
-- Audio and subtitle syncing, with single-file and batch workflows.
-- Audio-track selection, drag-and-drop pairing, progress and review reporting.
-- Exact source/target video and audio trims before syncing.
-- Video preview with time and frame-number navigation.
-- Full-target, main-episode, and keep-opening/ending modes.
-- Optional removal of target sections without source audio, with an edited video and matching FLAC.
-- AutoSync v1.1 branding and a GitHub profile link in the GUI.
+## What's included
 
-Download **AutoSync-v1.1-Windows-Portable.zip**, extract the whole folder, and launch **AutoSync.exe**. Core dependencies are included. Optional subtitle AI requires additional downloads. Check flagged sections and joins before using the output.
+- Synchronize audio across differently edited videos, including playback-speed and scene-timing differences, with pitch-preserving FLAC export.
+- Match subtitles using supported audio, video, saved-map, and optional subtitle workflows.
+- **Preview & Edit** opens the complete target timeline even when the selected export mode requires an uncertain opening/ending boundary.
+- Four-lane visual editor (V1/A1/A2/MIX) with playback, clip dragging, snapping, razor cuts, edge trimming, copy/paste, and source-audio slip.
+- Choose a custom output location. Reports are stored under **AutoSync Reports** beside the application by default, with separate subfolders for each job.
+- Bundled Python 3.12, NumPy, SciPy, FFmpeg and FFprobe: no separate runtimes needed to use the Windows portable application.
 
-### Interface remodel
+## Installation
 
-- Replaced the sidebar with Audio, Subtitles, and Jobs tabs.
-- Added per-file audio selectors beside the preview controls.
-- Moved reordering into an expandable pairing editor and simplified mode selection.
-- Kept one output destination, optional settings, and visible progress.
-- Added a results table with review and failure states.
-- Preserved simultaneous audio/subtitle queues, frame-based trims, and all existing synchronization modes.
+1. Download **AutoSync-v1.2.0-Windows-Portable.zip**.
+2. Extract it into a writable location.
+3. Open **AutoSync.exe** inside the extracted **AutoSync-v1.2.0-Windows-Portable** folder.
 
-Tested in Electron on Linux with media probing, frame trimming, English layout, queue payloads, and settings. The Windows portable package was integrity-checked but not executed on Windows.
+Optional subtitle AI models and components may require additional downloads through the application.
+
+Review flagged joins and uncertain timing before distributing outputs. The app does not overwrite your original source or target videos.
+
+## Source
+
+The source repository includes the portable Windows build scripts under `build/windows`. All main application windows and package metadata display **v1.2.0**.
