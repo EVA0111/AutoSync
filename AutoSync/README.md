@@ -75,8 +75,10 @@ the selected pair automatically and saves a lasting alignment plan; no
 separate `plan.json` selection is required. You can also open a saved plan
 from the Saved plan workspace.
 
-The editor has synchronized real-time source/target video playback, a three-track
-waveform timeline, audio auditioning and non-destructive editing. Formats that
+The editor has synchronized source/target video playback and a four-lane
+clip timeline: **V1** target video (locked), **A1** source audio, **A2** target
+fallback audio, and **MIX** the corrected output. The two audio guide lanes
+show active clips; edits happen on MIX without changing target-video timing. Formats that
 the built-in player cannot decode use a reusable lower-resolution MP4 proxy
 created automatically; your source video is not modified.
 
@@ -108,3 +110,17 @@ See [the repository source-build guide](../build/windows/README.md).
 The build includes Electron, embedded Python 3.12, NumPy, SciPy, FFmpeg
 and FFprobe. The historical patcher and merge-helper scripts are no
 longer part of the active source tree.
+
+### Timeline gestures
+
+Use **V** for Select, **C** for Razor, **Y** for Slip, and **N** to
+switch magnetic snapping. Drag MIX clip bodies to move them (the vacated
+range uses target audio), or drag the clip's left/right handles to trim.
+Drag a clip from A1/A2 down onto MIX to copy it into the corrected result.
+Hold **Alt** while dragging MIX to copy rather than move; hold **Shift**
+while dragging to temporarily disable snapping. Click the ruler to scrub.
+Press **Esc** to cancel a drag and **Ctrl+Z** to undo an edit.
+
+The target video lane stays locked: AutoSync is correcting audio alignment,
+not re-editing picture. This source code uses its own Electron/Canvas editing
+implementation; FilmCraft is a reference for the familiar timeline workflow.
