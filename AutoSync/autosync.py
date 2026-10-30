@@ -344,7 +344,10 @@ def _run_job(job,args):
         if len(visual)<8 and source_video and target and not args.audio_only:
             # The visual model only assists if classic scene matching could not
             # establish timing. Do not displace established visual evidence.
-            trial_speed=estimate_rate(visual,sf,ref)
+            try:
+                trial_speed=estimate_rate(visual,sf,ref)
+            except RuntimeError:
+                trial_speed=1.  # Scene model can still recover rate from candidate pairs.
             neural_visual=learned_visual_anchors(source_video,target,trial_speed,delay,say)
             neural_visual=manual_ranges.select(neural_visual,source_bounds)
             if len(neural_visual)>=8:
