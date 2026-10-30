@@ -27,11 +27,11 @@ patchers or merges involved.
 2. **Save output** is optional: it defaults beside the target video in
    `AutoSync Outputs`. Browse or enter any other drive/folder instead.
 3. Click **Preview & Edit** to automatically analyze the selected pair, inspect
-   its three-track timeline, and listen across joins; no plan.json is required.
+   the V1/A1/A2/MIX clip timeline, and listen across joins; no plan.json is required.
    A saved plan can also be opened explicitly.
 4. Review flagged joins, drag/split/nudge regions, compare source, target and
-   edited output audio, copy/paste audio clips, mark In/Out and trim without
-   shifting video timing, and choose **Save As…** to write a corrected project
+   edited output audio, drag clips, trim by their edges, razor-cut, snap to joins, copy/paste audio,
+   mark In/Out and slip source offsets without shifting video timing, and choose **Save As…** to write a corrected project
    and exported audio in a separate location.
 5. Click Start to run a normal job. The sync plan is always saved with the
    output. When reports are enabled, AutoSync creates an `AutoSync Reports`
@@ -43,9 +43,7 @@ use its matching synced audio with the exported video.
 
 ## Safeguards and limits
 
-- Shared opening music is checked *before* destructive unmatched-video
-  removal. Verified matching source music is mapped; inconclusive openings
-  retain their target footage and music for manual review.
+- Destructive unmatched-video decisions use audio evidence as a safeguard. Ambiguous material is preserved for review rather than removed without reliable support.
 - The algorithm still has limits for different language tracks, repeated OP
   themes, mixed timing, silence and source-specific edits. Review warnings.
 

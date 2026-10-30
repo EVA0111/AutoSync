@@ -9,7 +9,9 @@ const canvas=$('timeline'),ctx=canvas.getContext('2d'),audio=$('audio-player');
 const videos={source:$('source-video'),target:$('target-video')};
 const videoStatus={source:'pending',target:'pending'},videoLastSync={source:0,target:0};
 const videoProxyStarted=new Set();let fallbackFrameTimer=null;
-const rowTops=[44,141,238],rowNames=['SOURCE','TARGET','OUTPUT'];
+const rowTops=[40,132,224,316],rowNames=['V1','A1','A2','MIX'];
+const rowDescriptions=['TARGET VIDEO','SOURCE AUDIO','TARGET AUDIO','EDITED OUTPUT'];
+let tool='select',snapEnabled=true;
 const trimTime=t=>{const ms=Math.max(0,Math.round(t*1000));return [Math.floor(ms/3600000),Math.floor(ms/60000)%60,Math.floor(ms/1000)%60].map(n=>String(n).padStart(2,'0')).join(':')+'.'+String(ms%1000).padStart(3,'0');};
 const fmt=n=>Number(n).toFixed(3);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -64,8 +66,8 @@ function refresh(){
 }
 function range(){
  const w=canvas.clientWidth||800;
- const scale=(w-116)/Math.max(1,view);
- return {w,scale,left:98,right:w-18};
+ const scale=(w-150)/Math.max(1,view);
+ return {w,scale,left:130,right:w-18};
 }
 const xFor=t=>range().left+(t-scroll)*range().scale;
 const tFor=x=>clamp(scroll+(x-range().left)/range().scale,0,plan.duration);
@@ -121,35 +123,51 @@ function scheduleFineWaveforms(){
 }
 function draw(){
  if(!plan)return;
- const dpr=window.devicePixelRatio||1,w=canvas.clientWidth||800,h=345;
+ const dpr=window.devicePixelRatio||1,w=canvas.clientWidth||800,h=425;
  if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){
   canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
  }
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
  ctx.fillStyle='#101923';ctx.fillRect(0,0,w,h);
  const {scale,left,right}=range();
- for(let row=0;row<3;row++){
+ for(let row=0;row<4;row++){
   const y=rowTops[row];
-  ctx.fillStyle=row===2?'#1e2032':'#182433';ctx.fillRect(left,y,w-left-12,79);
+  ctx.fillStyle=row===3?'#24203a':row===0?'#152a40':'#182433';ctx.fillRect(left,y,w-left-12,79);
   ctx.fillStyle='#9daec1';ctx.font='11px Segoe UI';ctx.fillText(rowNames[row],9,y+16);
-  ctx.font='10px Consolas';ctx.fillText(row===2?'EDITED':'AUDIO',9,y+33);
+  ctx.font='10px Consolas';ctx.fillText(rowDescriptions[row],9,y+33);
   ctx.save();ctx.beginPath();ctx.rect(left,y,w-left-12,79);ctx.clip();
+  if(row===0){
+   ctx.fillStyle='#265b81';ctx.fillRect(xFor(0)+1,y+3,Math.max(1,xFor(plan.duration)-xFor(0)-2),73);
+   ctx.strokeStyle='#7fc9fb';ctx.strokeRect(xFor(0)+1,y+3,Math.max(1,xFor(plan.duration)-xFor(0)-2),73);
+   ctx.fillStyle='#d6eafd';ctx.font='12px Segoe UI';ctx.fillText('Target video (locked — audio edits preserve picture)',Math.max(left+6,xFor(0)+6),y+18);
+   for(const k of plan.video_edits?.kept||[]){ctx.strokeStyle='#9ccce8';ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(xFor(k.output_start),y+25);ctx.lineTo(xFor(k.output_start),y+77);ctx.stroke();ctx.setLineDash([]);}
+   ctx.restore();continue;
+  }
   for(let i=0;i<segments.length;i++){
-   const s=segments[i],x=xFor(s.target_start),rightX=xFor(s.target_end);
+   const s=segments[i];
+   if(row===1&&s.kind!=='audio'||row===2&&s.kind==='audio')continue;
+   const x=xFor(s.target_start),rightX=xFor(s.target_end);
    if(rightX<left||x>w)continue;
    const start=clamp(x,left,w-12),stop=clamp(rightX,left,w-12);
-   const alpha=selected===i?.42:.20;
-   const rgb=(s.kind==='audio'?(row===0?'95,164,228':row===2?'161,135,227':'75,171,142'):(row===2?'233,159,102':'92,104,121'));
+   const alpha=selected===i&&row===3?.60:.40;
+   const rgb=row===1?'66,155,213':row===2?'73,175,128':s.kind==='audio'?'161,120,227':'222,157,96';
    ctx.fillStyle='rgba('+rgb+','+alpha+')';ctx.fillRect(start,y+2,stop-start,75);
    ctx.strokeStyle=selected===i?'#e0cfff':'#8293a9';ctx.lineWidth=selected===i?1.8:.65;
-   ctx.beginPath();ctx.moveTo(x,y+2);ctx.lineTo(x,y+77);ctx.stroke();
+   ctx.strokeRect(x+1,y+2,Math.max(1,rightX-x-2),75);
+   ctx.fillStyle=row===1?'#55bde5':row===2?'#62c889':'#ccabf7';
+   ctx.fillRect(start,y+2,Math.max(1,stop-start),3);
+   if(row===3&&rightX-x>20){
+    ctx.fillStyle=selected===i?'#fff0ff':'#cfbadd';
+    ctx.fillRect(x+2,y+33,4,22);ctx.fillRect(rightX-6,y+33,4,22);
+   }
    if(stop-start>38){ctx.fillStyle='#d0e1f0';ctx.font='11px Segoe UI';ctx.fillText('R'+(i+1)+(s.kind==='audio'?' · source':' · target'),start+5,y+16,stop-start-8);}
   }
-  ctx.strokeStyle=row===0?'#69adf1':row===1?'#62c8aa':'#b9a8fa';ctx.lineWidth=1;
+  ctx.strokeStyle=row===1?'#69adf1':row===2?'#62c8aa':'#b9a8fa';ctx.lineWidth=1;
   for(let x=left+2;x<right;x+=3){
    const t=tFor(x),i=locate(t),s=segments[Math.max(0,i)];
    const sourceSec=mapSource(t),targetSec=mapTarget(t);
-   const v=row===0?waveSample('source',sourceSec):row===1?waveSample('target',targetSec):(s?.kind==='audio'?waveSample('source',sourceSec):waveSample('target',targetSec));
+   if(row===1&&s?.kind!=='audio'||row===2&&s?.kind==='audio')continue;
+   const v=row===1?waveSample('source',sourceSec):row===2?waveSample('target',targetSec):(s?.kind==='audio'?waveSample('source',sourceSec):waveSample('target',targetSec));
    const amplitude=Math.max(.8,Math.pow(v,.6)*24);
    const mid=y+51;
    ctx.beginPath();ctx.moveTo(x,mid-amplitude);ctx.lineTo(x,mid+amplitude);ctx.stroke();
@@ -160,12 +178,19 @@ function draw(){
  const tick=[1,2,5,10].map(n=>n*step).find(n=>view/n<=12)||step*10;
  ctx.font='10px Consolas';ctx.strokeStyle='#3c4d60';ctx.fillStyle='#b6c1d0';
  for(let t=Math.ceil(scroll/tick)*tick;t<=scroll+view;t+=tick){
-  const x=xFor(t);ctx.beginPath();ctx.moveTo(x,23);ctx.lineTo(x,320);ctx.stroke();
+  const x=xFor(t);ctx.beginPath();ctx.moveTo(x,23);ctx.lineTo(x,407);ctx.stroke();
   ctx.fillText(trimTime(t),x+2,17);
+ }
+ if(drag?.ghost){
+  const g=drag.ghost,lo=xFor(g.start),hi=xFor(g.end);
+  ctx.fillStyle='rgba(150,209,255,.22)';ctx.fillRect(lo,rowTops[3]+3,hi-lo,74);
+  ctx.strokeStyle='#c8edff';ctx.lineWidth=2;ctx.setLineDash([5,4]);
+  ctx.strokeRect(lo,rowTops[3]+3,hi-lo,74);ctx.setLineDash([]);
+  if(g.snap!==null){ctx.strokeStyle='#ffe8a0';ctx.beginPath();ctx.moveTo(xFor(g.snap),23);ctx.lineTo(xFor(g.snap),409);ctx.stroke();}
  }
  const px=xFor(playhead);
  ctx.strokeStyle='#ffcf72';ctx.lineWidth=2;
- ctx.beginPath();ctx.moveTo(px,22);ctx.lineTo(px,326);ctx.stroke();
+ ctx.beginPath();ctx.moveTo(px,22);ctx.lineTo(px,409);ctx.stroke();
  ctx.fillStyle='#ffcf72';ctx.beginPath();ctx.moveTo(px-6,20);ctx.lineTo(px+6,20);ctx.lineTo(px,29);ctx.fill();
 }
 function updateClock(){ $('clock').textContent=trimTime(playhead);$('source-time').textContent=mapSource(playhead)==null?'Unmatched':trimTime(mapSource(playhead));$('target-time').textContent=trimTime(mapTarget(playhead)); }
@@ -375,38 +400,161 @@ function mode(kind){
   s.kind='reference';delete s.source_start;delete s.speed;
  }
  refresh();report(kind==='audio'?'Using source audio; adjust its start and listen.':'Using target audio for this section.');}
+// The timeline uses familiar non-linear-editor gestures. The picture is locked:
+// moving or trimming audio never changes target-video timestamps.
+function timelineRow(y){
+ return rowTops.findIndex(top=>y>=top&&y<top+79);
+}
+function magnetic(time,exclude=[],enabled=snapEnabled){
+ const value=clamp(time,0,plan.duration);
+ if(!enabled)return {time:value,guide:null};
+ const snapPoints=[0,plan.duration,playhead,...segments.flatMap(s=>[s.target_start,s.target_end])];
+ let best=value,distance=9;
+ for(const point of snapPoints){
+  if(!Number.isFinite(point)||exclude.some(skip=>Math.abs(skip-point)<.001))continue;
+  const pixels=Math.abs(value-point)*range().scale;
+  if(pixels<distance){distance=pixels;best=point;}
+ }
+ return {time:best,guide:Math.abs(best-value)>.00001?best:null};
+}
+function setTool(name){
+ if(!['select','razor','slip'].includes(name))return;
+ tool=name;
+ document.querySelectorAll('[data-tool]').forEach(b=>{
+  const active=b.dataset.tool===name;
+  b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
+ });
+ canvas.style.cursor=name==='razor'?'crosshair':name==='slip'?'ew-resize':'default';
+ report(name==='razor'?'Razor: click any audio clip to split it.':name==='slip'?'Slip: drag source audio to adjust its in-point.':'Select: drag a clip to move; drag its handles to trim.');
+}
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+$('snap-toggle').onclick=()=>{
+ snapEnabled=!snapEnabled;
+ $('snap-toggle').setAttribute('aria-pressed',String(snapEnabled));
+ $('snap-toggle').innerHTML=snapEnabled?'◈ Snap: On <kbd>N</kbd>':'◇ Snap: Off <kbd>N</kbd>';
+ report('Timeline snapping '+(snapEnabled?'enabled':'disabled')+'. Hold Shift while dragging to override.');
+};
+function applyEdit(result,index,time,message){
+ if(!result||JSON.stringify(result)===JSON.stringify(segments))return;
+ undo.push(clone(segments));if(undo.length>100)undo.shift();redo=[];saved=false;
+ segments=result;selected=clamp(index,0,segments.length-1);
+ if(Number.isFinite(time))playhead=clamp(time,0,plan.duration);
+ inMark=null;outMark=null;refreshMarkLabels();
+ refresh();updateClock();setButtons();scheduleFineWaveforms();
+ report(message);
+}
+async function doRazor(index,time){
+ const clip=segments[index];if(!clip)return;
+ try{
+  const result=await window.alignment.clipEdit('razor',{segments,index,at:time});
+  applyEdit(result,index+1,time,'Razor cut at '+trimTime(time)+'. Ctrl+Z to undo.');
+ }catch(err){report('Cannot split here: '+err.message,true);}
+}
 function onDown(e){
- if(!plan)return;pause();
- const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,t=tFor(x);
- if(y<26){movePlayhead(t);return;}
- const idx=locate(t);if(idx<0)return;
- select(idx);movePlayhead(t);
- const boundary=segments.findIndex((s,j)=>j>0&&Math.abs(xFor(s.target_start)-x)<8);
- drag={initialX:x,initialTime:t,boundary:boundary>0?boundary:null,index:idx,original:clone(segments),mode:boundary>0?'boundary':'offset',moved:false,historyAdded:false};
+ if(!plan||e.button!==0)return;
+ pause();
+ const bounds=canvas.getBoundingClientRect(),x=e.clientX-bounds.left,y=e.clientY-bounds.top;
+ const time=tFor(x),row=timelineRow(y);
+ if(y<28||row===0){
+  drag={mode:'scrub'};movePlayhead(time);
+  canvas.setPointerCapture(e.pointerId);return;
+ }
+ if(row<1)return;
+ const index=locate(time),clip=segments[index];
+ if(index<0||!clip)return;
+ if(row===1&&clip.kind!=='audio'||row===2&&clip.kind==='audio'){
+  // Clicking a gap selects the playhead; guide tracks have no invisible clips.
+  movePlayhead(time);return;
+ }
+ if(tool==='razor'){
+  const point=magnetic(time,[clip.target_start,clip.target_end],!e.shiftKey&&snapEnabled);
+  doRazor(index,point.time);return;
+ }
+ select(index);
+ movePlayhead(time,false);
+ let mode='move';
+ const edge=Math.min(9,Math.max(4,range().scale*.06));
+ if(row===3&&tool==='select'&&Math.abs(x-xFor(clip.target_start))<edge)mode='trim-start';
+ else if(row===3&&tool==='select'&&Math.abs(x-xFor(clip.target_end))<edge)mode='trim-end';
+ else if(tool==='slip')mode='slip';
+ if(mode==='slip'&&clip.kind!=='audio'){report('Slip is available on source-audio clips only.',true);return;}
+ drag={mode,index,row,initialX:x,anchorTime:time,sourceStart:clip.source_start,
+  originalStart:clip.target_start,originalEnd:clip.target_end,
+  original:clone(segments),copy:row!==3||e.altKey&&mode==='move',
+  moved:false,at:clip.target_start,delta:0,ghost:null};
  canvas.setPointerCapture(e.pointerId);
 }
 function onMove(e){
- if(!drag||!plan)return;
- const x=e.clientX-canvas.getBoundingClientRect().left,dt=(x-drag.initialX)/range().scale;
- if(Math.abs(dt)<.001)return;
- if(!drag.historyAdded){saveHistory();drag.historyAdded=true;}
- segments=clone(drag.original);drag.moved=true;
- if(drag.mode==='boundary'){
-  const i=drag.boundary;bound(i,drag.original[i].target_start+dt);
- }else{
-  const s=segments[drag.index];
-  if(s.kind==='audio')s.source_start=Math.max(0,drag.original[drag.index].source_start+dt*s.speed);
-  else{drag.moved=false;}
+ if(!plan)return;
+ const b=canvas.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top,time=tFor(x);
+ if(!drag){
+  if(tool==='razor'){canvas.style.cursor='crosshair';return;}
+  const row=timelineRow(y),index=locate(time),s=segments[index];
+  canvas.style.cursor=tool==='slip'?'ew-resize':
+   row===3&&s&&[s.target_start,s.target_end].some(t=>Math.abs(x-xFor(t))<8)?'ew-resize':
+   row>0&&s?'grab':'default';
+  return;
  }
- refresh();
+ if(drag.mode==='scrub'){movePlayhead(time);return;}
+ const dt=(x-drag.initialX)/range().scale;
+ if(Math.abs(x-drag.initialX)<3)return;
+ drag.moved=true;
+ const original=drag.original[drag.index];
+ if(drag.mode==='move'){
+  const duration=original.target_end-original.target_start;
+  const raw=clamp(drag.originalStart+dt,0,Math.max(0,plan.duration-duration));
+  const snap=magnetic(raw,[drag.originalStart,drag.originalEnd],!e.shiftKey&&snapEnabled);
+  drag.at=clamp(snap.time,0,Math.max(0,plan.duration-duration));
+  drag.ghost={start:drag.at,end:drag.at+duration,snap:snap.guide};
+ }else if(drag.mode==='slip'){
+  drag.delta=dt*original.speed;
+  drag.ghost={start:original.target_start,end:original.target_end,snap:null};
+ }else{
+  const edge=drag.mode==='trim-start'?'start':'end';
+  const lo=edge==='start'?0:original.target_start+.05;
+  const hi=edge==='start'?original.target_end-.05:plan.duration;
+  const raw=clamp(time,lo,hi);
+  const snapped=magnetic(raw,[original.target_start,original.target_end],!e.shiftKey&&snapEnabled);
+  drag.at=clamp(snapped.time,lo,hi);
+  drag.ghost={start:edge==='start'?drag.at:original.target_start,
+   end:edge==='end'?drag.at:original.target_end,snap:snapped.guide};
+ }
+ draw();
 }
-function onUp(){
+async function onUp(e){
  if(!drag)return;
- if(drag.moved){saved=false;setButtons();report('Region moved; preview the result before exporting.');}
- drag=null;refresh();
+ const action=drag;drag=null;draw();
+ if(action.mode==='scrub'||!action.moved)return;
+ const b=canvas.getBoundingClientRect(),row=timelineRow(e.clientY-b.top);
+ if(action.mode==='move'&&action.row!==3&&row!==3){
+  report('Drag a clip from A1 or A2 down to MIX to place it into the edited output.');return;
+ }
+ try{
+  let op,payload={segments,index:action.index},note;
+  if(action.mode==='move'){
+   op='move';payload={...payload,at:action.at,copy:action.copy};
+   note=(action.copy?'Copied':'Moved')+' clip at '+trimTime(action.at)+'. Target-video timing unchanged.';
+  }else if(action.mode==='slip'){
+   op='slip';payload={...payload,delta:action.delta};
+   const s=action.original[action.index];
+   if(waves.source&&s.source_start+action.delta+(s.target_end-s.target_start)*s.speed>waves.source.duration+.02)
+    throw Error('The source clip would run past the end of its audio.');
+   note='Shifted source audio by '+action.delta.toFixed(3)+' s (Slip).';
+  }else{
+   op='edge';payload={...payload,edge:action.mode==='trim-start'?'start':'end',at:action.at};
+   note='Trimmed clip '+payload.edge+' to '+trimTime(action.at)+'. Removed area uses target audio.';
+  }
+  const result=await window.alignment.clipEdit(op,payload);
+  const newIndex=result.findIndex((clip,i)=>clip.target_start<=action.at+.001&&(clip.target_end>action.at+.001||i===result.length-1));
+  applyEdit(result,Math.max(0,newIndex),action.at,note);
+ }catch(err){report('Timeline edit rejected: '+err.message,true);}
 }
-canvas.addEventListener('pointerdown',onDown);canvas.addEventListener('pointermove',onMove);canvas.addEventListener('pointerup',onUp);canvas.addEventListener('lostpointercapture',onUp);
-canvas.addEventListener('dblclick',e=>{movePlayhead(tFor(e.clientX-canvas.getBoundingClientRect().left));});
+canvas.addEventListener('pointerdown',onDown);
+canvas.addEventListener('pointermove',onMove);
+canvas.addEventListener('pointerup',onUp);
+canvas.addEventListener('pointercancel',()=>{drag=null;draw();});
+canvas.addEventListener('lostpointercapture',()=>{if(drag){drag=null;draw();}});
+canvas.addEventListener('dblclick',e=>{if(tool!=='razor')movePlayhead(tFor(e.clientX-canvas.getBoundingClientRect().left));});
 $('scroll').oninput=()=>{scroll=Number($('scroll').value);draw();scheduleFineWaveforms();};
 $('zoom').oninput=resetZoom;
 $('back').onclick=()=>{pause();movePlayhead(playhead-.04);};
@@ -552,6 +700,10 @@ window.alignment.onEvent(({kind,payload})=>{
 window.addEventListener('keydown',e=>{
  if(e.target.matches('input,select,textarea'))return;
  if(e.code==='Space'){e.preventDefault();play();}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='v'){e.preventDefault();setTool('select');}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='c'){e.preventDefault();setTool('razor');}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='y'){e.preventDefault();setTool('slip');}
+ if(!e.ctrlKey&&!e.metaKey&&e.key.toLowerCase()==='n'){$('snap-toggle').click();e.preventDefault();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){e.preventDefault();copySelected();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'){e.preventDefault();pasteSelected();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='x'){e.preventDefault();cutSelected();}
@@ -563,7 +715,7 @@ window.addEventListener('keydown',e=>{
  if(e.key.toLowerCase()==='j'){e.preventDefault();jumpReview(-1);}
  if(e.key.toLowerCase()==='l'){e.preventDefault();jumpReview(1);}
  if(e.key.toLowerCase()==='a'){e.preventDefault();toggleAB();}
- if(e.key==='Escape'){pause();}
+ if(e.key==='Escape'){if(drag){drag=null;draw();report('Drag cancelled.');}else pause();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();restore(undo,redo);}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();restore(redo,undo);}
  if(e.key==='ArrowLeft'){pause();movePlayhead(playhead-(e.shiftKey?1:.04));}
@@ -582,6 +734,6 @@ window.addEventListener('resize',draw);
   report('Loading source and target audio waveforms…');
   const results=await Promise.allSettled(['source','target'].map(x=>window.alignment.waveform(x)));
   results.forEach((r,i)=>{if(r.status==='fulfilled')waves[i===0?'source':'target']=r.value;});
-  draw();scheduleFineWaveforms();report('Ready. Click or drag a region, listen, then save and export.');
+  draw();scheduleFineWaveforms();report('Ready: V Select · C Razor · Y Slip · N Snap. Drag clip edges to trim or drag audio onto MIX.');
  }catch(e){report('Unable to load editor: '+e.message,true);}
 })();
