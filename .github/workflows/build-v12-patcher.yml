@@ -22,6 +22,24 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build GUI shell with Preview & Edit
+        shell: pwsh
+        working-directory: AutoSync
+        run: |
+          npm install --no-audit --no-fund
+          npm run test:editor
+          npx --yes @electron/packager . AutoSync --platform=win32 --arch=x64 --out=../out/shell --overwrite --asar
+          if ($LASTEXITCODE -ne 0) { throw 'Electron desktop packaging failed.' }
+      - name: Zip GUI shell for automatic patcher download
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path 'out/shell/AutoSync-win32-x64/resources/app.asar')) { throw 'Missing Electron app.asar' }
+          Compress-Archive -Path 'out/shell/AutoSync-win32-x64' -DestinationPath 'AutoSync-PreviewEdit-Shell.zip' -CompressionLevel Optimal -Force
+          if ((Get-Item 'AutoSync-PreviewEdit-Shell.zip').Length -lt 50000000) { throw 'Shell ZIP unexpectedly small.' }
       - name: Publish standalone self-contained Windows patcher
         shell: pwsh
         run: |
@@ -44,7 +62,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: AutoSync-v1.2-PreviewEdit-Patcher
-          path: AutoSync-v1.2-PreviewEdit-Patcher.zip
+          path: |
+            AutoSync-v1.2-PreviewEdit-Patcher.zip
+            AutoSync-PreviewEdit-Shell.zip
           if-no-files-found: error
       - name: Publish patcher release
         if: github.ref == 'refs/heads/main'
@@ -55,10 +75,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $tag = 'v1.2-preview-edit-patcher'
           $zip = 'AutoSync-v1.2-PreviewEdit-Patcher.zip'
+          $shell = 'AutoSync-PreviewEdit-Shell.zip'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $zip --repo $env:GITHUB_REPOSITORY --clobber
+            gh release upload $tag $zip $shell --repo $env:GITHUB_REPOSITORY --clobber
           } else {
-            gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'AutoSync v1.2 Preview & Edit one-click patcher' --notes 'One-click patcher for an extracted AutoSync v1.2 Windows portable installation. Makes a separate output folder and portable ZIP. Does NOT upgrade the v1.2 matching algorithm to v1.3; real-media testing remains required.'
+            gh release create $tag $zip $shell --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'AutoSync v1.2 Preview & Edit one-click patcher' --notes 'One-click patcher for an extracted AutoSync v1.2 Windows portable installation. Makes a separate output folder and portable ZIP. Does NOT upgrade the v1.2 matching algorithm to v1.3; real-media testing remains required.'
           }
           if ($LASTEXITCODE -ne 0) { throw 'Failed to publish patcher ZIP.' }
