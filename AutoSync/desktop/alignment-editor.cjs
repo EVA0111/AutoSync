@@ -70,7 +70,7 @@ function createAlignmentEditor(root,python){
   if(!value||!Array.isArray(value.segments)||!Number.isFinite(Number(value.duration))||!value.audio)throw Error('Select a valid AutoSync plan.json file.');
   if(!fs.existsSync(value.audio))throw Error('The original source audio file is missing: '+value.audio);
   if(!fs.existsSync(value.reference||value.target_video))throw Error('The original target file is missing. Open a plan with valid media paths.');
-  project={file,plan:value,outputPlan:null,exporting:false};
+  project={file,plan:value,outputPlan:null,exporting:false,exported:false};
   editor=new BrowserWindow({parent,width:1450,height:920,minWidth:950,minHeight:690,backgroundColor:'#11151d',title:'AutoSync · Preview & Edit',show:false,webPreferences:{preload:path.join(__dirname,'alignment-editor-preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
   editor.removeMenu();
   editor.loadFile(html);
@@ -126,12 +126,13 @@ function createAlignmentEditor(root,python){
   if(project.exporting)throw Error('Cannot save while export is running.');
   const revised=validate(segments);
   // Never overwrite the original, unedited alignment or FLAC.
-  if(!project.outputPlan){
+  if(!project.outputPlan||project.exported){
    const pick=await dialog.showOpenDialog(editor,{title:'Choose where to save the corrected sync',properties:['openDirectory','createDirectory']});
    if(pick.canceled)return null;
    const folder=path.join(pick.filePaths[0],'AutoSync_Edited_'+new Date().toISOString().replace(/[:.]/g,'-')+'_'+randomUUID().slice(0,6));
    await fs.promises.mkdir(folder,{recursive:false});
    project.outputPlan=path.join(folder,'plan.json');
+   project.exported=false;
   }
   const value={...project.plan,segments:revised,source_cuts:[],editor_revision:1,editor_origin_plan:project.file};
   // The previous cut-review annotations describe old boundaries, not the edited timeline.
@@ -152,7 +153,7 @@ function createAlignmentEditor(root,python){
    child.stdout.on('data',x=>{const s=x.toString();tail=(tail+s).slice(-2000);send('export-log',s);});
    child.stderr.on('data',x=>{const s=x.toString();tail=(tail+s).slice(-2000);send('export-log',s);});
    child.on('error',e=>{tail+='\n'+e.message;});
-   child.on('close',code=>{exportChild=null;if(project)project.exporting=false;send('export-done',{code,folder:path.dirname(project?.outputPlan||''),log:tail});resolve({code,folder:path.dirname(project?.outputPlan||'')});});
+   child.on('close',code=>{exportChild=null;if(project){project.exporting=false;if(code===0)project.exported=true;}send('export-done',{code,folder:path.dirname(project?.outputPlan||''),log:tail});resolve({code,folder:path.dirname(project?.outputPlan||'')});});
   });
  });
  ipcMain.handle('align-open-folder',async e=>{
