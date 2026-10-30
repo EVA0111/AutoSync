@@ -4,7 +4,7 @@ An Electron + Python/FFmpeg tool for matching audio and subtitles between
 different video editions, including different playback speeds, openings,
 scene edits and missing footage.
 
-## Build the portable app (no patcher)
+## Build the portable app
 
 On Windows 10/11 x64, extract this source repository and run:
 
