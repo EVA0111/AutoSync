@@ -24,12 +24,6 @@ destination or move the previous output first. Internet access is needed for
 dependencies. GitHub Actions uses this same script; the tests must pass before
 the ZIP artifact is uploaded.
 
-**Testing limitations:** Synthetic/unit regressions cover known timing
-scenarios including shared opening music and target-only cuts. They do not
-prove that the user's seven private case-media files all synchronize correctly.
-The public repository is not a verified import of the user's separate v1.3
-archive. Do not relabel this build as v1.3.
-
 Project organization:
 - `AutoSync/*.py`: syncing core, audio/video algorithms and regression tests
 - `AutoSync/desktop/`: Electron interface and interactive editor
