@@ -4,8 +4,40 @@ const settingsNav=document.createElement('button');settingsNav.className='nav';s
 const settingsPanel=document.createElement('section');settingsPanel.id='settings-panel';settingsPanel.className='panel hidden';settingsPanel.innerHTML='<h2>Settings</h2><p>Choose which optional features to show and use. Disabled advanced options use their defaults.</p>';
 for(const [key,label] of [['reports','Save reports and timing plans'],['audioAdvanced','Enable advanced audio settings'],['subtitleAdvanced','Enable advanced subtitle settings'],['csv','Enable CSV job import'],['savedPlans','Enable saved-plan rendering'],['activity','Show activity log']]){const labelEl=document.createElement('label');labelEl.className='preference-row';const input=document.createElement('input');input.type='checkbox';input.id='pref-'+key;input.checked=prefs[key];input.onchange=()=>{prefs[key]=input.checked;localStorage.setItem('autosync-preferences',JSON.stringify(prefs));if(!prefs.savedPlans&&workspace==='Saved plan')workspace='Sync jobs';applyWorkspace();};labelEl.append(input,document.createTextNode(' '+label));settingsPanel.append(labelEl);}
 const reportsFields=document.createElement('div');reportsFields.id='report-fields';settingsPanel.append(reportsFields);document.querySelector('main').append(settingsPanel);fileField('report-fields',['reports-destination','Reports folder','output','Choose a separate folder for reports']);settingsPanel.append($('setup-engine').closest('details'));
-const destinationPanel=document.createElement('section');destinationPanel.id='destination-panel';destinationPanel.className='panel';destinationPanel.innerHTML='<h2>Output folder</h2><p>Finished audio, videos and subtitles go directly here. Existing files are never overwritten.</p><div id="destination-fields"></div><p id="destination-reminder" role="alert" class="hidden"></p>';
-$('audio-section').before(destinationPanel);fileField('destination-fields',['output-destination','Save outputs to','output','Required — choose where to store finished files']);
+const destinationPanel=document.createElement('section');destinationPanel.id='destination-panel';destinationPanel.className='panel';
+destinationPanel.innerHTML='<h2>Save output</h2><p>Leave blank to save next to the target, or choose any folder or drive. Existing files are never overwritten.</p><div id="destination-fields"></div><p id="destination-reminder" role="alert" class="hidden"></p>';
+$('audio-section').before(destinationPanel);
+fileField('destination-fields',['output-destination','Folder (optional)','output','Auto — next to target video · or choose any folder']);
+const outputField=$('output-destination');
+const lastDirectory=localStorage.getItem('autosync-last-output-folder');
+if(lastDirectory)outputField.value=lastDirectory;
+outputField.addEventListener('change',()=>{
+ const chosen=outputField.value.trim();
+ if(chosen)localStorage.setItem('autosync-last-output-folder',chosen);
+ else localStorage.removeItem('autosync-last-output-folder');
+});
+const targetFolderButton=document.createElement('button');
+targetFolderButton.type='button';targetFolderButton.className='secondary';
+targetFolderButton.textContent='Use target folder';
+targetFolderButton.title='Save beside the target file (without overwriting the video)';
+outputField.closest('.field').append(targetFolderButton);
+function parentFolder(file){
+ if(!file)return '';
+ const match=String(file).trim().match(/^(.*)[\\/][^\\/]+$/);
+ return match?match[1]:'';
+}
+function defaultOutputFolder(){
+ const source=batchFiles.target?.[0]||$('target')?.value.trim()||$('sub_target_media')?.value.trim()
+  ||$('sub_subtitle')?.value.trim()||$('plan')?.value.trim();
+ const parent=parentFolder(source);
+ if(!parent)return '';
+ return parent+(parent.includes('\\')?'\\':'/')+'AutoSync Outputs';
+}
+targetFolderButton.onclick=()=>{
+ const folder=parentFolder(batchFiles.target?.[0]||$('target')?.value.trim()||$('sub_target_media')?.value.trim()||$('plan')?.value.trim());
+ if(!folder){$('destination-reminder').textContent='Choose a target video first.';$('destination-reminder').classList.remove('hidden');return;}
+ outputField.value=folder;outputField.dispatchEvent(new Event('change'));
+};
 function applyPreferences(){
  const settings=workspace==='Settings',saved=workspace==='Saved plan';settingsPanel.classList.toggle('hidden',!settings);destinationPanel.classList.toggle('hidden',settings);
  $('audio-advanced').classList.toggle('hidden',!prefs.audioAdvanced||settings||(!saved&&!$('enable-audio').checked));
@@ -17,8 +49,8 @@ function applyPreferences(){
  $('batch_out').closest('.field').classList.add('hidden');$('sub_out').closest('.field').classList.add('hidden');
 }
 function destinationRequest(jobs){
- const out=$('output-destination').value.trim();const reports=$('reports-destination').value.trim();const note=$('destination-reminder');note.classList.add('hidden');
- if(!out){note.textContent='Please specify where you want to store the outputs before starting.';note.classList.remove('hidden');$('output-destination').focus();throw Error(note.textContent);}
+ const out=$('output-destination').value.trim()||defaultOutputFolder();const reports=$('reports-destination').value.trim();const note=$('destination-reminder');note.classList.add('hidden');
+ if(!out){note.textContent='Choose a source or target file to determine the default output folder, or Browse to select one.';note.classList.remove('hidden');throw Error(note.textContent);}
  if(prefs.reports&&!reports){workspace='Settings';applyWorkspace();$('reports-destination').focus();throw Error('Please specify a reports folder in Settings, or disable Save reports.');}
  return {task:'Managed queue',jobs,output_dir:out,save_reports:prefs.reports,reports_dir:reports};
 }

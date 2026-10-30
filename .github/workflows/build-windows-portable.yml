@@ -1,131 +1,64 @@
-name: Build AutoSync Preview & Edit portable (Windows)
+name: Build AutoSync from source (Windows x64)
 
 on:
   push:
     branches:
       - main
+      - refactor/source-build-opening-guard-ui
+    paths:
+      - 'AutoSync/**'
+      - 'build/windows/**'
+      - '.github/workflows/build-windows-portable.yml'
   workflow_dispatch:
-
-env:
-  PYTHONUTF8: '1'
-  PYTHONIOENCODING: utf-8
 
 permissions:
   contents: write
 
 jobs:
-  windows-portable:
+  portable:
     runs-on: windows-latest
-    timeout-minutes: 55
+    timeout-minutes: 65
     steps:
-      - name: Check out the source
+      - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.12 for the source build
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Set up Node
+      - name: Set up Node.js 22 for the source build
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Provision FFmpeg for regression tests
+      - name: Build using the documented source builder and run regressions
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $ffmpegZip = Join-Path $env:RUNNER_TEMP 'ffmpeg-essentials.zip'
-          $ffmpegUnpacked = Join-Path $env:RUNNER_TEMP 'autosync-ffmpeg'
-          Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile $ffmpegZip
-          Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegUnpacked -Force
-          $found = Get-ChildItem -Path $ffmpegUnpacked -Recurse -File -Filter 'ffmpeg.exe' | Select-Object -First 1
-          if (-not $found) { throw 'FFmpeg download did not include ffmpeg.exe' }
-          Add-Content -Path $env:GITHUB_PATH -Value $found.DirectoryName
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'build/windows/build-portable.ps1' -OutputDirectory (Join-Path $PWD 'dist')
+          if ($LASTEXITCODE -ne 0) { throw 'Source build or tests failed.' }
 
-      - name: Run Python regression tests
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r AutoSync/requirements.txt
-          python -m unittest discover -s AutoSync -p 'test_*.py' -v
-
-      - name: Run editor regression tests
-        shell: pwsh
-        working-directory: AutoSync
-        run: |
-          npm install --no-audit --no-fund
-          npm run test:editor
-
-      - name: Package Electron for Windows x64
-        shell: pwsh
-        working-directory: AutoSync
-        run: |
-          npx --yes @electron/packager . AutoSync --platform=win32 --arch=x64 --out=../dist --overwrite --asar
-
-      - name: Bundle Python 3.12, numerical dependencies, and FFmpeg
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $resources = Join-Path $PWD 'dist/AutoSync-win32-x64/resources'
-          $engine = Join-Path $resources 'engine'
-          $pythonRoot = Join-Path $resources 'python'
-          New-Item -ItemType Directory -Force -Path $engine, $pythonRoot | Out-Null
-          Copy-Item 'AutoSync/*.py' -Destination $engine -Force
-          Copy-Item 'AutoSync/requirements.txt' -Destination $engine -Force
-          Copy-Item 'AutoSync/jobs_example.csv' -Destination $engine -Force
-          Copy-Item 'AutoSync/README.md' -Destination $engine -Force
-
-          $pythonZip = Join-Path $env:RUNNER_TEMP 'python-3.12-embed-amd64.zip'
-          Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip' -OutFile $pythonZip
-          Expand-Archive -Path $pythonZip -DestinationPath $pythonRoot -Force
-          $pth = Join-Path $pythonRoot 'python312._pth'
-          @('python312.zip', '.', 'Lib\site-packages', '..\engine', 'import site') | Set-Content -Path $pth -Encoding ascii
-          $sitePackages = Join-Path $pythonRoot 'Lib/site-packages'
-          New-Item -ItemType Directory -Force -Path $sitePackages | Out-Null
-          python -m pip install --no-compile --only-binary=:all: --target $sitePackages -r AutoSync/requirements.txt
-          if ($LASTEXITCODE -ne 0) { throw 'Bundled numerical dependencies failed to install.' }
-          & (Join-Path $pythonRoot 'python.exe') -c 'import numpy, scipy; print("Bundled Python OK:", numpy.__version__, scipy.__version__)'
-          if ($LASTEXITCODE -ne 0) { throw 'Bundled Python import smoke test failed.' }
-
-          $ffmpegUnpacked = Join-Path $env:RUNNER_TEMP 'autosync-ffmpeg'
-          foreach ($name in @('ffmpeg.exe', 'ffprobe.exe')) {
-            $found = Get-ChildItem -Path $ffmpegUnpacked -Recurse -File -Filter $name | Select-Object -First 1
-            if (-not $found) { throw "Missing $name from FFmpeg archive." }
-            Copy-Item $found.FullName -Destination (Join-Path $engine $name) -Force
-          }
-          & (Join-Path $engine 'ffmpeg.exe') -hide_banner -version
-          if ($LASTEXITCODE -ne 0) { throw 'FFmpeg smoke test failed.' }
-          & (Join-Path $pythonRoot 'python.exe') (Join-Path $engine 'autosync.py') --help
-          if ($LASTEXITCODE -ne 0) { throw 'Bundled engine smoke test failed.' }
-
-      - name: Create portable ZIP
-        shell: pwsh
-        run: |
-          Compress-Archive -Path 'dist/AutoSync-win32-x64' -DestinationPath 'AutoSync-PreviewEdit-Windows-Portable.zip' -CompressionLevel Optimal -Force
-          Get-FileHash 'AutoSync-PreviewEdit-Windows-Portable.zip' -Algorithm SHA256 | Format-List
-
-      - name: Upload portable application
+      - name: Upload finished portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: AutoSync-PreviewEdit-Windows-Portable
-          path: AutoSync-PreviewEdit-Windows-Portable.zip
-          retention-days: 30
+          name: AutoSync-Source-Windows-Portable
+          path: dist/AutoSync-Source-Windows-Portable.zip
           if-no-files-found: error
+          retention-days: 30
 
-      - name: Publish a public preview release
+      - name: Publish source-build preview release
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag = 'preview-edit-20261030'
-          $artifact = 'AutoSync-PreviewEdit-Windows-Portable.zip'
+          $tag = 'source-build-20261030'
+          $zip = 'dist/AutoSync-Source-Windows-Portable.zip'
           gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $artifact --repo $env:GITHUB_REPOSITORY --clobber
+            gh release upload $tag $zip --repo $env:GITHUB_REPOSITORY --clobber
           } else {
-            gh release create $tag $artifact --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'AutoSync Preview & Edit portable (v1.1 engine)' --notes 'Portable Electron, embedded Python 3.12, NumPy/SciPy and FFmpeg. Includes the three-track Preview & Edit interface and synthetic opening-music tests. Based on the public GitHub v1.1 engine: not a replacement for a separately installed v1.3 build. Case 1 has not been validated end to end.'
+            gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'AutoSync source-build portable preview (Windows)' --notes 'Built directly from public repository source; self-contained Electron, Python 3.12, FFmpeg, NumPy and SciPy. Includes audio-based opening cut guard and GUI review controls. This is NOT a verified import of the separately uploaded v1.3 source. Unit tests passed in Windows CI; private seven-case media tests were not run.'
           }
-          if ($LASTEXITCODE -ne 0) { throw 'Could not publish portable preview release.' }
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release publication failed.' }

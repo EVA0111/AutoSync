@@ -1,4 +1,4 @@
-# AutoSync v1.1
+# AutoSync — engine and desktop source
 
 By [EVA0111](https://github.com/EVA0111).
 
@@ -6,12 +6,12 @@ AutoSync is a Windows desktop app that syncs audio and subtitles between differe
 
 ## Download and use
 
-Download **AutoSync-v1.1-Windows-Portable.zip** from this repository's **Releases** page. Extract the entire ZIP to a new folder, then open **AutoSync.exe**. The portable download includes Python, FFmpeg, and the core dependencies.
+Build the complete application from this source repository using **`build/windows/build-portable.cmd`** (at the repository root). Extract the entire ZIP to a new folder, then open **AutoSync.exe**. The portable download includes Python, FFmpeg, and the core dependencies.
 
 1. Drop source videos into the left column and matching target videos into the right column. One pair or many pairs use the same workflow.
 2. Choose audio tracks and an output mode: full target, main episode only, or keep target opening/ending.
 3. Optionally click a video's preview icon to trim it before syncing. Source and target trims are independent. Seek by timestamp or frame number; frames start at 1. End marks exclude the selected frame.
-4. Choose an output folder, check the pairs, and start.
+4. Output is optional: if blank, files go into `AutoSync Outputs` next to the target. Choose any other folder or drive using Browse.
 5. Review flagged sections and joins before using the result.
 
 Settings enables optional reports, advanced options, saved plans, and subtitle AI setup. Reports use a separate folder. Subtitle jobs have their own section with batch pairing and track selection.
@@ -68,10 +68,41 @@ The interface is English-only.
 
 The preview shows individual frames and is silent. The synchronization engine and its formats are unchanged in this interface update.
 
-## Preview & Edit (feature branch)
+## Preview & Edit (integrated)
 
-Click **Preview & Edit** and choose the `plan.json` saved by a previous AutoSync analysis. The editor displays aligned Source, Target and Output waveforms and source/target video frames, with audible source, target and reconstructed output previews. Drag a source region to shift its source audio, drag a shared boundary to retime adjacent regions, or use the inspector to set source position and speed. Split, merge, switch source/target audio, loop, zoom and undo/redo are available.
+Select source/target videos and click **Preview & Edit**. AutoSync analyzes
+the selected pair automatically and saves a lasting alignment plan; no
+separate `plan.json` selection is required. You can also open a saved plan
+from the Saved plan workspace.
 
-**Save edited plan** creates a distinct `AutoSync_Edited_*` output folder. **Export corrected audio** renders the edited plan without replacing the original. The plan's existing video cuts/trims still apply; the editor does not automatically recover footage already excluded from a previously trimmed plan. Re-analyze to benefit from the conservative shared-music opening guard.
+The editor has Source/Target/Edited output waveforms, audio playback, video
+frames, a three-track timeline, editable regions, +/-40 ms nudges, zoom,
+split/join, target/source audio selection and undo/redo. Use **Previous issue**
+or **Next issue** to jump through suspected splices, **Listen across join**
+to hear the transition, and **A/B** to switch output/target audio quickly.
+Press Space to play/pause, J/L to navigate issues, and A to switch A/B.
 
-This editor requires the bundled FFmpeg and Python sync engine; it is not a standalone browser application. Direct MP4/MKV playback is not assumed: previews are decoded by FFmpeg. Review the join positions and listen before using the output. This branch currently needs validation on Windows before a portable release.
+**Save As…** lets you name the edited output and choose any directory or
+drive. Export renders a new output without modifying the original inputs.
+The normal output folder also accepts any destination and remembers your
+previous choice; leave it blank to use the target-adjacent default.
+
+### Opening cuts and tests
+
+With destructive unmatched-video removal enabled, AutoSync verifies the
+first unmatched segment using actual audio features. Shared opening music
+is mapped back to the source when the evidence supports it; inconclusive
+music keeps the target video/audio for manual review. Truly unrelated
+audio can still be removed by the explicitly selected video-removal mode.
+
+Automated tests are synthetic and unit-based. The separately uploaded
+seven-case private media suite has not been run against this public
+source build. This checkout is not an authenticated copy of the user's
+separately supplied v1.3 archive.
+
+### Building Windows portable
+
+See [the repository source-build guide](../build/windows/README.md).
+The build includes Electron, embedded Python 3.12, NumPy, SciPy, FFmpeg
+and FFprobe. The historical patcher and merge-helper scripts are no
+longer part of the active source tree.

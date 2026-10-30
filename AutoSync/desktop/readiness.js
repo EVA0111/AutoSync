@@ -6,7 +6,7 @@ const rangeNote=document.createElement('p');rangeNote.id='range-status';rangeNot
 let setupFocus=null;
 function readinessIssue(){
  if(importing||subtitleImporting||trackLoading)return ['Reading files and tracks…',null];
- if(!$('output-destination').value.trim())return ['Choose an output folder before starting.','output-destination'];
+ if(!$('output-destination').value.trim()&&!defaultOutputFolder()&&workspace!=='Settings')return ['Choose source/target media or select an output folder.','output-destination'];
  if(prefs.reports&&!$('reports-destination').value.trim())return ['Choose a reports folder in Settings, or disable reports.','reports-destination'];
  if(prefs.reports){
   const clean=s=>s.trim().replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase();
@@ -18,7 +18,7 @@ function readinessIssue(){
  if($('enable-audio').checked){
   const mode=document.querySelector('[name=mode]:checked').value;
   if(prefs.audioAdvanced&&$('audio_only').checked&&mode!=='Sync full target audio')return ['Audio-only matching requires full-target mode.','audio_only'];
-  if(prefs.audioAdvanced&&$('analyze_only').checked&&!prefs.reports)return ['Enable Save reports in Settings for Analyze only.','pref-reports'];
+  // The alignment plan is saved in the output folder even when reports are disabled.
   if(prefs.csv&&$('use_csv').checked){if(!$('batch').value.trim())return ['Choose the job CSV.','batch'];}
   else{
    if(!batchFiles.source.length)return ['Add source videos to the Source column.','source-drop'];

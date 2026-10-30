@@ -312,6 +312,51 @@ $('back').onclick=()=>{pause();movePlayhead(playhead-.04);};
 $('forward').onclick=()=>{pause();movePlayhead(playhead+.04);};
 $('play').onclick=play;$('audition').onchange=()=>{if(playing){pause();play();}};
 $('loop').onclick=()=>{loop=!loop;$('loop').textContent='Loop selected region: '+(loop?'On':'Off');};
+function reviewTimes(){
+ if(!plan)return [];
+ const flagged=(plan.review||[]).map(r=>Number(r.splice??((Number(r.start)+Number(r.end))/2)))
+  .filter(Number.isFinite).filter(t=>t>=0&&t<=plan.duration);
+ for(const seg of segments.slice(1))flagged.push(seg.target_start);
+ return [...new Set(flagged.map(t=>Math.round(t*100)/100))].sort((a,b)=>a-b);
+}
+function jumpReview(direction){
+ const all=reviewTimes();
+ if(!all.length){report('No joins or review points were found.');return;}
+ const next=direction>0?all.find(t=>t>playhead+.05):all.slice().reverse().find(t=>t<playhead-.05);
+ const t=next??(direction>0?all[0]:all[all.length-1]);
+ pause();movePlayhead(t);
+ const i=locate(Math.max(0,Math.min(plan.duration-.001,t)));
+ if(i>=0)select(i);
+ report('Reviewing join at '+trimTime(t)+'. Compare edited and target audio here.');
+}
+function focusRegion(){
+ const s=current();if(!s||!plan)return;
+ pause();
+ const desired=Math.max(2,Math.min(plan.duration,(s.target_end-s.target_start)+4));
+ const z=Math.max(0,Math.min(100,Math.round(10*Math.log2(plan.duration/desired))));
+ $('zoom').value=String(z);resetZoom();
+ scroll=clamp(s.target_start-2,0,Math.max(0,plan.duration-view));
+ $('scroll').value=String(scroll);draw();scheduleFineWaveforms();
+}
+$('jump-opening').onclick=()=>{pause();movePlayhead(0);select(0);report('Check whether the opening music and video were preserved.');};
+$('previous-issue').onclick=()=>jumpReview(-1);
+$('next-issue').onclick=()=>jumpReview(1);
+$('zoom-region').onclick=focusRegion;
+$('play-join').onclick=()=>{
+ if(!plan)return;
+ const s=current();if(!s)return;
+ const t=selected<segments.length-1?s.target_end:s.target_start;
+ pause();movePlayhead(Math.max(0,t-2));
+ $('audition').value='output';$('ab-audio').textContent='A/B: Edited output';
+ play();
+ report('Listening across '+trimTime(t)+'; press A to compare against target audio.');
+};
+function toggleAB(){
+ const track=$('audition');track.value=track.value==='target'?'output':'target';
+ $('ab-audio').textContent=track.value==='target'?'A/B: Target':'A/B: Edited output';
+ if(playing){pause();play();}
+}
+$('ab-audio').onclick=toggleAB;
 $('nudge-left').onclick=()=>offset(-.04);$('nudge-right').onclick=()=>offset(.04);
 $('undo').onclick=()=>restore(undo,redo);$('redo').onclick=()=>restore(redo,undo);
 $('apply').onclick=change;$('split').onclick=split;$('join').onclick=join;
@@ -336,6 +381,10 @@ window.alignment.onEvent(({kind,payload})=>{
 window.addEventListener('keydown',e=>{
  if(e.target.matches('input,select,textarea'))return;
  if(e.code==='Space'){e.preventDefault();play();}
+ if(e.key.toLowerCase()==='j'){e.preventDefault();jumpReview(-1);}
+ if(e.key.toLowerCase()==='l'){e.preventDefault();jumpReview(1);}
+ if(e.key.toLowerCase()==='a'){e.preventDefault();toggleAB();}
+ if(e.key==='Escape'){pause();}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();restore(undo,redo);}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();restore(redo,undo);}
  if(e.key==='ArrowLeft'){pause();movePlayhead(playhead-(e.shiftKey?1:.04));}
@@ -346,6 +395,7 @@ window.addEventListener('resize',draw);
  try{
   const data=await window.alignment.getPlan();
   plan=data.plan;segments=clone(plan.segments);$('project-path').textContent=data.file;
+  $('review-count').textContent=reviewTimes().length+' joins / review points';
   if(!segments.length)throw Error('No editable regions in the selected plan.');
   resetZoom();select(0);movePlayhead(0);setButtons();
   report('Loading source and target audio waveforms…');
