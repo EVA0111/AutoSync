@@ -66,6 +66,15 @@ app.whenReady().then(()=>{
  running.on('close',code=>{if(pending)send('log',pending);child=null;if(workRoot)fs.promises.rm(workRoot,{recursive:true,force:true,maxRetries:5,retryDelay:200}).catch(e=>send('log','Could not remove temporary work files: '+e.message+'\n'));send('done',{code,cancelled:stopping});if(quitting)app.quit();});return true;});
  ipcMain.handle('stop',e=>{trusted(e);stop();});
  ipcMain.handle('open-output',async(e,report)=>{trusted(e);if(!lastOutput)throw Error('No output folder is available yet.');const p=report?lastReport:lastOutput;if(!p)throw Error('Reports were not saved. Enable Save reports in Settings for future runs.');if(!fs.existsSync(p))throw Error('This file or folder has not been created yet.');const error=await shell.openPath(p);if(error)throw Error(error);});
+ ipcMain.handle('open-job-reports',async(e,folder)=>{
+  trusted(e);
+  if(!lastReport||typeof folder!=='string'||!folder.trim())throw Error('No report folder is available.');
+  const base=path.resolve(path.dirname(lastReport)),selected=path.resolve(folder);
+  if(path.dirname(selected)!==base)throw Error('Report folder is outside this run.');
+  if(!fs.existsSync(selected)||!fs.statSync(selected).isDirectory())throw Error('Report folder is missing.');
+  const err=await shell.openPath(selected);
+  if(err)throw Error(err);
+ });
  ipcMain.handle('example',e=>{trusted(e);return shell.openPath(path.join(root,'jobs_example.csv'));});
 });
 app.on('window-all-closed',()=>app.quit());
