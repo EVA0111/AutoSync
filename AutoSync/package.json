@@ -1,6 +1,6 @@
 {
   "name": "autosync-desktop",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Desktop audio and subtitle synchronization between video editions",
   "main": "desktop/main.cjs",
@@ -8,7 +8,7 @@
   "homepage": "https://github.com/EVA0111",
   "scripts": {
     "start": "electron .",
-    "test:editor": "node --test desktop/alignment-model.test.cjs desktop/alignment-launch.test.cjs desktop/test-batch.cjs desktop/audio-clip-tools.test.cjs desktop/timeline-gestures.test.cjs desktop/preview-request.test.cjs"
+    "test:editor": "node --test desktop/alignment-model.test.cjs desktop/alignment-launch.test.cjs desktop/test-batch.cjs desktop/audio-clip-tools.test.cjs desktop/timeline-gestures.test.cjs desktop/preview-request.test.cjs desktop/version.test.cjs"
   },
   "devDependencies": {
     "electron": "45.0.0"
