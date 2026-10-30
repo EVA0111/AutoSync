@@ -1,0 +1,43 @@
+name: Editor and clip model unit tests (Windows)
+
+on:
+  push:
+    branches:
+      - feature/filmcraft-style-clip-timeline
+      - main
+    paths:
+      - 'AutoSync/desktop/**'
+      - 'AutoSync/package.json'
+      - '.github/workflows/editor-unit.yml'
+  pull_request:
+    paths:
+      - 'AutoSync/desktop/**'
+      - 'AutoSync/package.json'
+      - '.github/workflows/editor-unit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  editor:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check editor JavaScript syntax
+        shell: pwsh
+        working-directory: AutoSync
+        run: |
+          foreach ($js in @('desktop/alignment-editor.js','desktop/nle-editor.js','desktop/nle-project.cjs','desktop/alignment-editor.cjs','desktop/alignment-editor-preload.cjs')) {
+            node --check $js
+            if ($LASTEXITCODE -ne 0) { throw "Syntax check failed: $js" }
+          }
+      - name: Run alignment and clip-model tests
+        shell: pwsh
+        working-directory: AutoSync
+        run: |
+          npm run test:editor
+          if ($LASTEXITCODE -ne 0) { throw 'Editor tests failed' }
