@@ -19,17 +19,18 @@ def opening_audio_correspondence(source_features, target_features, proposed_star
     if source_features is None or target_features is None or not 0.5 <= speed <= 2:
         return None
     from scipy import signal, ndimage
-    length = min(float(proposed_start), target_features.shape[1] / RATE)
-    if length < 3.5 or source_features.shape[1] < 6 * RATE:
+    audio_rate = 50  # wav_features uses 8000 Hz / 160 samples per hop
+    length = min(float(proposed_start), target_features.shape[1] / audio_rate)
+    if length < 3.5 or source_features.shape[1] < 6 * audio_rate:
         return None
     width = min(3., max(1.8, length * .44))
     windows = [0., max(0., length - width)]
     stretched = ndimage.zoom(source_features, (1, 1. / speed), order=1)
     offsets = []
     scores = []
-    n = round(width * RATE)
+    n = round(width * audio_rate)
     for start in windows:
-        j = round(start * RATE)
+        j = round(start * audio_rate)
         query = target_features[:, j:j+n]
         if query.shape[1] < n:
             return None
@@ -42,7 +43,7 @@ def opening_audio_correspondence(source_features, target_features, proposed_star
         correlation = score / denom
         peak = int(np.argmax(correlation))
         scores.append(float(correlation[peak]))
-        offsets.append(peak / RATE - start)
+        offsets.append(peak / audio_rate - start)
     # Two consistent matches reject incidental/repeated clips or generic music.
     if min(scores) >= .54 and abs(offsets[0] - offsets[1]) <= .28:
         return dict(matched=True, score=min(scores), offset=float(np.median(offsets)) * speed)
