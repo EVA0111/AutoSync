@@ -1,6 +1,7 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('autosync',{
  openGitHub:()=>ipcRenderer.invoke('open-github-profile'),
+ openAlignmentEditor:()=>ipcRenderer.invoke('alignment-editor-open'),
  previewOpen:file=>ipcRenderer.invoke('preview-open',file),
  previewFrame:index=>ipcRenderer.invoke('preview-frame',index),
  previewClose:()=>ipcRenderer.invoke('preview-close'),
