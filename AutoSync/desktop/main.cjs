@@ -1,5 +1,6 @@
 const {probe}=require('./media.cjs');
 const {createPreview}=require('./video-preview.cjs');
+const {createAlignmentEditor}=require('./alignment-editor.cjs');
 const {collect,prepareBatch}=require('./batch.cjs');
 const {app,BrowserWindow,ipcMain,dialog,shell}=require('electron');
 const {spawn}=require('node:child_process');
@@ -7,6 +8,7 @@ const fs=require('node:fs');const path=require('node:path');const {pathToFileURL
 let win,child=null,lastOutput=null,lastReport=null,stopping=false,quitting=false;
 const root=app.isPackaged?path.join(process.resourcesPath,'engine'):path.resolve(__dirname,'..');
 const preview=createPreview(root);
+const alignmentEditor=createAlignmentEditor(root,python);
 const page=pathToFileURL(path.join(__dirname,'index.html')).href;
 function python(){if(app.isPackaged)return [path.join(process.resourcesPath,'python','python.exe'),[]];const local=path.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');return fs.existsSync(local)?[local,[]]:process.platform==='win32'?['py',['-3']]:['python3',[]];}
 function send(type,data){if(win&&!win.isDestroyed())win.webContents.send('job-event',{type,data});}
@@ -18,7 +20,8 @@ app.whenReady().then(()=>{
  win.on('close',e=>{if(child&&!quitting){e.preventDefault();dialog.showMessageBox(win,{type:'question',message:'Stop the running job and close?',detail:'Partial output and temporary files may remain.',buttons:['Keep running','Stop and close'],defaultId:0,cancelId:0}).then(r=>{if(r.response===1){quitting=true;stop();}});}});
  ipcMain.handle('open-github-profile',async e=>{trusted(e);await shell.openExternal('https://github.com/EVA0111');});
  ipcMain.handle('browse',async(e,kind)=>{trusted(e);if(!['media','subtitle','csv','plan','output'].includes(kind))throw Error('Unknown file type');const dir=kind==='output';const result=await dialog.showOpenDialog(win,{properties:[dir?'openDirectory':'openFile'],filters:dir?undefined:kind==='subtitle'?[{name:'Subtitles or container',extensions:['ass','ssa','srt','vtt','sbv','sub','mpl2','smi','sami','ttml','dfxp','xml','sup','mkv','mp4']},{name:'All files',extensions:['*']}]:kind==='csv'?[{name:'Batch CSV',extensions:['csv']}]:kind==='plan'?[{name:'Saved plan',extensions:['json']}]:[{name:'Media',extensions:['mkv','mp4','avi','wmv','mov','m2ts','wav','flac','mp3','aac','ac3','wma']},{name:'All files',extensions:['*']}]});if(result.canceled)return '';const p=result.filePaths[0];return p;});
- win.on('closed',()=>preview.cancel());
+ win.on('closed',()=>{preview.cancel();alignmentEditor.close();});
+ ipcMain.handle('alignment-editor-open',async e=>{trusted(e);return alignmentEditor.open(win);});
  ipcMain.handle('preview-open',async(e,file)=>{trusted(e);return preview.open(file);});
  ipcMain.handle('preview-frame',async(e,index)=>{trusted(e);return preview.frame(index);});
  ipcMain.handle('preview-close',e=>{trusted(e);preview.cancel();});

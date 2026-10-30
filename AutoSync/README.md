@@ -67,3 +67,11 @@ The interface is English-only.
 - **Jobs** shows completed results, failures, and items that need review. It also contains the optional activity log. Progress stays visible at the bottom.
 
 The preview shows individual frames and is silent. The synchronization engine and its formats are unchanged in this interface update.
+
+## Preview & Edit (feature branch)
+
+Click **Preview & Edit** and choose the `plan.json` saved by a previous AutoSync analysis. The editor displays aligned Source, Target and Output waveforms and source/target video frames, with audible source, target and reconstructed output previews. Drag a source region to shift its source audio, drag a shared boundary to retime adjacent regions, or use the inspector to set source position and speed. Split, merge, switch source/target audio, loop, zoom and undo/redo are available.
+
+**Save edited plan** creates a distinct `AutoSync_Edited_*` output folder. **Export corrected audio** renders the edited plan without replacing the original. The plan's existing video cuts/trims still apply; the editor does not automatically recover footage already excluded from a previously trimmed plan. Re-analyze to benefit from the conservative shared-music opening guard.
+
+This editor requires the bundled FFmpeg and Python sync engine; it is not a standalone browser application. Direct MP4/MKV playback is not assumed: previews are decoded by FFmpeg. Review the join positions and listen before using the output. This branch currently needs validation on Windows before a portable release.

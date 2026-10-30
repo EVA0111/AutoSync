@@ -87,3 +87,6 @@ function refreshTracks(){
 for(const id of ['source','target','audio','reference','sub_subtitle','sub_reference_subtitle','sub_target_media','use_csv'])$(id).addEventListener('change',refreshTracks);
 for(const kind of ['engine','ai'])$('setup-'+kind).onclick=async()=>{setupRunning=true;busy(true);$('status').textContent='Installing dependencies…';try{await window.autosync.start({task:'Setup',kind});}catch(e){setupRunning=false;busy(false);error(e);}};
 refreshTracks();
+
+// The editor opens a saved alignment plan and never alters the running job.
+$('alignment-editor-open').onclick=()=>window.autosync.openAlignmentEditor().catch(error);

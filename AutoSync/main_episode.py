@@ -8,6 +8,46 @@ from visual_cuts import frames,compare,RATE
 from cut_detection import source_cuts
 
 
+
+def opening_audio_correspondence(source_features, target_features, proposed_start, speed):
+    """Conservative audio veto: shared opening music must not be picture-trimmed.
+
+    Search the whole source, not just the picture-mapped position. Two separated
+    opening windows must vote for the same displacement. Returns None when the
+    evidence is insufficient, rather than pretending audio is different.
+    """
+    if source_features is None or target_features is None or not 0.5 <= speed <= 2:
+        return None
+    from scipy import signal, ndimage
+    length = min(float(proposed_start), target_features.shape[1] / RATE)
+    if length < 3.5 or source_features.shape[1] < 6 * RATE:
+        return None
+    width = min(3., max(1.8, length * .44))
+    windows = [0., max(0., length - width)]
+    stretched = ndimage.zoom(source_features, (1, 1. / speed), order=1)
+    offsets = []
+    scores = []
+    n = round(width * RATE)
+    for start in windows:
+        j = round(start * RATE)
+        query = target_features[:, j:j+n]
+        if query.shape[1] < n:
+            return None
+        score = signal.fftconvolve(stretched, query[:, ::-1], mode='valid', axes=1).sum(axis=0)
+        power = np.sum(stretched * stretched, axis=0, dtype=np.float64)
+        accum = np.r_[0., np.cumsum(power)]
+        denom = np.sqrt(np.maximum((accum[n:] - accum[:-n]) * float(np.sum(query * query)), 1.e-12))
+        if not len(score):
+            return None
+        correlation = score / denom
+        peak = int(np.argmax(correlation))
+        scores.append(float(correlation[peak]))
+        offsets.append(peak / RATE - start)
+    # Two consistent matches reject incidental/repeated clips or generic music.
+    if min(scores) >= .54 and abs(offsets[0] - offsets[1]) <= .28:
+        return dict(matched=True, score=min(scores), offset=float(np.median(offsets)) * speed)
+    return dict(matched=False, score=min(scores))
+
 def boundary_from_scores(scores,dark,lo,side):
     scores=np.asarray(scores);n=len(scores)
     if n<10*RATE:raise ValueError('Too few pictures to verify a main-episode boundary.')
@@ -59,7 +99,7 @@ def refine_estimated_boundary(plan,visual,delay,estimate,side):
     return fallback
 
 
-def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None):
+def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_features=None,target_features=None):
     if not plan.get('source_video') or not plan.get('target_video'):raise ValueError('Main-episode detection requires both videos.')
     duration=plan['duration'];results={}
     from chapter_boundaries import explicit_outer_chapters
@@ -87,6 +127,12 @@ def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None):
         q,dark=frames(plan['target_video'],lo,hi-lo,crop=plan.get('target_crop',''),with_dark=True)
         x=frames(plan['source_video'],source_begin,hi-lo,m['speed'],plan.get('source_crop',''))
         results[side]=boundary_from_scores(compare(q,x),dark,lo,side)
+        if side == 'start' and results[side]['status'] == 'supported' and results[side]['time'] > 0:
+            evidence = opening_audio_correspondence(source_features, target_features, results[side]['time'], m['speed'])
+            if evidence is None or evidence.get('matched'):
+                # A picture mismatch alone is not sufficient to delete target music.
+                why = ('Shared music matches source audio (score %.3f)' % evidence['score']) if evidence else 'Opening audio inconclusive'
+                results[side] = dict(time=0., status='kept', reason=why + '; do not automatically trim the opening')
         if results[side]['status']=='kept':results[side]['time']=0. if side=='start' else duration
     if results['end']['time']-results['start']['time']<10:
         for side,manual in [('start',manual_start),('end',manual_end)]:

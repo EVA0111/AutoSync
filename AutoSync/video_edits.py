@@ -69,7 +69,7 @@ def export_video(plan,audio,out,codec='h264',preset='veryfast'):
     encoding=['-c:v','ffv1','-level','3'] if codec=='ffv1' else ['-c:v','libx264','-preset',preset,'-crf','16']
     print('Encoding edited target video with unmatched sections removed...',flush=True)
     try:
-        vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-i',plan['target_video'],'-i',str(audio),'-filter_complex_script',str(script),'-map','[v]','-map','1:a:0','-t',str(plan['duration']),'-fps_mode','passthrough','-enc_time_base','1:1000000',*encoding,'-c:a','copy','-map_metadata','-1','-map_chapters','-1',str(tmp)])
+        vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-i',plan['target_video'],'-i',str(audio),'-/filter_complex',str(script),'-map','[v]','-map','1:a:0','-t',str(plan['duration']),'-fps_mode','passthrough','-enc_time_base','1:1000000',*encoding,'-c:a','copy','-map_metadata','-1','-map_chapters','-1',str(tmp)])
         if abs(vc.video_duration(tmp)-plan['duration'])>.15:raise RuntimeError('Edited video duration does not match synced audio.')
         tmp.replace(dest)
     finally:

@@ -36,3 +36,8 @@ nav{margin-top:30px}main{max-width:none}.drop-zone{background:#111720;border-col
 .preview-transport{flex-wrap:wrap}.preview-transport #preview-frame-jump{width:96px}.setup-check{display:flex;align-items:center;gap:12px;color:var(--muted);padding:12px 16px}.setup-check span{flex:1}.setup-check.ready{color:#73dfc5}
 
 .github-profile{margin-top:auto;text-align:left;font-size:12px;background:transparent;color:#86ead2;border-color:#364252}
+
+/* Non-destructive audio alignment editor entry point. */
+.run{grid-template-columns:auto minmax(0,1fr) auto auto auto}
+#alignment-editor-open{grid-row:2;grid-column:4}
+#start{grid-column:5}
