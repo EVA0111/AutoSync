@@ -46,7 +46,9 @@ def protect_opening(plan, source_features, target_features, source_length):
             p['outer_shift']=float(p.get('reference_shift',0.))
             outcome='Opening match uncertain: kept target video and target audio for manual review'
         else:
-            outcome='Opening match uncertain but target audio source differs; retain for manual review (requires reference fallback)'
+            # Without usable target-audio evidence there is no safe replacement.
+            # Refuse destructive pruning rather than silently throw away footage.
+            raise ValueError('Opening cannot be safely removed: music match is inconclusive and target audio differs or is missing. Select the target audio track or review a non-destructive alignment.')
     if outcome is not None:
         p.setdefault('review',[]).append(dict(start=0.,end=b,confidence='estimated',
                                                   reason=outcome+'; listen near the opening join'))
