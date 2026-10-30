@@ -11,7 +11,7 @@ function readinessIssue(){
  if(prefs.reports){
   const clean=s=>s.trim().replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase();
   const a=clean($('output-destination').value.trim()||defaultOutputFolder()),b=clean(reportsRoot());
-  if(a===b||a.startsWith(b+'/')||b.startsWith(a+'/'))return ['Choose separate, non-nested output and report folders.','reports-destination'];
+  if(a===b||a.startsWith(b+'/'))return ['Outputs cannot be saved inside the reports folder. Choose a separate output location.','reports-destination'];
  }
  if(workspace==='Saved plan')return $('plan').value.trim()?null:['Choose a saved timing plan.','plan'];
  if(!$('enable-audio').checked&&!subtitlesEnabled())return ['Enable Audio, Subtitles, or both.','enable-audio'];
