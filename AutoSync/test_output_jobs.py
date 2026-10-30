@@ -23,7 +23,12 @@ class OutputTests(unittest.TestCase):
    jobs=[{'task':'Single episode','values':{'target':'EP01.mkv'}},
          {'task':'Single episode','values':{'target':'subdir/EP01.mkv'}}]
    request={'output_dir':str(out),'reports_dir':str(reports),'save_reports':True,'jobs':jobs}
-   self.assertEqual(run_managed(request,runner),0)
+   buf=io.StringIO()
+   with contextlib.redirect_stdout(buf):self.assertEqual(run_managed(request,runner),0)
+   results=[json.loads(line.split('=',1)[1]) for line in buf.getvalue().splitlines() if line.startswith('AUTOSYNC_RESULT=')]
+   self.assertEqual(len(results),2)
+   self.assertEqual(len({entry['reports_folder'] for entry in results}),2)
+   self.assertTrue(all(Path(entry['reports_folder']).is_dir() for entry in results))
    folders=sorted(p for p in reports.iterdir() if p.is_dir())
    self.assertEqual(len(folders),2)
    self.assertNotEqual(folders[0].name,folders[1].name)
