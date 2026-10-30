@@ -24,6 +24,17 @@ const help=Array.from($('batch-panel').querySelectorAll('.hint')).find(el=>el.te
 const modeBar=document.createElement('div');modeBar.className='mode-bar';modeBar.innerHTML='<label for="mode-select">Sync mode</label><select id="mode-select"></select><button id="mode-details" class="secondary">Mode details</button>';
 const modeSelect=modeBar.querySelector('select');for(const radio of document.querySelectorAll('[name=mode]'))modeSelect.add(new Option(radio.closest('.mode').querySelector('strong').textContent,radio.value));modeSelect.value=document.querySelector('[name=mode]:checked').value;
 $('mode-section').querySelector('h2').remove();$('mode-section').prepend(modeBar);$('mode-section').querySelector('.modes').classList.add('hidden');
+// The matching algorithm is independent of output choice. Standard stays the
+// default; selecting AI does not change full/main/OP-ED export behavior.
+const methodBox=document.createElement('div');methodBox.className='sync-method-selector';
+methodBox.innerHTML='<label for="sync_method">Matching method</label><select id="sync_method"><option value="standard">Standard (default)</option><option value="ai_assisted">AI-assisted (experimental)</option></select><small id="sync-method-help">Standard matching uses audio fingerprints and video scenes.</small>';
+modeBar.after(methodBox);
+$('sync_method').onchange=()=>{
+ $('sync-method-help').textContent=$('sync_method').value==='ai_assisted'
+ ?'Uses pretrained AST sound embeddings, plus DINOv2 for weak scene matching. Install AI Sync in Setup first; downloads are optional and the first analysis is slower.'
+ :'Standard matching uses audio fingerprints and video scenes.';
+ refreshReadiness();
+};
 modeSelect.onchange=()=>{const radio=Array.from(document.querySelectorAll('[name=mode]')).find(r=>r.value===modeSelect.value);radio.checked=true;radio.dispatchEvent(new Event('change'));refreshReadiness();};
 $('mode-details').onclick=()=>$('mode-section').querySelector('.modes').classList.toggle('hidden');
 document.querySelectorAll('[name=mode]').forEach(r=>r.addEventListener('change',()=>modeSelect.value=r.value));
