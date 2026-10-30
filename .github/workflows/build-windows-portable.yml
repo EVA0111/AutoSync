@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - refactor/source-build-opening-guard-ui
     paths:
       - 'AutoSync/**'
       - 'build/windows/**'
@@ -12,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   portable:
@@ -46,19 +45,3 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish source-build preview release
-        if: github.ref == 'refs/heads/main'
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $tag = 'source-build-20261030'
-          $zip = 'dist/AutoSync-Source-Windows-Portable.zip'
-          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $zip --repo $env:GITHUB_REPOSITORY --clobber
-          } else {
-            gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'AutoSync source-build portable preview (Windows)' --notes 'Built directly from public repository source; self-contained Electron, Python 3.12, FFmpeg, NumPy and SciPy. Includes audio-based opening cut guard and GUI review controls. This is NOT a verified import of the separately uploaded v1.3 source. Unit tests passed in Windows CI; private seven-case media tests were not run.'
-          }
-          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release publication failed.' }
