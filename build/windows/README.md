@@ -19,6 +19,11 @@ Run PowerShell directly with:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File build/windows/build-portable.ps1 -OutputDirectory "D:\Builds"
 ```
+The base portable package includes pip and the optional
+`requirements-sync-ai.txt` manifest, but does **not** include the large
+PyTorch packages or neural model weights. Users opt in with the in-app
+**Install AI Sync models** button.
+
 Each build refuses to overwrite an existing output, so use an empty build
 destination or move the previous output first. Internet access is needed for
 dependencies. GitHub Actions uses this same script; the tests must pass before
