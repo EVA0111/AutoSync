@@ -19,6 +19,11 @@ app.whenReady().then(()=>{
  win.removeMenu();win.loadFile(path.join(__dirname,'index.html'));win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());
  win.on('close',e=>{if(child&&!quitting){e.preventDefault();dialog.showMessageBox(win,{type:'question',message:'Stop the running job and close?',detail:'Partial output and temporary files may remain.',buttons:['Keep running','Stop and close'],defaultId:0,cancelId:0}).then(r=>{if(r.response===1){quitting=true;stop();}});}});
  ipcMain.handle('open-github-profile',async e=>{trusted(e);await shell.openExternal('https://github.com/EVA0111');});
+ ipcMain.handle('default-reports-path',e=>{
+  trusted(e);
+  // The portable executable's directory is the requested default.
+  return path.join(app.isPackaged?path.dirname(process.execPath):path.resolve(__dirname,'../..'),'AutoSync Reports');
+ });
  ipcMain.handle('browse',async(e,kind)=>{trusted(e);if(!['media','subtitle','csv','plan','output'].includes(kind))throw Error('Unknown file type');const dir=kind==='output';const result=await dialog.showOpenDialog(win,{properties:[dir?'openDirectory':'openFile'],filters:dir?undefined:kind==='subtitle'?[{name:'Subtitles or container',extensions:['ass','ssa','srt','vtt','sbv','sub','mpl2','smi','sami','ttml','dfxp','xml','sup','mkv','mp4']},{name:'All files',extensions:['*']}]:kind==='csv'?[{name:'Batch CSV',extensions:['csv']}]:kind==='plan'?[{name:'Saved plan',extensions:['json']}]:[{name:'Media',extensions:['mkv','mp4','avi','wmv','mov','m2ts','wav','flac','mp3','aac','ac3','wma']},{name:'All files',extensions:['*']}]});if(result.canceled)return '';const p=result.filePaths[0];return p;});
  win.on('closed',()=>{preview.cancel();alignmentEditor.close();});
  ipcMain.handle('alignment-editor-open',async(e,request={})=>{
