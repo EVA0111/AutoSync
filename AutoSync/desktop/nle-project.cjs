@@ -3,7 +3,7 @@
 // Timeline clips are independent objects until flattened for the existing engine.
 // FilmCraft was studied as a UX reference; this is original JS code, not a port.
 const {validateSegments}=require('./alignment-model.cjs');
-const EPS=0.00001,MIN=.04;
+const EPS=0.00001,MIN=.04,MIN_SOURCE=0.00001;
 const copy=x=>JSON.parse(JSON.stringify(x));
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const finite=n=>typeof n==='number'&&Number.isFinite(n);
@@ -39,7 +39,7 @@ function validateProject(project){
   for(const c of track.clips){
    if(!c||typeof c.id!=='string'||!['audio','reference','target_outer','verified_gap'].includes(c.kind)||
     !finite(c.start)||!finite(c.end)||c.start<-EPS||c.end>project.duration+EPS||
-    c.end-c.start<MIN-EPS||c.start<previous-EPS)
+    c.end-c.start<MIN_SOURCE-EPS||c.start<previous-EPS)
     throw Error('Overlapping or invalid clips on '+track.id);
    if(c.kind==='audio'&&(!finite(c.sourceStart)||c.sourceStart<0||!finite(c.speed)||c.speed<.5||c.speed>2))
     throw Error('Invalid source audio clip.');
