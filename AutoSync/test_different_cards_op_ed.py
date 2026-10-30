@@ -87,10 +87,10 @@ class TargetOnlyCards(unittest.TestCase):
 
 class DifferentOpeningEnding(unittest.TestCase):
     def setUp(self):
-        self.visual=np.array([[t,t+15.,.99] for t in range(20,81)],dtype=float)
-        self.plan=dict(duration=100.,source_video='source.mkv',target_video='target.mkv',
-            source_crop='',target_crop='',models=[dict(speed=1.,offset=15.,first=20.,last=80.)],
-            segments=[dict(kind='audio',target_start=0.,target_end=100.,
+        self.visual=np.array([[t,t+15.,.99] for t in range(20,181)],dtype=float)
+        self.plan=dict(duration=200.,source_video='source.mkv',target_video='target.mkv',
+            source_crop='',target_crop='',models=[dict(speed=1.,offset=15.,first=20.,last=180.)],
+            segments=[dict(kind='audio',target_start=0.,target_end=200.,
                            source_start=15.,speed=1.)],review=[],reference_shift=0.)
     def frames(self,path,start,length,*args,**kwargs):
         n=int(round(length*25))
@@ -117,7 +117,7 @@ class DifferentOpeningEnding(unittest.TestCase):
                              source_features=np.ones((24,500)),
                              target_features=np.ones((24,500)))
         self.assertAlmostEqual(trim['target_start'],8.,delta=.05)
-        self.assertAlmostEqual(trim['target_end'],85.,delta=.05)
+        self.assertAlmostEqual(trim['target_end'],185.,delta=.05)
         with patch('main_episode.vc.probe',return_value={
              'streams':[dict(codec_type='video',start_time='0'),
                         dict(codec_type='audio',start_time='0')]}):
@@ -125,7 +125,7 @@ class DifferentOpeningEnding(unittest.TestCase):
         self.assertEqual(plan['segments'][0]['kind'],'target_outer')
         self.assertAlmostEqual(plan['segments'][0]['target_end'],8.,delta=.05)
         self.assertEqual(plan['segments'][-1]['kind'],'target_outer')
-        self.assertAlmostEqual(plan['segments'][-1]['target_start'],85.,delta=.05)
+        self.assertAlmostEqual(plan['segments'][-1]['target_start'],185.,delta=.05)
         self.assertAlmostEqual(plan['segments'][1]['source_start'],23.,delta=.05)
 
     def test_main_only_retains_shared_audio_veto_for_safety(self):
