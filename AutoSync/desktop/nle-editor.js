@@ -8,6 +8,7 @@ window.createNleEditor=function createNleEditor(deps){
  const deep=x=>JSON.parse(JSON.stringify(x));
  const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
  let project=api.nleCreate(deps.getPlan()),history=[],future=[];
+ let cachedOutput=api.nleFlatten(project);
  let selection=null,track='A3',tool='select',snapEnabled=true,clipboard=null,drag=null,preview=null;
  const format=t=>{const ms=Math.round(Math.max(0,t)*1000);return String(Math.floor(ms/3600000)).padStart(2,'0')+':'+String(Math.floor(ms/60000)%60).padStart(2,'0')+':'+String(Math.floor(ms/1000)%60).padStart(2,'0')+'.'+String(ms%1000).padStart(3,'0');};
  const dimensions=()=>{const w=c.clientWidth||900;return {w,left:HEAD,right:w-12,scale:(w-HEAD-12)/Math.max(1,deps.getView())};};
@@ -29,7 +30,7 @@ window.createNleEditor=function createNleEditor(deps){
   if(!next)return;
   const flat=api.nleFlatten(next);
   history.push(deep(project));if(history.length>80)history.shift();
-  future=[];project=next;
+  future=[];project=next;cachedOutput=flat;
   deps.onChange(flat,label||'Updated audio clip.');
   if(selection&&!project.tracks.some(t=>t.clips.some(v=>v.id===selection)))chosen(null,track);
   draw();
@@ -44,12 +45,12 @@ window.createNleEditor=function createNleEditor(deps){
  }
  function undo(){
   if(!history.length)return false;
-  future.push(deep(project));project=history.pop();
+  future.push(deep(project));project=history.pop();cachedOutput=api.nleFlatten(project);
   deps.onChange(api.nleFlatten(project),'Undo clip edit.');draw();return true;
  }
  function redo(){
   if(!future.length)return false;
-  history.push(deep(project));project=future.pop();
+  history.push(deep(project));project=future.pop();cachedOutput=api.nleFlatten(project);
   deps.onChange(api.nleFlatten(project),'Redo clip edit.');draw();return true;
  }
  function draw(){
@@ -120,7 +121,7 @@ window.createNleEditor=function createNleEditor(deps){
    ctx.restore();
   }
   // This is a priority compositor: highest active audio lane wins, not amix.
-  for(const s of api.nleFlatten(displayed)){
+  for(const s of displayed===project?cachedOutput:api.nleFlatten(displayed)){
    const x0=clamp(xAt(s.target_start),left,right),x1=clamp(xAt(s.target_end),left,right);
    if(x1<=x0)continue;
    ctx.fillStyle=s.kind==='audio'?'#795ba3':s.kind==='verified_gap'?'#454855':'#8a684a';
@@ -216,10 +217,10 @@ window.createNleEditor=function createNleEditor(deps){
  return {
   get project(){return project;},
   draw,undo,redo,copy,paste,lift,razor,trim,chooseTool,
-  hasSelection:()=>Boolean(selection),canUndo:()=>history.length>0,canRedo:()=>future.length>0,
+  hasSelection:()=>Boolean(selection),hasClipboard:()=>Boolean(clipboard),canUndo:()=>history.length>0,canRedo:()=>future.length>0,
   reset(plan){
    const updated={...plan};delete updated.editor_timeline;
-   project=api.nleCreate(updated);selection=null;history=[];future=[];chosen(null,track);draw();
+   project=api.nleCreate(updated);cachedOutput=api.nleFlatten(project);selection=null;history=[];future=[];chosen(null,track);draw();
   }
  };
 };
