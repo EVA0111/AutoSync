@@ -3,6 +3,7 @@ const $=id=>document.getElementById(id);
 const clone=value=>JSON.parse(JSON.stringify(value));
 let plan=null,segments=[],waves={source:null,target:null},selected=0,playhead=0,scroll=0,view=60;
 let undo=[],redo=[],playing=false,playToken=0,frameToken=0,drag=null,saved=false,exporting=false,loop=false;
+let wavesFine={source:null,target:null},waveGeneration=0,waveTimer=null;
 const canvas=$('timeline'),ctx=canvas.getContext('2d'),audio=$('audio-player');
 const rowTops=[44,141,238],rowNames=['SOURCE','TARGET','OUTPUT'];
 const trimTime=t=>{const ms=Math.max(0,Math.round(t*1000));return [Math.floor(ms/3600000),Math.floor(ms/60000)%60,Math.floor(ms/1000)%60].map(n=>String(n).padStart(2,'0')).join(':')+'.'+String(ms%1000).padStart(3,'0');};
@@ -67,12 +68,49 @@ function resetZoom(){
  scroll=clamp(scroll,0,Math.max(0,plan.duration-view));
  $('scroll').max=String(Math.max(0,plan.duration-view));$('scroll').value=String(scroll);
  $('zoom-label').textContent=trimTime(view)+' visible';
- draw();
+ draw();scheduleFineWaveforms();
 }
 function waveSample(track,time){
+ const fine=wavesFine[track];
+ if(fine&&time>=fine.start&&time<fine.start+fine.duration&&fine.peaks.length){
+  const i=clamp(Math.floor((time-fine.start)/fine.duration*fine.peaks.length),0,fine.peaks.length-1);
+  return fine.peaks[i];
+ }
  const w=waves[track];
  if(!w||!Number.isFinite(time)||time<0||time>=w.duration)return 0;
  return w.peaks[clamp(Math.floor(time/w.duration*w.peaks.length),0,w.peaks.length-1)]||0;
+}
+
+function scheduleFineWaveforms(){
+ if(waveTimer)clearTimeout(waveTimer);
+ const generation=++waveGeneration;
+ if(!plan||view>80)return;
+ waveTimer=setTimeout(async()=>{
+  const upper=Math.min(plan.duration,scroll+view);
+  const sourceTimes=[];
+  for(const s of segments){
+   if(s.kind!=='audio'||s.target_end<scroll||s.target_start>upper)continue;
+   const lo=Math.max(scroll,s.target_start),hi=Math.min(upper,s.target_end);
+   sourceTimes.push(s.source_start+(lo-s.target_start)*s.speed,s.source_start+(hi-s.target_start)*s.speed);
+  }
+  const bounds={
+   target:[mapTarget(scroll),mapTarget(upper)],
+   source:sourceTimes.length?[Math.min(...sourceTimes),Math.max(...sourceTimes)]:null
+  };
+  for(const track of ['source','target']){
+   const times=bounds[track];
+   if(!times||times[1]<=times[0]||times[1]-times[0]>120)continue;
+   try{
+    const start=Math.max(0,times[0]-.15),end=times[1]+.15;
+    const result=await window.alignment.waveformRange(track,start,end);
+    if(generation!==waveGeneration)return;
+    wavesFine[track]=result;
+    draw();
+   }catch(error){
+    if(generation===waveGeneration)report('High-resolution waveform unavailable: '+error.message,true);
+   }
+  }
+ },180);
 }
 function draw(){
  if(!plan)return;
@@ -141,7 +179,7 @@ async function updateFrames(){
 let lastFrame=0;
 function movePlayhead(t,frame=true){
  playhead=clamp(t,0,plan.duration);
- if(playhead<scroll||playhead>scroll+view){scroll=clamp(playhead-view*.35,0,Math.max(0,plan.duration-view));$('scroll').value=String(scroll);}
+ if(playhead<scroll||playhead>scroll+view){scroll=clamp(playhead-view*.35,0,Math.max(0,plan.duration-view));$('scroll').value=String(scroll);scheduleFineWaveforms();}
  updateClock();draw();refreshSelectionOnly();
  if(frame)updateFrames();
 }
@@ -268,7 +306,7 @@ function onUp(){
 }
 canvas.addEventListener('pointerdown',onDown);canvas.addEventListener('pointermove',onMove);canvas.addEventListener('pointerup',onUp);canvas.addEventListener('lostpointercapture',onUp);
 canvas.addEventListener('dblclick',e=>{movePlayhead(tFor(e.clientX-canvas.getBoundingClientRect().left));});
-$('scroll').oninput=()=>{scroll=Number($('scroll').value);draw();};
+$('scroll').oninput=()=>{scroll=Number($('scroll').value);draw();scheduleFineWaveforms();};
 $('zoom').oninput=resetZoom;
 $('back').onclick=()=>{pause();movePlayhead(playhead-.04);};
 $('forward').onclick=()=>{pause();movePlayhead(playhead+.04);};
@@ -313,6 +351,6 @@ window.addEventListener('resize',draw);
   report('Loading source and target audio waveforms…');
   const results=await Promise.allSettled(['source','target'].map(x=>window.alignment.waveform(x)));
   results.forEach((r,i)=>{if(r.status==='fulfilled')waves[i===0?'source':'target']=r.value;});
-  draw();report('Ready. Click or drag a region, listen, then save and export.');
+  draw();scheduleFineWaveforms();report('Ready. Click or drag a region, listen, then save and export.');
  }catch(e){report('Unable to load editor: '+e.message,true);}
 })();
