@@ -5,7 +5,7 @@ const {collect,prepareBatch}=require('./batch.cjs');
 const {app,BrowserWindow,ipcMain,dialog,shell}=require('electron');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs');const path=require('node:path');const {pathToFileURL}=require('node:url');
-let win,child=null,lastOutput=null,lastReport=null,stopping=false,quitting=false;
+let win,child=null,lastOutput=null,lastReport=null,lastPlan=null,stopping=false,quitting=false;
 const root=app.isPackaged?path.join(process.resourcesPath,'engine'):path.resolve(__dirname,'..');
 const preview=createPreview(root);
 const alignmentEditor=createAlignmentEditor(root,python);
@@ -26,6 +26,7 @@ app.whenReady().then(()=>{
   if(child)throw Error('Finish the running sync job before opening Preview & Edit.');
   if(!request||typeof request!=='object'||JSON.stringify(request).length>100000)throw Error('Invalid Preview & Edit request.');
   if(request.plan)return alignmentEditor.open(win,request.plan);
+  if(!request.job&&lastPlan&&fs.existsSync(lastPlan))return alignmentEditor.open(win,lastPlan);
   if(request.job)return alignmentEditor.analyzeAndOpen(win,request.job,request.outputDirectory,message=>send('alignment-log',message));
   return alignmentEditor.open(win);
  });
@@ -37,12 +38,12 @@ app.whenReady().then(()=>{
  ipcMain.handle('subtitle-pick',async(e,folder)=>{trusted(e);const r=await dialog.showOpenDialog(win,{properties:folder?['openDirectory']:['openFile','multiSelections']});return r.canceled?[]:collect(r.filePaths,'subtitle-target');});
  ipcMain.handle('collect',async(e,paths,videoOnly)=>{trusted(e);return collect(paths,videoOnly!==false);});
  ipcMain.handle('pick-batch',async(e,folder)=>{trusted(e);const r=await dialog.showOpenDialog(win,{properties:folder?['openDirectory']:['openFile','multiSelections']});return r.canceled?[]:collect(r.filePaths);});
- ipcMain.handle('start',async(e,job)=>{trusted(e);if(child||alignmentEditor.isBusy())throw Error('A sync or Preview & Edit analysis is already running.');if(!job||typeof job!=='object'||JSON.stringify(job).length>100000)throw Error('Invalid job.');const queued=job.task==='Queue'?job.jobs:[job];if(!Array.isArray(queued)||!queued.length||queued.length>2)throw Error('Invalid queue.');for(const entry of queued){if(entry.task==='Folder batch'){if(!entry.reviewed)throw Error('Review the episode pairs first.');entry.values.batch=await prepareBatch(entry.pairs,entry.values);entry.task='Batch CSV';}}if(job.task==='Setup'&&!['engine','ai'].includes(job.kind))throw Error('Invalid setup option.');const [bin,prefix]=python();stopping=false;lastOutput=job.task==='Managed queue'?job.output_dir:null;lastReport=null;const managed=job.task==='Managed queue';let workRoot=null;if(managed){workRoot=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'autosync-work-'));job.work_root=workRoot;}
+ ipcMain.handle('start',async(e,job)=>{trusted(e);if(child||alignmentEditor.isBusy())throw Error('A sync or Preview & Edit analysis is already running.');if(!job||typeof job!=='object'||JSON.stringify(job).length>100000)throw Error('Invalid job.');const queued=job.task==='Queue'?job.jobs:[job];if(!Array.isArray(queued)||!queued.length||queued.length>2)throw Error('Invalid queue.');for(const entry of queued){if(entry.task==='Folder batch'){if(!entry.reviewed)throw Error('Review the episode pairs first.');entry.values.batch=await prepareBatch(entry.pairs,entry.values);entry.task='Batch CSV';}}if(job.task==='Setup'&&!['engine','ai'].includes(job.kind))throw Error('Invalid setup option.');const [bin,prefix]=python();stopping=false;lastOutput=job.task==='Managed queue'?job.output_dir:null;lastReport=null;lastPlan=null;const managed=job.task==='Managed queue';let workRoot=null;if(managed){workRoot=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'autosync-work-'));job.work_root=workRoot;}
  const setup=job.task==='Setup';
  child=spawn(bin,[...prefix,'-u',path.join(root,setup?'runtime_setup.py':'desktop_bridge.py'),...(setup&&job.kind==='ai'?['--ai']:[])],{cwd:root,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONUNBUFFERED:'1'},windowsHide:true,detached:process.platform!=='win32',stdio:['pipe','pipe','pipe']});
  const running=child;let pending='';
  running.stdout.setEncoding('utf8');running.stderr.setEncoding('utf8');
- running.stdout.on('data',chunk=>{pending+=chunk;let i;while((i=pending.indexOf('\n'))!==-1){let line=pending.slice(0,i);pending=pending.slice(i+1);if(line.startsWith('AUTOSYNC_REPORTS=')){try{lastReport=JSON.parse(line.slice(17));}catch{}}else if(line.startsWith('AUTOSYNC_RESULT=')){try{send('result',JSON.parse(line.slice(16)));}catch{}}else if(line.startsWith('AUTOSYNC_PROGRESS=')){try{send('progress',JSON.parse(line.slice(18)));}catch{send('log',line+'\n');}}else if(line.startsWith('AUTOSYNC_OUTPUT=')){try{if(!managed)lastOutput=JSON.parse(line.slice(16));send('output',lastOutput);}catch{send('log',line+'\n');}}else send('log',line+'\n');}});
+ running.stdout.on('data',chunk=>{pending+=chunk;let i;while((i=pending.indexOf('\n'))!==-1){let line=pending.slice(0,i);pending=pending.slice(i+1);if(line.startsWith('AUTOSYNC_REPORTS=')){try{lastReport=JSON.parse(line.slice(17));}catch{}}else if(line.startsWith('AUTOSYNC_RESULT=')){try{send('result',JSON.parse(line.slice(16)));}catch{}}else if(line.startsWith('AUTOSYNC_PLAN=')){try{lastPlan=JSON.parse(line.slice('AUTOSYNC_PLAN='.length));send('plan',lastPlan);}catch{send('log',line+'\n');}}else if(line.startsWith('AUTOSYNC_PROGRESS=')){try{send('progress',JSON.parse(line.slice(18)));}catch{send('log',line+'\n');}}else if(line.startsWith('AUTOSYNC_OUTPUT=')){try{if(!managed)lastOutput=JSON.parse(line.slice(16));send('output',lastOutput);}catch{send('log',line+'\n');}}else send('log',line+'\n');}});
  running.stderr.on('data',s=>send('log',s));running.on('error',err=>send('log','Unable to launch the sync engine: '+err.message+'\n'));
  running.stdin.on('error',()=>{});running.stdin.end(JSON.stringify(job));
  running.on('close',code=>{if(pending)send('log',pending);child=null;if(workRoot)fs.promises.rm(workRoot,{recursive:true,force:true,maxRetries:5,retryDelay:200}).catch(e=>send('log','Could not remove temporary work files: '+e.message+'\n'));send('done',{code,cancelled:stopping});if(quitting)app.quit();});return true;});
