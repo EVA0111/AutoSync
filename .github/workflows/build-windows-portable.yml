@@ -80,7 +80,7 @@ jobs:
           Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip' -OutFile $pythonZip
           Expand-Archive -Path $pythonZip -DestinationPath $pythonRoot -Force
           $pth = Join-Path $pythonRoot 'python312._pth'
-          @('python312.zip', '.', 'Lib\site-packages', 'import site') | Set-Content -Path $pth -Encoding ascii
+          @('python312.zip', '.', 'Lib\site-packages', '..\engine', 'import site') | Set-Content -Path $pth -Encoding ascii
           $sitePackages = Join-Path $pythonRoot 'Lib/site-packages'
           New-Item -ItemType Directory -Force -Path $sitePackages | Out-Null
           python -m pip install --no-compile --only-binary=:all: --target $sitePackages -r AutoSync/requirements.txt
