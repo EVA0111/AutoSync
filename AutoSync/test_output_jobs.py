@@ -9,8 +9,36 @@ class OutputTests(unittest.TestCase):
    def runner(job):
     p=Path(job['values']['out']);p.mkdir();(p/'synced.flac').write_bytes(b'media');(p/'plan.json').write_text(json.dumps({'audio':'original.flac'}));(p/'scratch.wav').write_bytes(b'cache');return 0
    request={'output_dir':str(out),'work_root':str(work),'jobs':[{'task':'Single episode','values':{'target':'episode01.mkv'}}]}
-   self.assertEqual(run_managed(request,runner),0);self.assertEqual([p.name for p in out.iterdir()],['episode01.synced.flac']);self.assertEqual(list(work.iterdir()),[])
+   self.assertEqual(run_managed(request,runner),0);self.assertCountEqual([p.name for p in out.iterdir()],['episode01.synced.flac','episode01.alignment.json']);self.assertEqual(list(work.iterdir()),[])
    request.update(save_reports=True,reports_dir=str(reports));self.assertEqual(run_managed(request,runner),0);self.assertTrue((out/'episode01.synced (2).flac').exists());self.assertTrue(list(reports.glob('*.plan.json')));self.assertFalse(list(reports.glob('*.wav')))
+ def test_analysis_only_persists_editable_plan_in_user_folder(self):
+  with tempfile.TemporaryDirectory() as td:
+   root=Path(td);out=root/'wherever'/'I choose'
+   def runner(job):
+    p=Path(job['values']['out']);p.mkdir()
+    (p/'plan.json').write_text(json.dumps({'audio':'original.flac','segments':[]}))
+    return 0
+   request={'output_dir':str(out),'jobs':[{'task':'Single episode','values':{'target':'case1.mp4','analyze_only':True}}]}
+   buf=io.StringIO()
+   with contextlib.redirect_stdout(buf):
+    result=run_managed(request,runner)
+   self.assertEqual(result,0)
+   self.assertTrue((out/'case1.alignment.json').exists())
+   self.assertIn('AUTOSYNC_PLAN=',buf.getvalue())
+   self.assertFalse(list(out.glob('*.flac')))
+
+ def test_two_analysis_runs_do_not_overwrite_previous_plan(self):
+  with tempfile.TemporaryDirectory() as td:
+   out=Path(td)/'other-drive';out.mkdir()
+   def runner(job):
+    p=Path(job['values']['out']);p.mkdir()
+    (p/'plan.json').write_text('{}')
+    return 0
+   request={'output_dir':str(out),'jobs':[{'task':'Single episode','values':{'target':'same.mp4','analyze_only':True}}]}
+   self.assertEqual(run_managed(request,runner),0)
+   self.assertEqual(run_managed(request,runner),0)
+   self.assertTrue((out/'same.alignment.json').exists())
+   self.assertTrue((out/'same.alignment (2).json').exists())
  def test_missing_destination_and_nested_reports_block_before_work(self):
   with tempfile.TemporaryDirectory() as td:
    root=Path(td);jobs=[{'task':'Single episode','values':{}}]
