@@ -414,7 +414,7 @@ def _run_job(job,args):
     if args.main_only or args.keep_target_op_ed:
         from main_episode import detect_main,trim_plan,keep_target_outer
         (out/'full_plan.json').write_text(json.dumps(rebase(plan,input_meta),indent=2),encoding='utf-8')
-        try:trim=detect_main(plan,visual,delay,args.main_start,args.main_end)
+        try:trim=detect_main(plan,visual,delay,args.main_start,args.main_end,source_features=sf,target_features=ref)
         except (RuntimeError,ValueError,OSError) as e:
             (out/'trim_report.json').write_text(json.dumps({'status':'needs_review','reason':str(e)},indent=2))
             raise
