@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   portable:
@@ -45,8 +45,22 @@ jobs:
       - name: Upload finished portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: AutoSync-Source-Windows-Portable
-          path: dist/AutoSync-Source-Windows-Portable.zip
+          name: AutoSync-v1.2.0-Windows-Portable
+          path: dist/AutoSync-v1.2.0-Windows-Portable.zip
           if-no-files-found: error
           retention-days: 30
 
+
+      - name: Publish AutoSync v1.2.0 GitHub Release (approved version commit only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'Release AutoSync v1.2.0')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v1.2.0'
+          $zip = 'dist/AutoSync-v1.2.0-Windows-Portable.zip'
+          if (-not (Test-Path -LiteralPath $zip)) { throw 'Release cancelled: portable ZIP was not created.' }
+          gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'AutoSync v1.2.0' --notes-file AutoSync/RELEASE_NOTES.md --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to publish the v1.2.0 release.' }
+          Write-Host 'AutoSync v1.2.0 release published with the tested portable ZIP.'

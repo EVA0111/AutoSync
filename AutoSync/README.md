@@ -1,4 +1,4 @@
-# AutoSync — engine and desktop source
+# AutoSync v1.2.0
 
 By [EVA0111](https://github.com/EVA0111).
 

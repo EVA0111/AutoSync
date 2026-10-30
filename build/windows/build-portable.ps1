@@ -18,8 +18,10 @@ if (-not (Test-Path -LiteralPath (Join-Path $source 'package.json'))) {
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repo 'dist' }
 $output = [IO.Path]::GetFullPath($OutputDirectory.Trim('"'))
 New-Item -ItemType Directory -Force -Path $output | Out-Null
-$bundle = Join-Path $output 'AutoSync-win32-x64'
-$zip = Join-Path $output 'AutoSync-Source-Windows-Portable.zip'
+$version = (Get-Content -LiteralPath (Join-Path $source 'package.json') -Raw | ConvertFrom-Json).version
+if ($version -ne '1.2.0') { throw "Expected AutoSync v1.2.0, found v$version" }
+$bundle = Join-Path $output ("AutoSync-v{0}-Windows-Portable" -f $version)
+$zip = Join-Path $output ("AutoSync-v{0}-Windows-Portable.zip" -f $version)
 if ((Test-Path -LiteralPath $bundle) -or (Test-Path -LiteralPath $zip)) {
   throw "Build output already exists. Choose another -OutputDirectory or move the previous build: $output"
 }

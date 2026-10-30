@@ -16,7 +16,7 @@ function send(type,data){if(win&&!win.isDestroyed())win.webContents.send('job-ev
 function stop(){if(!child)return;stopping=true;send('status','Stopping…');try{if(process.platform==='win32')spawn('taskkill',['/PID',String(child.pid),'/T','/F'],{windowsHide:true});else process.kill(-child.pid,'SIGTERM');}catch(e){send('log',e.message+'\n');}}
 function trusted(event){if(event.sender!==win.webContents||event.senderFrame?.url!==page)throw Error('Untrusted caller');}
 app.whenReady().then(()=>{
- win=new BrowserWindow({width:1240,height:900,minWidth:880,minHeight:660,backgroundColor:'#11151d',title:'AutoSync v1.1',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ win=new BrowserWindow({width:1240,height:900,minWidth:880,minHeight:660,backgroundColor:'#11151d',title:`AutoSync v${require('../package.json').version}`,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  win.removeMenu();win.loadFile(path.join(__dirname,'index.html'));win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());
  win.on('close',e=>{if(child&&!quitting){e.preventDefault();dialog.showMessageBox(win,{type:'question',message:'Stop the running job and close?',detail:'Partial output and temporary files may remain.',buttons:['Keep running','Stop and close'],defaultId:0,cancelId:0}).then(r=>{if(r.response===1){quitting=true;stop();}});}});
  ipcMain.handle('open-github-profile',async e=>{trusted(e);await shell.openExternal('https://github.com/EVA0111');});
