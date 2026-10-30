@@ -4,7 +4,11 @@ on:
   push:
     branches:
       - main
-      - feature/filmcraft-style-timeline-interactions
+    paths:
+      - 'AutoSync/**'
+      - 'build/windows/**'
+      - '.github/workflows/build-windows-portable.yml'
+  pull_request:
     paths:
       - 'AutoSync/**'
       - 'build/windows/**'
