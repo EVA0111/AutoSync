@@ -16,6 +16,7 @@ reportsField.addEventListener('change',()=>{
 window.autosync.defaultReportsPath().then(folder=>{
  defaultReportsRoot=folder;
  if(!reportsField.value.trim())reportsField.placeholder='Auto — '+folder;
+ if(typeof refreshReadiness==='function')queueMicrotask(refreshReadiness);
 }).catch(error=>{console.warn('Reports default path unavailable:',error);});
 function reportsRoot(){return reportsField.value.trim()||defaultReportsRoot;}settingsPanel.append($('setup-engine').closest('details'));
 const destinationPanel=document.createElement('section');destinationPanel.id='destination-panel';destinationPanel.className='panel';
