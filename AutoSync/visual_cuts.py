@@ -136,8 +136,8 @@ def locate_visual_insert_island(old,new,lo,left,right,audio_models=None,rate=RAT
     if not .5<missing<35:return None
     a=uniform_filter1d(np.asarray(old[:n],dtype=float),size=11)
     b=uniform_filter1d(np.asarray(new[:n],dtype=float),size=11)
-    strong_left=np.flatnonzero((a>.84)&(b<.67))
-    strong_right=np.flatnonzero((b>.84)&(a<.67))
+    strong_left=np.flatnonzero((np.asarray(old[:n])>.86)&(np.asarray(new[:n])<.64))
+    strong_right=np.flatnonzero((np.asarray(new[:n])>.86)&(np.asarray(old[:n])<.64))
     if not len(strong_left) or not len(strong_right):return None
     expected=int(round(missing*rate))
     # Candidate cut endpoints must lie near the final old and first new
@@ -164,11 +164,11 @@ def locate_visual_insert_island(old,new,lo,left,right,audio_models=None,rate=RAT
             source_before=speed*ti+float(left['offset'])
             source_after=float(right['speed'])*tj+float(right['offset'])
             delta=source_after-source_before
-            if abs(delta)>.9:continue
+            if abs(delta)>.20:continue
             if audio_models is not None:
                 al,ar=audio_models
                 audit=(ar['speed']*tj+ar['offset'])-(al['speed']*ti+al['offset'])
-                if abs(audit)>1.:continue
+                if abs(audit)>.20:continue
             choices.append((abs(delta)+abs((tj-ti)-missing)*.3,ti,tj))
         if choices:break
     if not choices:return None
