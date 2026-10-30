@@ -186,6 +186,11 @@ def unresolved_cuts(plan):
         if not notes or not any(r.get('confidence') in ('supported','manual') for r in notes):unresolved.append(c)
     return unresolved
 
+def requires_explicit_reference_fallback(segments):
+    """Verified target-only cards use target audio; other gaps need consent."""
+    return any(s['kind']=='reference' and not s.get('verified_insert',False) for s in segments)
+
+
 def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
     rewinds=source_rewinds(plan.get('segments',[]))
     if rewinds and not allow_uncertain_cuts:
@@ -217,7 +222,7 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
     audio=plan['audio'];stream=int(plan['audio_stream']);ref=plan.get('reference');refstream=int(plan.get('reference_stream',0))
     references=[section for section in plan['segments'] if section['kind']=='reference']
     if references and (not ref or (not reference_fallback and
-                       any(not section.get('verified_insert',False) for section in references))):
+                       requires_explicit_reference_fallback(references))):
         raise RuntimeError('The target contains a section with no usable source audio. No silence or repeated source audio was written. '
                            'Only picture-verified target-only inserts automatically use target audio. '
                            'For other unmatched regions, enable --reference-fallback or inspect the reported interval.')
