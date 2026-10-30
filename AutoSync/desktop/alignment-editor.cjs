@@ -7,6 +7,7 @@ const {pathToFileURL}=require('node:url');
 const {randomUUID,createHash}=require('node:crypto');
 const {validateSegments}=require('./alignment-model.cjs');
 const clips=require('./audio-clip-tools.cjs');
+const nle=require('./nle-project.cjs');
 
 function createAlignmentEditor(root,python){
  let editor=null,project=null,exportChild=null,prepareChild=null,lastPrepared=null;
