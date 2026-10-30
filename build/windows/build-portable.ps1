@@ -81,7 +81,27 @@ try {
   Write-Host '[2/7] Downloading portable FFmpeg and FFprobe...'
   $ffmpegZip = Join-Path $work 'ffmpeg.zip'
   $unpack = Join-Path $work 'ffmpeg'
-  Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile $ffmpegZip
+  $downloaded = $false
+  $mirrors = @(
+    'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
+    'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'
+  )
+  foreach ($uri in $mirrors) {
+    for ($attempt=1; $attempt -le 3; $attempt++) {
+      try {
+        if (Test-Path -LiteralPath $ffmpegZip) { Remove-Item -LiteralPath $ffmpegZip -Force }
+        Invoke-WebRequest -Uri $uri -OutFile $ffmpegZip -TimeoutSec 180
+        if ((Get-Item -LiteralPath $ffmpegZip).Length -lt 10000000) { throw 'Downloaded archive is unexpectedly small.' }
+        $downloaded = $true
+        break
+      } catch {
+        Write-Warning "FFmpeg mirror failed (attempt $attempt): $($_.Exception.Message)"
+        Start-Sleep -Seconds (2*$attempt)
+      }
+    }
+    if ($downloaded) { break }
+  }
+  if (-not $downloaded) { throw 'FFmpeg mirrors unavailable. Check internet access and retry.' }
   Expand-Archive -LiteralPath $ffmpegZip -DestinationPath $unpack
   $ffmpeg = Get-ChildItem -LiteralPath $unpack -Recurse -File -Filter ffmpeg.exe | Select-Object -First 1
   $ffprobe = Get-ChildItem -LiteralPath $unpack -Recurse -File -Filter ffprobe.exe | Select-Object -First 1
