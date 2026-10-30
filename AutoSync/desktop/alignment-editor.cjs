@@ -189,7 +189,7 @@ function createAlignmentEditor(root,python){
   send('preview-progress',{track,message:'Generating playable proxy for '+track+' (only once per file)…'});
   const args=['-hide_banner','-loglevel','error','-nostdin','-y','-i',file,
    '-map','0:v:0','-vf','scale=640:360:force_original_aspect_ratio=decrease,fps=24',
-   '-c:v','libx264','-preset','ultrafast','-crf','33','-pix_fmt','yuv420p',
+   '-c:v','libx264','-preset','ultrafast','-threads','2','-crf','33','-pix_fmt','yuv420p',
    '-an','-sn','-dn','-movflags','+faststart',partial];
   await new Promise((resolve,reject)=>{
    let finished=false,errors='';
