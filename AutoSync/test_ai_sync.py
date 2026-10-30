@@ -28,9 +28,9 @@ class AIAssistedTests(unittest.TestCase):
 
     def test_embedding_proposal_requires_independent_acoustic_verification(self):
         rng=np.random.default_rng(12)
-        source=rng.standard_normal((24,2800)).astype(np.float32)
-        target=source[:,500:2000].copy()
-        times=np.array([4.,10.,16.,22.,28.])
+        source=rng.standard_normal((24,4000)).astype(np.float32)
+        target=source[:,500:2900].copy()
+        times=np.array([4.,12.,20.,28.,36.])
         proposals=np.column_stack([times,times+10,np.ones(len(times))*.98])
         verified=verify_audio_candidates(proposals,source,target,1.)
         self.assertEqual(len(verified),5)
