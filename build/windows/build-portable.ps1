@@ -137,7 +137,7 @@ try {
   Copy-Item -LiteralPath $ffprobe.FullName -Destination (Join-Path $engine 'ffprobe.exe')
 
   Write-Host '[6/7] Checking bundled runtime...'
-  & (Join-Path $python 'python.exe') -c 'import numpy, scipy, main_episode, video_edits, output_jobs; print("Embedded Python imports OK")'
+  & (Join-Path $python 'python.exe') -c 'import numpy, scipy, main_episode, video_edits, output_jobs'
   if ($LASTEXITCODE -ne 0) { throw 'Embedded Python import check failed.' }
   & (Join-Path $python 'python.exe') (Join-Path $engine 'autosync.py') --help | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Embedded AutoSync CLI failed.' }
