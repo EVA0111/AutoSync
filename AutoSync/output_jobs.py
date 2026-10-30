@@ -145,7 +145,8 @@ def run_managed(request,runner):
                             try:dest.write_text(json.dumps(rewrite(json.loads(p.read_text(encoding='utf-8'))),ensure_ascii=False,indent=2),encoding='utf-8')
                             except (ValueError,UnicodeError):shutil.copyfile(p,dest)
                         else:shutil.copyfile(p,dest)
-                results.append({'name':job['name'],'status':status,'files':files,'error':failure})
+                results.append({'name':job['name'],'status':status,'files':files,'error':failure,
+                                'reports_folder':str(job_reports) if reports else ''})
                 print('AUTOSYNC_RESULT='+json.dumps(results[-1],ensure_ascii=False),flush=True)
                 if summary:summary.write_text('\n'.join(f"{r['name']}: {r['status']} — {r['error'] or ', '.join(r['files'])}" for r in results),encoding='utf-8')
                 emit(1,1,label+' · '+status)
