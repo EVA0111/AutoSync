@@ -346,6 +346,7 @@ def _run_job(job,args):
             # establish timing. Do not displace established visual evidence.
             trial_speed=estimate_rate(visual,sf,ref)
             neural_visual=learned_visual_anchors(source_video,target,trial_speed,delay,say)
+            neural_visual=manual_ranges.select(neural_visual,source_bounds)
             if len(neural_visual)>=8:
                 visual=neural_visual
                 warnings.append('AI visual fallback used; review source/target frames at proposed joins.')
