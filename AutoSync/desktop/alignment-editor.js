@@ -14,7 +14,7 @@ function locate(t){return segments.findIndex((s,i)=>s.target_start<=t&&(t<s.targ
 function mapSource(t){
  const i=locate(clamp(t,0,plan.duration)),s=segments[Math.max(0,i)];
  if(!s||s.kind!=='audio')return null;
- return s.source_start+clamp(t,s.target_start,s.target_end-s.target_start)*s.speed-s.target_start*s.speed;
+ return s.source_start+(clamp(t,s.target_start,s.target_end)-s.target_start)*s.speed;
 }
 function mapTarget(t){
  const edits=plan.video_edits?.kept||[];
@@ -243,14 +243,14 @@ function onDown(e){
  const idx=locate(t);if(idx<0)return;
  select(idx);movePlayhead(t);
  const boundary=segments.findIndex((s,j)=>j>0&&Math.abs(xFor(s.target_start)-x)<8);
- saveHistory();
- drag={initialX:x,initialTime:t,boundary:boundary>0?boundary:null,index:idx,original:clone(segments),mode:boundary>0?'boundary':'offset',moved:false};
+ drag={initialX:x,initialTime:t,boundary:boundary>0?boundary:null,index:idx,original:clone(segments),mode:boundary>0?'boundary':'offset',moved:false,historyAdded:false};
  canvas.setPointerCapture(e.pointerId);
 }
 function onMove(e){
  if(!drag||!plan)return;
  const x=e.clientX-canvas.getBoundingClientRect().left,dt=(x-drag.initialX)/range().scale;
  if(Math.abs(dt)<.001)return;
+ if(!drag.historyAdded){saveHistory();drag.historyAdded=true;}
  segments=clone(drag.original);drag.moved=true;
  if(drag.mode==='boundary'){
   const i=drag.boundary;bound(i,drag.original[i].target_start+dt);
@@ -263,7 +263,7 @@ function onMove(e){
 }
 function onUp(){
  if(!drag)return;
- if(!drag.moved){undo.pop();saved=!!saved;}else{saved=false;setButtons();report('Region moved; preview the result before exporting.');}
+ if(drag.moved){saved=false;setButtons();report('Region moved; preview the result before exporting.');}
  drag=null;refresh();
 }
 canvas.addEventListener('pointerdown',onDown);canvas.addEventListener('pointermove',onMove);canvas.addEventListener('pointerup',onUp);canvas.addEventListener('lostpointercapture',onUp);
