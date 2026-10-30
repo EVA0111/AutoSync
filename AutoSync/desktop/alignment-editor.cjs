@@ -5,6 +5,7 @@ const path=require('node:path');
 const {execFile,spawn}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
 const {randomUUID}=require('node:crypto');
+const {validateSegments}=require('./alignment-model.cjs');
 
 function createAlignmentEditor(root,python){
  let editor=null,project=null,exportChild=null;
@@ -36,27 +37,6 @@ function createAlignmentEditor(root,python){
   const source=p.source_video||p.audio;
   const target=p.target_video||p.reference;
   return {source:source&&fs.existsSync(source)?pathToFileURL(source).href:null,target:target&&fs.existsSync(target)?pathToFileURL(target).href:null};
- }
- function validate(segments){
-  const duration=Number(project.plan.duration);
-  if(!Array.isArray(segments)||!segments.length||segments.length>5000)throw Error('Invalid edited segments.');
-  let previous=0;
-  const validated=segments.map((row,i)=>{
-   if(!row||typeof row!=='object')throw Error('Invalid region '+(i+1));
-   const start=Number(row.target_start),end=Number(row.target_end);
-   if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start+1e-5||Math.abs(previous-start)>1e-3||end>duration+.001)throw Error('Regions must be contiguous, positive and inside the timeline (region '+(i+1)+').');
-   previous=end;
-   const kind=row.kind;
-   if(!['audio','reference','target_outer','verified_gap'].includes(kind))throw Error('Invalid region kind '+kind);
-   if(kind==='audio'){
-    const ss=Number(row.source_start),sp=Number(row.speed);
-    if(!Number.isFinite(ss)||ss<0||!Number.isFinite(sp)||sp<.5||sp>2)throw Error('Invalid source start or speed for region '+(i+1));
-    return {...row,target_start:start,target_end:end,source_start:ss,speed:sp};
-   }
-   return {...row,target_start:start,target_end:end};
-  });
-  if(Math.abs(previous-duration)>.001)throw Error('Regions must cover the entire output duration.');
-  return validated;
  }
  function send(kind,payload){
   if(editor&&!editor.isDestroyed())editor.webContents.send('alignment-event',{kind,payload});
@@ -142,7 +122,7 @@ function createAlignmentEditor(root,python){
  ipcMain.handle('align-save',async(e,segments)=>{
   trusted(e);
   if(project.exporting)throw Error('Cannot save while export is running.');
-  const revised=validate(segments);
+  const revised=validateSegments(segments,project.plan.duration);
   // Never overwrite the original, unedited alignment or FLAC.
   if(!project.outputPlan||project.exported){
    const pick=await dialog.showOpenDialog(editor,{title:'Choose where to save the corrected sync',properties:['openDirectory','createDirectory']});
