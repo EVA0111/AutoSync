@@ -8,7 +8,7 @@ const {randomUUID}=require('node:crypto');
 const {validateSegments}=require('./alignment-model.cjs');
 
 function createAlignmentEditor(root,python){
- let editor=null,project=null,exportChild=null;
+ let editor=null,project=null,exportChild=null,prepareChild=null,lastPrepared=null;
  const html=path.join(__dirname,'alignment-editor.html');
  const page=pathToFileURL(html).href;
  const ff=name=>[path.join(root,name+'.exe'),'C:/ffmpeg/bin/'+name+'.exe'].find(p=>fs.existsSync(p))||name;
@@ -41,13 +41,18 @@ function createAlignmentEditor(root,python){
  function send(kind,payload){
   if(editor&&!editor.isDestroyed())editor.webContents.send('alignment-event',{kind,payload});
  }
- async function open(parent){
+ async function open(parent,knownPlan=null){
   if(editor&&!editor.isDestroyed()){editor.focus();return true;}
-  const picked=await dialog.showOpenDialog(parent,{title:'Open an AutoSync plan.json',properties:['openFile'],filters:[{name:'AutoSync alignment plan',extensions:['json']}]});
-  if(picked.canceled)return false;
-  const file=picked.filePaths[0];
+  let file=knownPlan;
+  if(!file){
+   const picked=await dialog.showOpenDialog(parent,{title:'Open a previously saved AutoSync alignment plan',properties:['openFile'],filters:[{name:'AutoSync alignment plan',extensions:['json']}]});
+   if(picked.canceled)return false;
+   file=picked.filePaths[0];
+  }
+  if(typeof file!=='string'||!path.isAbsolute(file)||!fs.existsSync(file))throw Error('Alignment plan does not exist: '+String(file));
   const value=JSON.parse(await fs.promises.readFile(file,'utf8'));
-  if(!value||!Array.isArray(value.segments)||!Number.isFinite(Number(value.duration))||!value.audio)throw Error('Select a valid AutoSync plan.json file.');
+  if(!value||!Array.isArray(value.segments)||!Number.isFinite(Number(value.duration))||!value.audio)throw Error('The selected file does not contain an AutoSync alignment.');
+  validateSegments(value.segments,value.duration);
   if(!fs.existsSync(value.audio))throw Error('The original source audio file is missing: '+value.audio);
   if(!fs.existsSync(value.reference||value.target_video))throw Error('The original target file is missing. Open a plan with valid media paths.');
   project={file,plan:value,outputPlan:null,exporting:false,exported:false};
@@ -62,6 +67,67 @@ function createAlignmentEditor(root,python){
    exportChild=null;editor=null;project=null;
   });
   return true;
+ }
+
+ // Generate an alignment from the selected pair without requiring a saved plan.
+ // Uses the existing portable engine via desktop_bridge.py in analyze-only mode.
+ async function analyzeAndOpen(parent,job,preferredDirectory,notify=()=>{}){
+  if(editor&&!editor.isDestroyed()){editor.focus();return true;}
+  if(prepareChild)throw Error('Preview analysis is already running.');
+  if(!job||job.task!=='Single episode'||!job.values||typeof job.values!=='object')throw Error('Choose a source and target pair before previewing.');
+  if(JSON.stringify(job).length>100000)throw Error('Preview request is too large.');
+  const values={...job.values};
+  for(const field of ['source','target']){
+   if(typeof values[field]!=='string'||!path.isAbsolute(values[field])||!fs.existsSync(values[field]))throw Error('Choose a valid '+field+' video.');
+  }
+  const key=JSON.stringify(values);
+  if(lastPrepared?.key===key&&fs.existsSync(lastPrepared.file))return open(parent,lastPrepared.file);
+  const location=typeof preferredDirectory==='string'&&path.isAbsolute(preferredDirectory)&&fs.existsSync(preferredDirectory)?preferredDirectory:path.dirname(values.target);
+  const selected=await dialog.showOpenDialog(parent,{
+   title:'Where should AutoSync save the alignment and edited output?',
+   defaultPath:location,
+   properties:['openDirectory','createDirectory']
+  });
+  if(selected.canceled)return false;
+  const outputRoot=selected.filePaths[0];
+  if(!path.isAbsolute(outputRoot)||!fs.statSync(outputRoot).isDirectory())throw Error('Choose an existing output directory.');
+  const output=await fs.promises.mkdtemp(path.join(outputRoot,'AutoSync_Alignment_'));
+  values.out=output;
+  values.analyze_only=true;
+  const request={task:'Single episode',values};
+  const [bin,prefix]=python();
+  let tail='';
+  notify('Analyzing source and target for Preview & Edit. Alignment will be saved in '+output+'\n');
+  await new Promise((resolve,reject)=>{
+   let done=false;
+   function finish(err){
+    if(done)return;
+    done=true;
+    prepareChild=null;
+    if(err)reject(err);else resolve();
+   }
+   const child=spawn(bin,[...prefix,'-u',path.join(root,'desktop_bridge.py')],{
+    cwd:root,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONUNBUFFERED:'1'},windowsHide:true,stdio:['pipe','pipe','pipe']
+   });
+   prepareChild=child;
+   for(const stream of [child.stdout,child.stderr]){
+    stream.setEncoding('utf8');
+    stream.on('data',chunk=>{
+     const message=String(chunk);
+     tail=(tail+message).slice(-5000);
+     notify(message);
+    });
+   }
+   child.on('error',err=>finish(Error('Could not start the AutoSync analyzer: '+err.message)));
+   child.on('close',code=>finish(code===0?null:Error('Alignment analysis failed (exit '+code+'). Review the log in AutoSync.\n'+tail.slice(-1500))));
+   child.stdin.on('error',()=>{});
+   child.stdin.end(JSON.stringify(request));
+  });
+  const file=path.join(output,'plan.json');
+  if(!fs.existsSync(file))throw Error('The analyzer finished without saving plan.json to '+output);
+  lastPrepared={key,file};
+  notify('Alignment saved to '+file+'\n');
+  return open(parent,file);
  }
  ipcMain.handle('align-get-plan',e=>{
   trusted(e);
@@ -123,11 +189,23 @@ function createAlignmentEditor(root,python){
   trusted(e);
   if(project.exporting)throw Error('Cannot save while export is running.');
   const revised=validateSegments(segments,project.plan.duration);
-  // Never overwrite the original, unedited alignment or FLAC.
+  // Save As can choose any drive, directory and name. Its filename stem becomes
+  // the new output folder, so rendered media never overwrites another episode.
   if(!project.outputPlan||project.exported){
-   const pick=await dialog.showOpenDialog(editor,{title:'Choose where to save the corrected sync',properties:['openDirectory','createDirectory']});
-   if(pick.canceled)return null;
-   const folder=path.join(pick.filePaths[0],'AutoSync_Edited_'+new Date().toISOString().replace(/[:.]/g,'-')+'_'+randomUUID().slice(0,6));
+   const defaultDirectory=path.dirname(project.outputPlan||project.file);
+   const suggested='AutoSync_Edited_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+   const pick=await dialog.showSaveDialog(editor,{
+    title:'Choose edited output name and location (any drive or folder)',
+    defaultPath:path.join(defaultDirectory,suggested),
+    filters:[{name:'AutoSync output project',extensions:['json']}],
+    properties:['createDirectory','showOverwriteConfirmation']
+   });
+   if(pick.canceled||!pick.filePath)return null;
+   const selected=path.resolve(pick.filePath);
+   const name=path.parse(selected).name;
+   if(!name||name==='.'||name==='..')throw Error('Choose a valid output folder name.');
+   const folder=path.join(path.dirname(selected),name);
+   if(fs.existsSync(folder))throw Error('An output folder already exists here. Choose another name: '+folder);
    await fs.promises.mkdir(folder,{recursive:false});
    project.outputPlan=path.join(folder,'plan.json');
    project.exported=false;
@@ -160,6 +238,6 @@ function createAlignmentEditor(root,python){
   const error=await shell.openPath(path.dirname(project.outputPlan));
   if(error)throw Error(error);
  });
- return {open,close(){if(editor&&!editor.isDestroyed())editor.close();}};
+ return {open,analyzeAndOpen,isBusy:()=>Boolean(prepareChild),close(){if(prepareChild)try{prepareChild.kill();}catch{};if(editor&&!editor.isDestroyed())editor.close();}};
 }
 module.exports={createAlignmentEditor};
