@@ -108,3 +108,17 @@ See [the repository source-build guide](../build/windows/README.md).
 The build includes Electron, embedded Python 3.12, NumPy, SciPy, FFmpeg
 and FFprobe. The historical patcher and merge-helper scripts are no
 longer part of the active source tree.
+
+### Clip-based editing
+
+The main editing timeline has V1 (locked target picture), A1 (source audio),
+A2 (target audio), A3 (extra audio) and OUTPUT. Click a clip to select it;
+drag the body to move it, an edge to trim it, or select Razor (B) and click
+to cut it. Clips snap to boundaries and the playhead (toggle with N).
+Copy/paste and overwrite are available in the toolbar. M, S, L on each
+audio track header toggle mute, solo and lock.
+
+Clips and track settings save in the edited project's `plan.json`.
+The existing renderer receives a flattened, validated audio plan. **Overlap
+uses priority, not simultaneous mixing.** The video reference track cannot
+be edited in this synchronization-focused editor.
