@@ -235,7 +235,7 @@ function createAlignmentEditor(root,python){
   if(b.length<64)throw Error('No audio at this timestamp.');
   return 'data:audio/wav;base64,'+b.toString('base64');
  });
- ipcMain.handle('align-save',async(e,segments)=>{
+ ipcMain.handle('align-save',async(e,segments,timeline=null)=>{
   trusted(e);
   if(project.exporting)throw Error('Cannot save while export is running.');
   const revised=validateSegments(segments,project.plan.duration);
