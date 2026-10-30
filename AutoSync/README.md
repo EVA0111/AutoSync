@@ -114,6 +114,26 @@ drive. Export renders a new output without modifying the original inputs.
 The normal output folder also accepts any destination and remembers your
 previous choice; leave it blank to use the target-adjacent default.
 
+### Different OP/EDs, eyecatches and title cards
+
+With **Keep target opening / ending**, picture-verified OP/ED boundaries
+preserve the target's opening and ending **video and audio**. A similar
+song found elsewhere in source audio is not sufficient to replace those
+target sections with source OP music.
+
+At a suspected mid-episode title card or eyecatch, AutoSync first checks
+whether independently matching pictures bracket a target-only interval,
+whether both picture mappings reach the **same point of source time** at
+its edges, and whether source-audio timing agrees. A verified target-only
+interval uses the selected target audio instead of replaying older source
+audio. Merely different text/artwork or a generic black frame does not
+authorize an automatic insert or cut. Unresolved joins remain flagged
+for Preview & Edit; automatic exports reject source-audio rewinds.
+
+The source and target's exact title cards, intro and ending boundaries
+can differ even in episodes of equal length; AutoSync does not assume
+fixed sequence durations.
+
 ### Automatic trims
 
 **Preview & Edit** is non-destructive. For final exports, choosing
