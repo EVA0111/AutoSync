@@ -22,6 +22,12 @@ CACHE = Path.home() / ".cache" / "AutoSync" / "ai-sync"
 
 
 def _dependencies():
+    # Keep optional neural wheels isolated from Standard's bundled NumPy/SciPy.
+    # The custom path is activated only in AI-assisted mode.
+    import sys
+    optional = Path(__file__).resolve().parent.parent / "python" / "ai-sync-packages"
+    if optional.is_dir() and str(optional) not in sys.path:
+        sys.path.insert(0, str(optional))
     try:
         import torch
         from transformers import AutoFeatureExtractor, AutoImageProcessor, AutoModel, AutoModelForAudioClassification
