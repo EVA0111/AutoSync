@@ -61,8 +61,11 @@ test('outward trims extend source clip into adjacent target fallback without rip
  assert.ok(Math.abs(sourceTime(right,6)-14.6)<1e-7);
  assert.equal(right.at(-1).target_end,14);
  validateSegments(left,14);validateSegments(right,14);
- assert.throws(()=>trimClip([{kind:'audio',target_start:0,target_end:2,source_start:0,speed:1},
- {kind:'reference',target_start:2,target_end:4}],4,1,'start',-1),/Put|Invalid|source/);
+ assert.throws(()=>trimClip([
+  {kind:'reference',target_start:0,target_end:1},
+  {kind:'audio',target_start:1,target_end:3,source_start:.2,speed:1},
+  {kind:'reference',target_start:3,target_end:4}
+ ],4,1,'start',.5),/earlier source audio/);
 });
 test('razor split preserves sample mapping and duration',()=>{
  const cut=splitClip(rows,14,0,2.5);
