@@ -28,12 +28,14 @@ def opening_audio_correspondence(source_features, target_features, proposed_star
     stretched = ndimage.zoom(source_features, (1, 1. / speed), order=1)
     offsets = []
     scores = []
+    informative = []
     n = round(width * audio_rate)
     for start in windows:
         j = round(start * audio_rate)
         query = target_features[:, j:j+n]
         if query.shape[1] < n:
             return None
+        informative.append(float(np.mean(query * query)) > .12)
         score = signal.fftconvolve(stretched, query[:, ::-1], mode='valid', axes=1).sum(axis=0)
         power = np.sum(stretched * stretched, axis=0, dtype=np.float64)
         accum = np.r_[0., np.cumsum(power)]
@@ -46,8 +48,11 @@ def opening_audio_correspondence(source_features, target_features, proposed_star
         offsets.append(peak / audio_rate - start)
     # Two consistent matches reject incidental/repeated clips or generic music.
     if min(scores) >= .54 and abs(offsets[0] - offsets[1]) <= .28:
-        return dict(matched=True, score=min(scores), offset=float(np.median(offsets)) * speed)
-    return dict(matched=False, score=min(scores))
+        return dict(matched=True, different=False, score=min(scores), offset=float(np.median(offsets)) * speed)
+    # A weak or contradictory audio match does not prove a different opening:
+    # only two informative, independently failed searches justify a trim.
+    different = all(informative) and max(scores) < .28
+    return dict(matched=False, different=bool(different), score=max(scores))
 
 def boundary_from_scores(scores,dark,lo,side):
     scores=np.asarray(scores);n=len(scores)
@@ -130,9 +135,9 @@ def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_fe
         results[side]=boundary_from_scores(compare(q,x),dark,lo,side)
         if side == 'start' and results[side]['status'] == 'supported' and results[side]['time'] > 0:
             evidence = opening_audio_correspondence(source_features, target_features, results[side]['time'], m['speed'])
-            if evidence is None or evidence.get('matched'):
+            if evidence is None or not evidence.get('different'):
                 # A picture mismatch alone is not sufficient to delete target music.
-                why = ('Shared music matches source audio (score %.3f)' % evidence['score']) if evidence else 'Opening audio inconclusive'
+                why = ('Opening audio is shared or cannot be ruled out (score %.3f)' % evidence['score']) if evidence else 'Opening audio inconclusive'
                 results[side] = dict(time=0., status='kept', reason=why + '; do not automatically trim the opening')
         if results[side]['status']=='kept':results[side]['time']=0. if side=='start' else duration
     if results['end']['time']-results['start']['time']<10:
