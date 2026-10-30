@@ -21,6 +21,25 @@ See [build/windows/README.md](build/windows/README.md) for requirements,
 custom destinations and CI build instructions. There are no application
 patchers or merges involved.
 
+## Optional AI-assisted syncing (experimental)
+
+In **Sync jobs**, choose **Matching method → AI-assisted (experimental)** to
+use pretrained AST sound embeddings and a DINOv2 scene-model fallback. The
+three existing **output modes** remain separate, and **Standard** is still
+the default.
+
+Click **Install AI Sync models** under Setup before using the mode. The
+optional PyTorch/Transformers dependencies can be large; pretrained weights
+download once on first use. AI features are cached for future runs. Standard
+sync needs none of these downloads.
+
+AI models propose candidate correspondence points; AutoSync independently
+checks original audio at 50 Hz, rejects ambiguous/unconfirmed matches, and
+keeps the existing cut-safety rules. Learned scene matches are used only when
+the original scene matcher has insufficient evidence. Inspect uncertain
+sections in Preview & Edit. There is no automatic guarantee of better sync
+for different dubs or editions.
+
 ## Use
 
 1. Select source and target videos (single pair or batch). Choose audio tracks.
