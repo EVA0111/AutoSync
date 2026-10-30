@@ -266,7 +266,7 @@ def combine_standard_and_learned(standard, learned, speed):
         if len(base) and np.min(abs(base[:,0] - t)) < 5.:
             continue
         near = base[np.abs(base[:,0] - t) < 90.]
-        if len(near) >= 2:
+        if len(near):
             offsets = near[:,1] - speed*near[:,0]
             if abs((s-speed*t) - np.median(offsets)) > .35:
                 continue
