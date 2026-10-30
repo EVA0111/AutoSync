@@ -256,7 +256,14 @@ def learned_visual_anchors(source, target, speed, delay, progress):
                                min_similarity=.93,min_margin=.055)
     if len(proposed):
         proposed[:,1] -= delay
-    verified = _consistent(proposed,speed,tolerance=1.5,minimum=6,min_span=45.)
+    # Different releases may be 23.976/25/29.97 even when dubbed audio
+    # cannot establish speed. Test standard telecine/PAL ratios independently.
+    known = [speed,1.,25/24,25025/24000,24/25,24000/25025]
+    candidates=[]
+    for candidate_speed in dict.fromkeys(round(float(x),7) for x in known):
+        aligned = _consistent(proposed,candidate_speed,tolerance=1.5,minimum=6,min_span=45.)
+        candidates.append(aligned)
+    verified=max(candidates,key=lambda x:(len(x),float(np.mean(x[:,2])) if len(x) else 0.))
     progress(f"AI scene model verified {len(verified)} candidate timing anchors")
     return verified
 
