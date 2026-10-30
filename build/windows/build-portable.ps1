@@ -59,7 +59,7 @@ if (-not $pythonLauncher.Count) {
   $pythonLauncher = @(Test-Python312)
   if (-not $pythonLauncher.Count) { throw 'Python 3.12 is required for the embedded runtime.' }
 }
-$nodeVersion = & node -p 'process.versions.node.split(".")[0]'
+$nodeVersion = ((& node --version).TrimStart('v').Split('.'))[0]
 if ([int]$nodeVersion -lt 22) { throw 'Node.js >=22 is required. Update Node.js LTS and rerun.' }
 $work = Join-Path $env:TEMP ('autosync-source-build-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $work | Out-Null
