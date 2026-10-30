@@ -511,9 +511,11 @@ function onMove(e){
   drag.ghost={start:original.target_start,end:original.target_end,snap:null};
  }else{
   const edge=drag.mode==='trim-start'?'start':'end';
-  const raw=clamp(time,original.target_start+.05,original.target_end-.05);
+  const lo=edge==='start'?0:original.target_start+.05;
+  const hi=edge==='start'?original.target_end-.05:plan.duration;
+  const raw=clamp(time,lo,hi);
   const snapped=magnetic(raw,[original.target_start,original.target_end],!e.shiftKey&&snapEnabled);
-  drag.at=clamp(snapped.time,original.target_start+.05,original.target_end-.05);
+  drag.at=clamp(snapped.time,lo,hi);
   drag.ghost={start:edge==='start'?drag.at:original.target_start,
    end:edge==='end'?drag.at:original.target_end,snap:snapped.guide};
  }
