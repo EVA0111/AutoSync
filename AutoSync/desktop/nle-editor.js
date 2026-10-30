@@ -89,6 +89,14 @@ window.createNleEditor=function createNleEditor(deps){
    ctx.beginPath();ctx.moveTo(x,29);ctx.lineTo(x,h-4);ctx.stroke();
    ctx.fillText(format(t),x+3,18);
   }
+  // Flag uncertain sync joins directly on the time ruler, rather than
+  // requiring users to find them in a separate text report.
+  for(const issue of deps.getPlan().review||[]){
+   const t=Number(issue.splice??(Number(issue.start)+Number(issue.end))/2);
+   if(!Number.isFinite(t))continue;
+   const x=xAt(t);if(x<left||x>right)continue;
+   ctx.fillStyle='#ef9e64';ctx.beginPath();ctx.moveTo(x-5,23);ctx.lineTo(x+5,23);ctx.lineTo(x,30);ctx.fill();
+  }
   const displayed=preview||project;
   for(const lane of displayed.tracks){
    const row=ROWS[lane.id];
