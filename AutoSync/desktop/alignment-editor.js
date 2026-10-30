@@ -474,8 +474,8 @@ function onDown(e){
  movePlayhead(time,false);
  let mode='move';
  const edge=Math.min(9,Math.max(4,range().scale*.06));
- if(row===3&&tool==='select'&&Math.abs(x-xFor(clip.target_start))<edge&&clip.target_start>0)mode='trim-start';
- else if(row===3&&tool==='select'&&Math.abs(x-xFor(clip.target_end))<edge&&clip.target_end<plan.duration)mode='trim-end';
+ if(row===3&&tool==='select'&&Math.abs(x-xFor(clip.target_start))<edge)mode='trim-start';
+ else if(row===3&&tool==='select'&&Math.abs(x-xFor(clip.target_end))<edge)mode='trim-end';
  else if(tool==='slip')mode='slip';
  if(mode==='slip'&&clip.kind!=='audio'){report('Slip is available on source-audio clips only.',true);return;}
  drag={mode,index,row,initialX:x,anchorTime:time,sourceStart:clip.source_start,
