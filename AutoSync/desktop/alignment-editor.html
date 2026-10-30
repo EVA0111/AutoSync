@@ -23,7 +23,6 @@
    aria-label="Video reference and three editable audio tracks. Drag clips and edges, razor split, mute solo or lock tracks."></canvas>
  <div class="nle-hint">V1 video reference is locked. A1 is synchronized source audio; A2 is target audio; A3 is an extra audio lane. Drag the clip body to move, drag either edge to trim, or use Razor to split. Use M/S/L in each track header to mute, solo or lock. The highest active audio lane determines the output; overlapping clips are not mixed.</div>
 </section>
-<details class="legacy-detail"><summary>Advanced alignment map and precise source offsets</summary>
 <section class="review-toolbar" aria-label="Quick alignment review">
   <button id="jump-opening" title="Return to the start of the episode">Opening</button>
   <button id="previous-issue" title="Jump to previous uncertain join · shortcut J">◀ Previous issue</button>
@@ -33,6 +32,7 @@
   <button id="ab-audio" title="Compare target audio against edited output · shortcut A">A/B: Edited output</button>
   <span id="review-count" role="status"></span>
 </section>
+<details class="legacy-detail"><summary>Advanced alignment map and precise source offsets</summary>
 <section class="timeline-section"><div class="timeline-label"><strong>Audio alignment timeline</strong><small>Drag inside a source region to shift its audio · drag boundaries to change their positions · click to select</small></div>
 <canvas id="timeline" height="345" tabindex="0" aria-label="Three-track source, target and output alignment editor"></canvas><div class="scroll"><label for="scroll">Navigate</label><input id="scroll" type="range" min="0" max="0" value="0" step=".1"></div>
 <div class="key"><span class="source-dot">● Source audio</span><span class="target-dot">● Target audio</span><span class="output-dot">● Edited output</span><span class="warning-dot">● Uncertain region</span></div></section>
