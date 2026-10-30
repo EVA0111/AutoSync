@@ -230,7 +230,7 @@ function createAlignmentEditor(root,python){
   const {file,stream}=trackInfo(track);
   const time=assertTime(start),len=Number(duration),rate=Number(speed);
   if(!Number.isFinite(len)||len<=0||len>12||!Number.isFinite(rate)||rate<.5||rate>2)throw Error('Invalid preview duration or playback rate.');
-  const b=await run('ffmpeg',['-v','error','-nostdin','-ss',String(time),'-t',String(len*rate),'-i',file,'-map','0:a:'+stream,'-af','atempo='+rate,'-ar','24000','-ac','2','-c:a','pcm_s16le','-f','wav','pipe:1'],10*1024*1024);
+  const b=await run('ffmpeg',['-v','error','-nostdin','-ss',String(time),'-t',String(len*rate),'-i',file,'-map','0:a:'+stream,'-af','atempo='+rate,'-ar','48000','-ac','2','-c:a','pcm_s16le','-f','wav','pipe:1'],10*1024*1024);
   if(b.length<64)throw Error('No audio at this timestamp.');
   return 'data:audio/wav;base64,'+b.toString('base64');
  });
