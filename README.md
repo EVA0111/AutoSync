@@ -30,7 +30,8 @@ patchers or merges involved.
    its three-track timeline, and listen across joins; no plan.json is required.
    A saved plan can also be opened explicitly.
 4. Review flagged joins, drag/split/nudge regions, compare source, target and
-   edited output audio, and choose **Save As…** to write a corrected project
+   edited output audio, copy/paste audio clips, mark In/Out and trim without
+   shifting video timing, and choose **Save As…** to write a corrected project
    and exported audio in a separate location.
 5. Click Start to run a normal job. The sync plan is always saved with the
    output, even when optional full diagnostic reports are disabled.
