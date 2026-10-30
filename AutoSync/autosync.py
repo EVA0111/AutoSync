@@ -8,6 +8,7 @@ import numpy as np
 from scipy import signal,ndimage
 import visual_core as vc
 from cut_detection import locate_cut, source_cuts
+from continuity_guard import source_rewinds, annotate_rewinds
 
 RATE=50
 
@@ -184,6 +185,16 @@ def unresolved_cuts(plan):
     return unresolved
 
 def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
+    rewinds=source_rewinds(plan.get('segments',[]))
+    if rewinds and not allow_uncertain_cuts:
+        details=', '.join(
+            f"{x['target_time']:.3f}s (-{x['replayed_source_seconds']:.3f}s)"
+            for x in rewinds)
+        raise RuntimeError(
+            'Unverified backwards source-audio joins at target '+details+
+            '. No FLAC exported: joining these source spans would replay earlier '
+            'audio. Review and correct the affected clips in Preview & Edit. '
+            '--allow-uncertain-cuts explicitly overrides this safety check.')
     unresolved=unresolved_cuts(plan)
     if unresolved and not allow_uncertain_cuts:
         times=', '.join(f"{c['target_time']:.3f}s" for c in unresolved)
@@ -470,7 +481,7 @@ def _run_job(job,args):
         plan=remove_missing(plan);anchors=map_anchors(anchors,plan)
         segments=plan['segments'];review=plan['review']
         (out/'video_edits.json').write_text(json.dumps(plan['video_edits'],indent=2),encoding='utf-8')
-    plan=rebase(plan,input_meta);segments=plan['segments'];review=plan['review']
+    plan=annotate_rewinds(rebase(plan,input_meta));segments=plan['segments'];review=plan['review']
     if 'audio' in input_meta:anchors[:,1]+=input_meta['audio']['offset']
     if input_meta:
         if plan.get('video_edits'):(out/'video_edits.json').write_text(json.dumps(plan['video_edits'],indent=2),encoding='utf-8')
@@ -482,8 +493,12 @@ def _run_job(job,args):
     if args.main_only:lines.insert(0,f"MAIN EPISODE: keep original target {plan['main_trim']['target_start']:.3f}–{plan['main_trim']['target_end']:.3f}s; output duration {plan['duration']:.3f}s. All review times below refer to the trimmed output.")
     if args.keep_target_op_ed:lines.insert(0,'KEEP TARGET OP/ED: complete target timeline; opening/ending use target audio. Main episode uses synced source audio.')
     for c in source_cuts(segments):lines.append(f"Skip source {c['source_start']:.3f}–{c['source_end']:.3f}s ({c['removed_seconds']:.3f}s) at target {c['target_time']:.3f}s")
+    for c in source_rewinds(segments):
+        lines.append(f"REPLAY RISK at target {c['target_time']:.3f}s: source rewinds {c['replayed_source_seconds']:.3f}s "
+                     f"(estimated {c['estimated_target_equivalent_seconds']:.3f}s of repeated material); location of any target-only segment is not verified.")
     for item in review:lines.append(f"{item['start']:.2f}–{item['end']:.2f}s: {item['reason']}")
     if unresolved_cuts(plan):lines.append('DEFAULT EXPORT BLOCKED: unresolved source-only cut(s). Picture/audio evidence did not locate the join reliably.')
+    if source_rewinds(segments):lines.append('DEFAULT EXPORT BLOCKED: backwards source-audio joins would repeat earlier audio. Open Preview & Edit to correct or explicitly override.')
     (out/'report.txt').write_text('\n'.join(lines),encoding='utf-8');say('\n'.join(lines))
     if not args.analyze_only:
         output=render(plan,out,args.reference_fallback,args.allow_uncertain_cuts)
