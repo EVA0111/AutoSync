@@ -12,3 +12,8 @@ body{display:block;padding:0}main{margin:0 auto;width:100%;max-width:1500px;padd
 .run #alignment-editor-open{grid-column:4;grid-row:2}
 .run #start{grid-column:5;grid-row:2}
 @media(max-width:950px){.run{grid-template-columns:auto minmax(0,1fr) auto auto}.run #stop{grid-column:3}.run #alignment-editor-open{grid-column:3;grid-row:3}.run #start{grid-column:4;grid-row:2}}
+
+.sync-method-selector{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:-7px 0 16px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+.sync-method-selector label{font-weight:600;font-size:13px;min-width:115px}
+.sync-method-selector select{min-width:230px;max-width:100%}
+.sync-method-selector small{display:block;flex-basis:100%;color:var(--muted);font-size:12px}

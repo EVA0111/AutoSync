@@ -39,12 +39,13 @@ def run_request(request):
             return run(arguments(request.get('values',{})))
         v={k:d for k,_,d in FIELDS}
         v.update({k:'' for k in ['source','target','audio','reference','out','batch','plan']})
-        v.update(mode='Keep target opening / ending',video_codec='h264',video_preset='veryfast')
+        v.update(mode='Keep target opening / ending',sync_method='standard',video_codec='h264',video_preset='veryfast')
         v.update({k:False for k in ['audio_only','analyze_only','reference_fallback','remove_unmatched_video','allow_uncertain_cuts']})
         supplied=request['values']
         if not isinstance(supplied,dict) or set(supplied)-set(v):raise ValueError('Unknown desktop settings.')
         v.update(supplied)
         if v['mode'] not in MODES:raise ValueError('Unknown mode.')
+        if v['sync_method'] not in ('standard','ai_assisted'):raise ValueError('Unknown syncing method.')
         task=request['task']
         if task not in ('Single episode','Batch CSV','Saved plan'):raise ValueError('Unknown task.')
         cmd,out=build_command(v,task)

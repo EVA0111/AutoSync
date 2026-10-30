@@ -145,6 +145,7 @@ try {
   New-Item -ItemType Directory -Force -Path $engine,$python | Out-Null
   Copy-Item -Path (Join-Path $source '*.py') -Destination $engine
   Copy-Item -Path (Join-Path $source 'requirements.txt') -Destination $engine
+  Copy-Item -Path (Join-Path $source 'requirements-sync-ai.txt') -Destination $engine
   Copy-Item -Path (Join-Path $source 'jobs_example.csv') -Destination $engine
   Copy-Item -Path (Join-Path $source 'README.md') -Destination $engine
   if (Test-Path (Join-Path $source 'sushi')) {
@@ -159,11 +160,15 @@ try {
   New-Item -ItemType Directory -Force -Path $sitePackages | Out-Null
   & $py -m pip install --disable-pip-version-check --no-compile --only-binary=:all: --target $sitePackages -r (Join-Path $source 'requirements.txt')
   if ($LASTEXITCODE -ne 0) { throw 'Portable Python dependency bundling failed.' }
+  # Keep the ~stable core portable lean; include pip so optional AI libraries
+  # can be installed later into the bundled Python from Settings.
+  & $py -m pip install --disable-pip-version-check --no-compile --only-binary=:all: --target $sitePackages 'pip>=24,<27'
+  if ($LASTEXITCODE -ne 0) { throw 'Could not bundle optional-dependency installer.' }
   Copy-Item -LiteralPath $ffmpeg.FullName -Destination (Join-Path $engine 'ffmpeg.exe')
   Copy-Item -LiteralPath $ffprobe.FullName -Destination (Join-Path $engine 'ffprobe.exe')
 
   Write-Host '[6/7] Checking bundled runtime...'
-  & (Join-Path $python 'python.exe') -c 'import numpy, scipy, main_episode, video_edits, output_jobs'
+  & (Join-Path $python 'python.exe') -c 'import numpy, scipy, main_episode, video_edits, output_jobs, ai_sync'
   if ($LASTEXITCODE -ne 0) { throw 'Embedded Python import check failed.' }
   & (Join-Path $python 'python.exe') (Join-Path $engine 'autosync.py') --help | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Embedded AutoSync CLI failed.' }

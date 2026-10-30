@@ -334,6 +334,25 @@ def _run_job(job,args):
             visual=vc.matches(st,sv,tt,tv);visual[:,1]-=delay
         except (RuntimeError,ValueError,KeyError,OSError) as e:warnings.append('Visual scan unavailable: '+str(e))
     visual=manual_ranges.select(visual,source_bounds)
+    neural_visual=np.empty((0,3))
+    neural_audio=np.empty((0,3))
+    ai_mode=getattr(args,'sync_method','standard')=='ai_assisted'
+    if ai_mode:
+        from ai_sync import _dependencies,learned_visual_anchors
+        _dependencies()  # Explicit failure with installation instructions; never silently fall back.
+        say('AI-assisted synchronization enabled (AST acoustic model + optional DINOv2 scene rescue).')
+        if len(visual)<8 and source_video and target and not args.audio_only:
+            # The visual model only assists if classic scene matching could not
+            # establish timing. Do not displace established visual evidence.
+            try:
+                trial_speed=estimate_rate(visual,sf,ref)
+            except RuntimeError:
+                trial_speed=1.  # Scene model can still recover rate from candidate pairs.
+            neural_visual=learned_visual_anchors(source_video,target,trial_speed,delay,say)
+            neural_visual=manual_ranges.select(neural_visual,source_bounds)
+            if len(neural_visual)>=8:
+                visual=neural_visual
+                warnings.append('AI visual fallback used; review source/target frames at proposed joins.')
     speed=estimate_rate(visual,sf,ref);say(f'Estimated source/target speed: {speed:.9f}')
     aa=audio_anchors(sf,ref,speed) if ref is not None else np.empty((0,3))
     if len(aa):aa[:,0]+=refshift
@@ -350,6 +369,14 @@ def _run_job(job,args):
             visual=vc.matches(st,sv,tt,tv);visual[:,1]-=delay
     visual=manual_ranges.select(visual,source_bounds)
     aa=manual_ranges.select(aa,source_bounds)
+    if ai_mode and ref is not None:
+        from ai_sync import learned_audio_anchors,combine_standard_and_learned
+        neural_audio=learned_audio_anchors(audio,stream,reference,rs,sf,rf,speed,refshift,say)
+        neural_audio=manual_ranges.select(neural_audio,source_bounds)
+        original_count=len(aa)
+        aa=combine_standard_and_learned(aa,neural_audio,speed)
+        say(f'AI-assisted anchors: {len(neural_audio)} verified, {len(aa)-original_count} additional accepted.')
+        warnings.append('AI model proposes matches only. Confirmed timing uses original audio correlation; review uncertain cuts.')
     # Use strong audio evidence for dubbing-specific offsets; visuals establish rate and fallback.
     if len(aa)>=8 and np.ptp(aa[:,0])>min(duration*.4,120):
         anchors=remove_outliers(aa,speed);method='audio matches, with visual rate estimate' if len(visual) else 'audio matches'
@@ -409,7 +436,8 @@ def _run_job(job,args):
         return cut
     segments,models,review=build_plan(anchors,speed,duration,sl,ref,energy,sf,refine_cut)
     if len(used)!=len(manual_times):raise ValueError('A supplied --cut-times value is outside detected cut search intervals. Check target seconds against the report.')
-    plan=dict(source_crop=source_crop,target_crop=target_crop,source_cuts=source_cuts(segments),audio=audio,audio_stream=stream,reference=reference,reference_stream=rs,reference_shift=refshift,source_video=source_video,target_video=target,duration=duration,method=method,segments=segments,models=models,review=review,warnings=warnings)
+    if ai_mode:method='AI-assisted: '+method
+    plan=dict(source_crop=source_crop,target_crop=target_crop,source_cuts=source_cuts(segments),audio=audio,audio_stream=stream,reference=reference,reference_stream=rs,reference_shift=refshift,source_video=source_video,target_video=target,duration=duration,method=method,sync_method='ai_assisted' if ai_mode else 'standard',segments=segments,models=models,review=review,warnings=warnings)
     np.savez_compressed(out/'matching_diagnostics.npz',visual=visual,anchors=anchors)
     if args.main_only or args.keep_target_op_ed:
         from main_episode import detect_main,trim_plan,keep_target_outer
@@ -530,6 +558,7 @@ def main():
     p.add_argument('--source-crop',default='');p.add_argument('--target-crop',default='')
     p.add_argument('--scene-threshold',type=float,default=.15)
     p.add_argument('--audio-only',action='store_true');p.add_argument('--analyze-only',action='store_true')
+    p.add_argument('--sync-method',choices=['standard','ai_assisted'],default='standard',help='Optional pretrained AST audio features and DINOv2 visual rescue; install AI Sync in Settings first')
     p.add_argument('--remove-unmatched-video',action='store_true',help='Remove target sections with no source audio and export edited video + FLAC')
     p.add_argument('--reference-fallback',action='store_true',help='Use target soundtrack only for missing source bounds; may switch languages')
     p.add_argument('--cut-times',default='',help='Known target join times in seconds, comma separated; applies to detected cuts')
