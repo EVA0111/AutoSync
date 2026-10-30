@@ -218,7 +218,8 @@ window.createNleEditor=function createNleEditor(deps){
   draw,undo,redo,copy,paste,lift,razor,trim,chooseTool,
   hasSelection:()=>Boolean(selection),canUndo:()=>history.length>0,canRedo:()=>future.length>0,
   reset(plan){
-   project=api.nleCreate(plan);selection=null;history=[];future=[];chosen(null,track);draw();
+   const updated={...plan};delete updated.editor_timeline;
+   project=api.nleCreate(updated);selection=null;history=[];future=[];chosen(null,track);draw();
   }
  };
 };
