@@ -66,7 +66,11 @@ New-Item -ItemType Directory -Force -Path $work | Out-Null
 $createdBundle = $false
 try {
   Write-Host '[1/7] Installing build-only Python dependencies (isolated venv)...'
-  & $pythonLauncher[0] @($pythonLauncher | Select-Object -Skip 1) -m venv (Join-Path $work 'venv')
+  if ($pythonLauncher[0] -eq 'py') {
+    & py -3.12 -m venv (Join-Path $work 'venv')
+  } else {
+    & python -m venv (Join-Path $work 'venv')
+  }
   if ($LASTEXITCODE -ne 0) { throw 'Cannot create isolated Python build environment.' }
   $py = Join-Path $work 'venv\Scripts\python.exe'
   & $py -m pip install --disable-pip-version-check -r (Join-Path $source 'requirements.txt')
