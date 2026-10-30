@@ -34,7 +34,9 @@ patchers or merges involved.
    shifting video timing, and choose **Save As…** to write a corrected project
    and exported audio in a separate location.
 5. Click Start to run a normal job. The sync plan is always saved with the
-   output, even when optional full diagnostic reports are disabled.
+   output. When reports are enabled, AutoSync creates an `AutoSync Reports`
+   folder beside the application by default, with a separate folder for
+   each job. Choose another reports location in Settings if preferred.
 
 No original input is modified. If a cut/trim changes the video timeline,
 use its matching synced audio with the exported video.
