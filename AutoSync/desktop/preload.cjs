@@ -1,6 +1,7 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('autosync',{
  openGitHub:()=>ipcRenderer.invoke('open-github-profile'),
+ defaultReportsPath:()=>ipcRenderer.invoke('default-reports-path'),
  openAlignmentEditor:request=>ipcRenderer.invoke('alignment-editor-open',request),
  previewOpen:file=>ipcRenderer.invoke('preview-open',file),
  previewFrame:index=>ipcRenderer.invoke('preview-frame',index),
@@ -11,6 +12,6 @@ contextBridge.exposeInMainWorld('autosync',{
  subtitleCollect:paths=>ipcRenderer.invoke('subtitle-collect',paths),subtitlePick:folder=>ipcRenderer.invoke('subtitle-pick',folder),
  probe:file=>ipcRenderer.invoke('probe',file),
  browse:kind=>ipcRenderer.invoke('browse',kind),start:job=>ipcRenderer.invoke('start',job),stop:()=>ipcRenderer.invoke('stop'),
- openOutput:report=>ipcRenderer.invoke('open-output',report),example:()=>ipcRenderer.invoke('example'),
+ openOutput:report=>ipcRenderer.invoke('open-output',report),openJobReports:folder=>ipcRenderer.invoke('open-job-reports',folder),example:()=>ipcRenderer.invoke('example'),
  onEvent:callback=>{const handler=(_event,data)=>callback(data);ipcRenderer.on('job-event',handler);return()=>ipcRenderer.removeListener('job-event',handler);}
 });

@@ -10,7 +10,50 @@ class OutputTests(unittest.TestCase):
     p=Path(job['values']['out']);p.mkdir();(p/'synced.flac').write_bytes(b'media');(p/'plan.json').write_text(json.dumps({'audio':'original.flac'}));(p/'scratch.wav').write_bytes(b'cache');return 0
    request={'output_dir':str(out),'work_root':str(work),'jobs':[{'task':'Single episode','values':{'target':'episode01.mkv'}}]}
    self.assertEqual(run_managed(request,runner),0);self.assertCountEqual([p.name for p in out.iterdir()],['episode01.synced.flac','episode01.alignment.json']);self.assertEqual(list(work.iterdir()),[])
-   request.update(save_reports=True,reports_dir=str(reports));self.assertEqual(run_managed(request,runner),0);self.assertTrue((out/'episode01.synced (2).flac').exists());self.assertTrue(list(reports.glob('*.plan.json')));self.assertFalse(list(reports.glob('*.wav')))
+   request.update(save_reports=True,reports_dir=str(reports));self.assertEqual(run_managed(request,runner),0);self.assertTrue((out/'episode01.synced (2).flac').exists());self.assertTrue(list(reports.glob('*/plan.json')));self.assertTrue(list(reports.glob('*/job-status.json')));self.assertFalse(list(reports.glob('*.wav')))
+ def test_each_job_gets_its_own_report_folder_even_with_same_name(self):
+  with tempfile.TemporaryDirectory() as td:
+   root=Path(td);out=root/'out';reports=root/'AutoSync Reports'
+   def runner(job):
+    p=Path(job['values']['out']);p.mkdir()
+    (p/'plan.json').write_text(json.dumps({'source':'example','status':1}))
+    (p/'review.txt').write_text('unique '+job['values']['target'])
+    (p/'synced.flac').write_bytes(b'audio')
+    return 0
+   jobs=[{'task':'Single episode','values':{'target':'EP01.mkv'}},
+         {'task':'Single episode','values':{'target':'subdir/EP01.mkv'}}]
+   request={'output_dir':str(out),'reports_dir':str(reports),'save_reports':True,'jobs':jobs}
+   buf=io.StringIO()
+   with contextlib.redirect_stdout(buf):self.assertEqual(run_managed(request,runner),0)
+   results=[json.loads(line.split('=',1)[1]) for line in buf.getvalue().splitlines() if line.startswith('AUTOSYNC_RESULT=')]
+   self.assertEqual(len(results),2)
+   self.assertEqual(len({entry['reports_folder'] for entry in results}),2)
+   self.assertTrue(all(Path(entry['reports_folder']).is_dir() for entry in results))
+   folders=sorted(p for p in reports.iterdir() if p.is_dir())
+   self.assertEqual(len(folders),2)
+   self.assertNotEqual(folders[0].name,folders[1].name)
+   for p in folders:
+    self.assertTrue((p/'plan.json').is_file())
+    self.assertTrue((p/'review.txt').is_file())
+    self.assertEqual(json.loads((p/'job-status.json').read_text())['status'],'complete')
+   self.assertEqual(len(list(reports.glob('*.summary.txt'))),1)
+   self.assertEqual(run_managed(request,runner),0)
+   self.assertEqual(len([p for p in reports.iterdir() if p.is_dir()]),4)
+
+ def test_failed_job_still_gets_separate_status_folder(self):
+  with tempfile.TemporaryDirectory() as td:
+   root=Path(td)
+   def runner(job):
+    p=Path(job['values']['out']);p.mkdir();(p/'error.log').write_text('bad input')
+    return 1
+   request={'output_dir':str(root/'out'),'reports_dir':str(root/'AutoSync Reports'),
+            'save_reports':True,'jobs':[{'task':'Single episode','values':{'target':'failed.mp4'}}]}
+   self.assertEqual(run_managed(request,runner),2)
+   folders=[p for p in (root/'AutoSync Reports').iterdir() if p.is_dir()]
+   self.assertEqual(len(folders),1)
+   self.assertTrue((folders[0]/'error.log').is_file())
+   self.assertEqual(json.loads((folders[0]/'job-status.json').read_text())['status'],'failed')
+
  def test_analysis_only_persists_editable_plan_in_user_folder(self):
   with tempfile.TemporaryDirectory() as td:
    root=Path(td);out=root/'wherever'/'I choose'
@@ -43,7 +86,11 @@ class OutputTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as td:
    root=Path(td);jobs=[{'task':'Single episode','values':{}}]
    self.assertRaisesRegex(ValueError,'specify',run_managed,{'jobs':jobs},lambda _:0)
-   self.assertRaisesRegex(ValueError,'separate',run_managed,{'jobs':jobs,'output_dir':str(root),'save_reports':True,'reports_dir':str(root/'reports')},lambda _:0)
+   self.assertRaisesRegex(ValueError,'cannot be saved inside',run_managed,{'jobs':jobs,'output_dir':str(root/'reports'/'output'),'save_reports':True,'reports_dir':str(root/'reports')},lambda _:0)
+   def runner(job):
+    p=Path(job['values']['out']);p.mkdir();return 0
+   self.assertEqual(run_managed({'jobs':jobs,'output_dir':str(root),'save_reports':True,'reports_dir':str(root/'AutoSync Reports')},runner),0)
+   self.assertTrue((root/'AutoSync Reports').is_dir())
  def test_real_subtitle_one_file_uses_flat_output_and_progress(self):
   with tempfile.TemporaryDirectory() as td:
    root=Path(td);src=root/'Episode01.srt';ref=root/'reference.srt'

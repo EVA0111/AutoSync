@@ -1,14 +1,16 @@
 'use strict';
-const {BrowserWindow, dialog, ipcMain, shell}=require('electron');
+const {BrowserWindow, dialog, ipcMain, shell, app}=require('electron');
 const fs=require('node:fs');
 const path=require('node:path');
 const {execFile,spawn}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
-const {randomUUID}=require('node:crypto');
+const {randomUUID,createHash}=require('node:crypto');
 const {validateSegments}=require('./alignment-model.cjs');
+const clips=require('./audio-clip-tools.cjs');
 
 function createAlignmentEditor(root,python){
  let editor=null,project=null,exportChild=null,prepareChild=null,lastPrepared=null;
+ let proxyChildren=new Set();
  const html=path.join(__dirname,'alignment-editor.html');
  const page=pathToFileURL(html).href;
  const ff=name=>[path.join(root,name+'.exe'),'C:/ffmpeg/bin/'+name+'.exe'].find(p=>fs.existsSync(p))||name;
@@ -64,7 +66,8 @@ function createAlignmentEditor(root,python){
   editor.webContents.on('will-navigate',e=>e.preventDefault());
   editor.on('closed',()=>{
    if(exportChild)try{exportChild.kill();}catch{}
-   exportChild=null;editor=null;project=null;
+   for(const child of proxyChildren)try{child.kill();}catch{}
+   proxyChildren.clear();exportChild=null;editor=null;project=null;
   });
   return true;
  }
@@ -167,6 +170,52 @@ function createAlignmentEditor(root,python){
   }
   return {start:from,duration:count/2000,peaks};
  });
+
+ // Use the original local video with Chromium's hardware-accelerated player.
+ // For unsupported video formats, generate an MP4 proxy once rather than
+ // spawning FFmpeg to extract individual frames during playback.
+ ipcMain.handle('align-video-proxy',async(e,track)=>{
+  trusted(e);
+  if(!['source','target'].includes(track))throw Error('Invalid video track.');
+  const file=track==='source'?(project.plan.source_video||project.plan.audio):(project.plan.target_video||project.plan.reference);
+  if(!file||!fs.existsSync(file))throw Error('Original video is missing.');
+  const stat=await fs.promises.stat(file);
+  const key=createHash('sha256').update(file+'\0'+stat.size+'\0'+stat.mtimeMs).digest('hex').slice(0,24);
+  const dir=path.join(app.getPath('userData'),'AutoSync preview cache');
+  await fs.promises.mkdir(dir,{recursive:true});
+  const output=path.join(dir,key+'.mp4');
+  if(fs.existsSync(output)&&(await fs.promises.stat(output)).size>16384)return pathToFileURL(output).href;
+  const partial=path.join(dir,key+'.'+randomUUID().slice(0,8)+'.part.mp4');
+  send('preview-progress',{track,message:'Generating playable proxy for '+track+' (only once per file)…'});
+  const args=['-hide_banner','-loglevel','error','-nostdin','-y','-i',file,
+   '-map','0:v:0','-vf','scale=640:360:force_original_aspect_ratio=decrease,fps=24',
+   '-c:v','libx264','-preset','ultrafast','-threads','2','-crf','33','-pix_fmt','yuv420p',
+   '-an','-sn','-dn','-movflags','+faststart',partial];
+  await new Promise((resolve,reject)=>{
+   let finished=false,errors='';
+   const child=spawn(ff('ffmpeg'),args,{windowsHide:true,stdio:['ignore','ignore','pipe']});
+   proxyChildren.add(child);
+   child.stderr.on('data',chunk=>{errors=(errors+chunk.toString()).slice(-1800);});
+   child.on('error',err=>{if(!finished){finished=true;proxyChildren.delete(child);reject(err);}});
+   child.on('close',code=>{proxyChildren.delete(child);if(finished)return;finished=true;
+     if(code===0)resolve();else reject(Error('Video proxy failed: '+(errors||'FFmpeg exit '+code)));});
+  }).catch(async err=>{await fs.promises.rm(partial,{force:true});throw err;});
+  await fs.promises.rename(partial,output).catch(async err=>{
+   if(fs.existsSync(output))await fs.promises.rm(partial,{force:true});else throw err;
+  });
+  return pathToFileURL(output).href;
+ });
+ ipcMain.handle('align-clip-op',(e,op,payload)=>{
+  trusted(e);
+  if(!payload||JSON.stringify(payload).length>250000)throw Error('Invalid clip edit.');
+  const rows=validateSegments(payload.segments,project.plan.duration);
+  if(op==='copy')return clips.copyClip(rows,payload.index,payload.inPoint??null,payload.outPoint??null);
+  if(op==='paste')return clips.pasteClip(rows,project.plan.duration,payload.at,payload.clip);
+  if(op==='trim-left'||op==='trim-right')
+   return clips.trimTo(rows,project.plan.duration,payload.index,payload.at,op==='trim-left'?'left':'right');
+  throw Error('Unknown clip operation.');
+ });
+
  ipcMain.handle('align-frame',async(e,track,time)=>{
   trusted(e);
   if(!['source','target'].includes(track))throw Error('Invalid preview track.');
@@ -181,7 +230,7 @@ function createAlignmentEditor(root,python){
   const {file,stream}=trackInfo(track);
   const time=assertTime(start),len=Number(duration),rate=Number(speed);
   if(!Number.isFinite(len)||len<=0||len>12||!Number.isFinite(rate)||rate<.5||rate>2)throw Error('Invalid preview duration or playback rate.');
-  const b=await run('ffmpeg',['-v','error','-nostdin','-ss',String(time),'-t',String(len*rate),'-i',file,'-map','0:a:'+stream,'-af','atempo='+rate,'-ar','24000','-ac','2','-c:a','pcm_s16le','-f','wav','pipe:1'],10*1024*1024);
+  const b=await run('ffmpeg',['-v','error','-nostdin','-ss',String(time),'-t',String(len*rate),'-i',file,'-map','0:a:'+stream,'-af','atempo='+rate,'-ar','48000','-ac','2','-c:a','pcm_s16le','-f','wav','pipe:1'],10*1024*1024);
   if(b.length<64)throw Error('No audio at this timestamp.');
   return 'data:audio/wav;base64,'+b.toString('base64');
  });

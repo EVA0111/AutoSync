@@ -7,11 +7,11 @@ let setupFocus=null;
 function readinessIssue(){
  if(importing||subtitleImporting||trackLoading)return ['Reading files and tracks…',null];
  if(!$('output-destination').value.trim()&&!defaultOutputFolder()&&workspace!=='Settings')return ['Choose source/target media or select an output folder.','output-destination'];
- if(prefs.reports&&!$('reports-destination').value.trim())return ['Choose a reports folder in Settings, or disable reports.','reports-destination'];
+ if(prefs.reports&&!reportsRoot())return ['Set a reports folder or restart the app to resolve its default directory.','reports-destination'];
  if(prefs.reports){
   const clean=s=>s.trim().replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase();
-  const a=clean($('output-destination').value),b=clean($('reports-destination').value);
-  if(a===b||a.startsWith(b+'/')||b.startsWith(a+'/'))return ['Choose separate, non-nested output and report folders.','reports-destination'];
+  const a=clean($('output-destination').value.trim()||defaultOutputFolder()),b=clean(reportsRoot());
+  if(a===b||a.startsWith(b+'/'))return ['Outputs cannot be saved inside the reports folder. Choose a separate output location.','reports-destination'];
  }
  if(workspace==='Saved plan')return $('plan').value.trim()?null:['Choose a saved timing plan.','plan'];
  if(!$('enable-audio').checked&&!subtitlesEnabled())return ['Enable Audio, Subtitles, or both.','enable-audio'];
@@ -24,7 +24,6 @@ function readinessIssue(){
    if(!batchFiles.source.length)return ['Add source videos to the Source column.','source-drop'];
    if(batchFiles.source.length!==batchFiles.target.length)return ['Both audio columns need the same number of videos.','target-drop'];
    try{batchFiles.source.forEach((s,i)=>manualPairValues(s,batchFiles.target[i],mode));}catch(e){return [e.message,'source-drop'];}
-   if(!$('pairs_reviewed').checked)return ['Check the audio pairs, then tick the confirmation box.','pairs_reviewed'];
   }
  }
  if(subtitlesEnabled()){
@@ -48,7 +47,7 @@ function refreshReadiness(){
  const mode=document.querySelector('[name=mode][value="Sync full target audio"]').closest('.mode');
  const hint=mode.querySelector('span');if(hint){if(!hint.dataset.original)hint.dataset.original=hint.textContent;hint.textContent=prefs.audioAdvanced&&$('remove_unmatched_video').checked?'Export edited video + matching FLAC. Target-only sections are removed.':hint.dataset.original;}
 }
-$('setup-focus').onclick=()=>{if(!setupFocus)return;if(['reports-destination','pref-reports'].includes(setupFocus)){workspace='Settings';applyWorkspace();}if(['source-drop','target-drop','pairs_reviewed','audio_only','enable-audio'].includes(setupFocus)){activeTab='audio';applyRemodel();}else if(setupFocus?.startsWith('sb-')||setupFocus==='subtitle-reviewed'||setupFocus==='sub_timing_map'){activeTab='subtitles';applyRemodel();}const el=$(setupFocus);el?.scrollIntoView({block:'center',behavior:'smooth'});el?.focus();};
+$('setup-focus').onclick=()=>{if(!setupFocus)return;if(['reports-destination','pref-reports'].includes(setupFocus)){workspace='Settings';applyWorkspace();}if(['source-drop','target-drop','audio_only','enable-audio'].includes(setupFocus)){activeTab='audio';applyRemodel();}else if(setupFocus?.startsWith('sb-')||setupFocus==='subtitle-reviewed'||setupFocus==='sub_timing_map'){activeTab='subtitles';applyRemodel();}const el=$(setupFocus);el?.scrollIntoView({block:'center',behavior:'smooth'});el?.focus();};
 for(const [a,b] of [['remove_unmatched_video','reference_fallback'],['reference_fallback','remove_unmatched_video']])$(a).addEventListener('change',()=>{if($(a).checked)$(b).checked=false;});
 for(const event of ['input','change','click'])document.addEventListener(event,()=>queueMicrotask(refreshReadiness));
 window.autosync.onDrop(()=>setTimeout(refreshReadiness,0));

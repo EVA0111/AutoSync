@@ -66,7 +66,7 @@ def publish(source,root,name):
 def run_managed(request,runner):
     output=folder(request.get('output_dir'),'outputs')
     reports=folder(request.get('reports_dir'),'reports') if request.get('save_reports') else None
-    if reports and (output==reports or output in reports.parents or reports in output.parents):raise ValueError('Choose separate, non-nested output and report folders.')
+    if reports and (output==reports or reports in output.parents):raise ValueError('Outputs cannot be saved inside the reports folder. Choose another output folder.')
     jobs=flatten(request.get('jobs',[]))
     # Analysis-only runs still publish their plan to the chosen output folder.
     output.mkdir(parents=True,exist_ok=True)
@@ -123,10 +123,17 @@ def run_managed(request,runner):
                     print('Exported: '+(', '.join(files) or 'Analysis only'),flush=True)
                 except Exception as e:
                     status='failed';failure=str(e);path_map={};print(label+': '+failure,flush=True)
-                if reports and stage.exists():
-                    prefix=f'{run_id}_{index+1:03}_{name}'
-                    report_files=[p for p in stage.iterdir() if p.is_file() and p.suffix.lower() in ('.json','.csv','.txt','.log','.npz')]
-                    mapped={str(p):str(reports/(prefix+'.'+p.name)) for p in report_files};mapped.update({k:v for k,v in path_map.items() if k not in mapped})
+                if reports:
+                    # One permanent directory per job, including failures and repeat
+                    # runs with identical episode names. No reports intermix.
+                    job_reports=reports/f'{run_id}_{index+1:03}_{name}'
+                    job_reports.mkdir(parents=True,exist_ok=False)
+                    report_files=[p for p in stage.iterdir() if p.is_file() and p.suffix.lower() in ('.json','.csv','.txt','.log','.npz')] if stage.exists() else []
+                    mapped={str(p):str(job_reports/p.name) for p in report_files}
+                    mapped.update({k:v for k,v in path_map.items() if k not in mapped})
+                    (job_reports/'job-status.json').write_text(
+                        json.dumps({'job':job['name'],'task':job['task'],'status':status,'error':failure,
+                                    'outputs':files},ensure_ascii=False,indent=2),encoding='utf-8')
                     for p in report_files:
                         dest=Path(mapped[str(p)])
                         if p.suffix=='.json':
@@ -138,7 +145,8 @@ def run_managed(request,runner):
                             try:dest.write_text(json.dumps(rewrite(json.loads(p.read_text(encoding='utf-8'))),ensure_ascii=False,indent=2),encoding='utf-8')
                             except (ValueError,UnicodeError):shutil.copyfile(p,dest)
                         else:shutil.copyfile(p,dest)
-                results.append({'name':job['name'],'status':status,'files':files,'error':failure})
+                results.append({'name':job['name'],'status':status,'files':files,'error':failure,
+                                'reports_folder':str(job_reports) if reports else ''})
                 print('AUTOSYNC_RESULT='+json.dumps(results[-1],ensure_ascii=False),flush=True)
                 if summary:summary.write_text('\n'.join(f"{r['name']}: {r['status']} — {r['error'] or ', '.join(r['files'])}" for r in results),encoding='utf-8')
                 emit(1,1,label+' · '+status)

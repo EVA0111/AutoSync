@@ -14,7 +14,7 @@ Build the complete application from this source repository using **`build/window
 4. Output is optional: if blank, files go into `AutoSync Outputs` next to the target. Choose any other folder or drive using Browse.
 5. Review flagged sections and joins before using the result.
 
-Settings enables optional reports, advanced options, saved plans, and subtitle AI setup. Reports use a separate folder. Subtitle jobs have their own section with batch pairing and track selection.
+Settings enables optional reports, advanced options, saved plans, and subtitle AI setup. Reports default to `AutoSync Reports` beside `AutoSync.exe`, with a separate folder for each job, including failed jobs. Choose another reports root in Settings if preferred. Open each job's reports directly from the Jobs tab. Subtitle jobs have their own section with batch pairing and track selection.
 
 ## Features
 
@@ -42,7 +42,7 @@ npm install
 npm start
 ```
 
-The first command creates a local `.venv` and installs NumPy/SciPy. For optional subtitle AI, use the Settings button or `python runtime_setup.py --ai`. Sushi mode additionally needs the upstream Sushi executable at `sushi/sushi.exe`; see `sushi/UPSTREAM.txt`. Use the portable release if you want the already bundled Windows app.
+The first command creates a local `.venv` and installs NumPy/SciPy. For optional subtitle AI, use the Settings button or `python runtime_setup.py --ai`. Sushi mode additionally needs the upstream Sushi executable at `sushi/sushi.exe`; see `sushi/UPSTREAM.txt`. Use the source build script for a portable Windows app with dependencies bundled.
 
 Tests:
 
@@ -63,10 +63,10 @@ The interface is English-only.
 - **Audio**: drop one file or a folder into Source and Target, select each file's audio track, and open its preview icon to trim before syncing. Open **Review pairing & reorder** for manual ordering. Opening/ending track selection is under **Track settings for selected pair**.
 - **Subtitles**: choose a timing reference and add the matching files. The existing subtitle modes, including Sushi, remain available.
 - **Include audio jobs / Include subtitle jobs** determine which sections are processed. Both can run in the same queue; switching tabs does not clear files or enable a section automatically.
-- Choose the single **Output folder** and confirm the pairs before starting. **Settings** controls optional reports, advanced options, CSV import, and saved plans.
+- Choose an **Output folder** or use the automatic target-adjacent default. **Settings** controls optional reports, advanced options, CSV import, and saved plans.
 - **Jobs** shows completed results, failures, and items that need review. It also contains the optional activity log. Progress stays visible at the bottom.
 
-The preview shows individual frames and is silent. The synchronization engine and its formats are unchanged in this interface update.
+Preview & Edit supports real-time playback and non-destructive clip editing.
 
 ## Preview & Edit (integrated)
 
@@ -75,9 +75,15 @@ the selected pair automatically and saves a lasting alignment plan; no
 separate `plan.json` selection is required. You can also open a saved plan
 from the Saved plan workspace.
 
-The editor has Source/Target/Edited output waveforms, audio playback, video
-frames, a three-track timeline, editable regions, +/-40 ms nudges, zoom,
-split/join, target/source audio selection and undo/redo. Use **Previous issue**
+The editor has synchronized real-time source/target video playback, a three-track
+waveform timeline, audio auditioning and non-destructive editing. Formats that
+the built-in player cannot decode use a reusable lower-resolution MP4 proxy
+created automatically; your source video is not modified.
+
+Use **Split (S)**, **Copy (Ctrl+C)**, **Paste (Ctrl+V)**, **Cut (Ctrl+X)**,
+**Set In/Out (I/O)** and **Trim Start/End (Q/W)** to edit audio mappings.
+Pasting overwrites the target time span without shifting the video; a trimmed
+or cut portion uses the target soundtrack. Undo/redo remains available. Use **Previous issue**
 or **Next issue** to jump through suspected splices, **Listen across join**
 to hear the transition, and **A/B** to switch output/target audio quickly.
 Press Space to play/pause, J/L to navigate issues, and A to switch A/B.
@@ -95,10 +101,6 @@ is mapped back to the source when the evidence supports it; inconclusive
 music keeps the target video/audio for manual review. Truly unrelated
 audio can still be removed by the explicitly selected video-removal mode.
 
-Automated tests are synthetic and unit-based. The separately uploaded
-seven-case private media suite has not been run against this public
-source build. This checkout is not an authenticated copy of the user's
-separately supplied v1.3 archive.
 
 ### Building Windows portable
 
