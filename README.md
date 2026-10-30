@@ -1,4 +1,4 @@
-# AutoSync — source and Windows portable build
+# AutoSync
 
 An Electron + Python/FFmpeg tool for matching audio and subtitles between
 different video editions, including different playback speeds, openings,
