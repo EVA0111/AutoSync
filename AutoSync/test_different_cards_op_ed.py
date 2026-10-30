@@ -76,6 +76,32 @@ class TargetOnlyCards(unittest.TestCase):
         self.assertAlmostEqual(segments[-1]['target_end'],190.)
         self.assertEqual(len(reviews),1)
 
+    def test_reported_dbz_rewinds_are_compatible_with_two_picture_verified_inserts(self):
+        # The two mapping offsets and anchor windows come from the uploaded
+        # alignment JSON. Pictures below are synthetic; this only verifies the
+        # method can handle an insertion of the reported duration when visual
+        # evidence actually exists, not that these are the true video cuts.
+        models=[
+            (dict(speed=.9589077589077588,offset=39.19054279054282,last=184.,first=112.),
+             dict(speed=.9590409590409594,offset=31.01538461538445,first=202.,last=742.),
+             190.,180.),
+            (dict(speed=.9590409590409594,offset=31.01538461538445,last=742.,first=202.),
+             dict(speed=.9590409590409573,offset=19.909690309691882,first=760.,last=1348.),
+             746.,738.)
+        ]
+        for left,right,ga,lo in models:
+            with self.subTest(target_candidate=ga):
+                gb=(left['speed']*ga+left['offset']-right['offset'])/right['speed']
+                n=750
+                old=np.zeros(n);new=np.zeros(n)
+                old[:int(round((ga-lo)*25))]=.99
+                new[int(round((gb-lo)*25)):]=.99
+                result=locate_visual_insert_island(old,new,lo,left,right,(left,right))
+                self.assertIsNotNone(result)
+                self.assertAlmostEqual(result['target_gap'][0],ga,delta=.06)
+                self.assertAlmostEqual(result['target_gap'][1],gb,delta=.06)
+                self.assertEqual(result['target_gap_kind'],'reference')
+
     def test_unverified_reference_region_still_needs_user_opt_in(self):
         self.assertTrue(requires_explicit_reference_fallback([
             dict(kind='reference',target_start=0.,target_end=5.)]))
