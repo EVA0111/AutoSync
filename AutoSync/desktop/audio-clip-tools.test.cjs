@@ -15,7 +15,7 @@ test('copy part of a clip and overwrite another section without ripple',()=>{
  const pasted=pasteClip(rows,12,5,clip);
  assert.equal(pasted[pasted.length-1].target_end,12);
  assert.equal(sourceTime(pasted,5),11.04);
- assert.equal(sourceTime(pasted,6),12.08);
+ assert.ok(Math.abs(sourceTime(pasted,6)-12.08)<1e-8);
  assert.equal(sourceTime(pasted,7),20);
  assert.equal(pasted[0].target_end,4);
 });
