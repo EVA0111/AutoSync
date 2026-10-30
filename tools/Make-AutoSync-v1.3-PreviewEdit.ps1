@@ -12,7 +12,15 @@ function Assert-File([string]$Path, [string]$Message) {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw $Message }
 }
 
-$source = (Resolve-Path -LiteralPath $V13Directory).Path.TrimEnd('\')
+
+# cmd.exe may pass a trailing quote when a quoted argument ends in '\'.
+# Accept both direct PowerShell calls and the batch launcher.
+$V13Directory = $V13Directory.Trim().Trim('"')
+if (-not $V13Directory) { throw 'The AutoSync source folder is empty.' }
+$source = (Resolve-Path -LiteralPath $V13Directory -ErrorAction Stop).ProviderPath.TrimEnd('\')
+if ((Split-Path -Path $source -Leaf) -match '(?i)(^|[-_ ])v1\.[012]([-_ ]|$)') {
+  throw "This folder looks like AutoSync v1.0/v1.1/v1.2, not v1.3: $source. Run the helper from your real v1.3 portable folder."
+}
 $engine = Join-Path $source 'resources\engine'
 $python = Join-Path $source 'resources\python'
 Assert-File (Join-Path $source 'AutoSync.exe') 'Run this inside your already installed AutoSync v1.3 portable folder.'

@@ -15,7 +15,10 @@ Preview & Edit desktop shell. It does not modify the original v1.3 directory.
 2. Download `Make-AutoSync-v1.3-PreviewEdit.ps1` and
    `Make-AutoSync-v1.3-PreviewEdit.cmd` from this `tools` folder,
    then place both files directly next to the existing v1.3 `AutoSync.exe`.
-3. Double-click `Make-AutoSync-v1.3-PreviewEdit.cmd`.
+3. Double-click `Make-AutoSync-v1.3-PreviewEdit.cmd`. The launcher passes a
+   path ending in `\\.` to avoid a Windows trailing-backslash quoting bug.
+   A folder whose name explicitly says v1.2 is rejected rather than being
+   incorrectly packaged as v1.3.
 4. The script creates a **new** `AutoSync-v1.3-PreviewEdit-Windows-Portable`
    folder and same-named ZIP beside your v1.3 folder.
 5. Run the `AutoSync.exe` inside the **new** folder. Open Preview & Edit,

@@ -3,7 +3,8 @@ name: Validate AutoSync v1.3 portable merge helper
 on:
   push:
     branches:
-      - feature/v13-engine-preserving-merge
+      - main
+      - fix/v13-merger-quoted-path
     paths:
       - 'tools/Make-AutoSync-v1.3-PreviewEdit.ps1'
       - 'tools/Make-AutoSync-v1.3-PreviewEdit.cmd'
@@ -30,6 +31,22 @@ jobs:
             throw 'PowerShell parser found errors.'
           }
           Write-Host 'PowerShell source parsed successfully.'
+      - name: Exercise quoted-path launch regression
+        shell: pwsh
+        run: |
+          $launcher = Get-Content 'tools/Make-AutoSync-v1.3-PreviewEdit.cmd' -Raw
+          if (-not $launcher.Contains('-V13Directory "%~dp0."')) {
+            throw 'The batch launcher must pass a path ending in a dot, not a bare trailing backslash.'
+          }
+          $folder = Join-Path $env:RUNNER_TEMP 'AutoSync v1.3 test folder'
+          New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          $script = Join-Path $PWD 'tools/Make-AutoSync-v1.3-PreviewEdit.ps1'
+          $output = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -V13Directory "$folder\." 2>&1 | Out-String)
+          if ($output -match 'Illegal characters in path') { throw 'The path parser still fails on Windows.' }
+          if ($output -notmatch 'Run this inside your already installed AutoSync v1.3 portable folder') {
+            throw "Unexpected script behavior for a valid quoted path: $output"
+          }
+          Write-Host 'Windows quoted-path regression passed.'
       - name: Confirm helper never deletes the original installation
         shell: pwsh
         run: |

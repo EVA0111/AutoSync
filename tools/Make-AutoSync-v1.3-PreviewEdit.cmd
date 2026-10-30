@@ -7,7 +7,7 @@ if not exist "%~dp0resources\engine\autosync.py" (
   pause
   exit /b 1
 )
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Make-AutoSync-v1.3-PreviewEdit.ps1" -V13Directory "%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Make-AutoSync-v1.3-PreviewEdit.ps1" -V13Directory "%~dp0."
 if errorlevel 1 (
   echo.
   echo Merge failed. The original v1.3 installation is unchanged.
