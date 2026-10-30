@@ -71,9 +71,10 @@ Preview & Edit supports real-time playback and non-destructive clip editing.
 ## Preview & Edit (integrated)
 
 Select source/target videos and click **Preview & Edit**. AutoSync analyzes
-the selected pair automatically and saves a lasting alignment plan; no
-separate `plan.json` selection is required. You can also open a saved plan
-from the Saved plan workspace.
+the **complete target timeline**, without automatically cutting opening/ending
+footage. This works regardless of the selected export mode, so an uncertain
+opening boundary won't prevent you from reviewing the episode. The analysis
+is saved as an editable plan; you can also open a previously saved plan.
 
 The editor has synchronized source/target video playback and a four-lane
 clip timeline: **V1** target video (locked), **A1** source audio, **A2** target
@@ -95,13 +96,12 @@ drive. Export renders a new output without modifying the original inputs.
 The normal output folder also accepts any destination and remembers your
 previous choice; leave it blank to use the target-adjacent default.
 
-### Opening cuts and tests
+### Automatic trims
 
-With destructive unmatched-video removal enabled, AutoSync verifies the
-first unmatched segment using actual audio features. Shared opening music
-is mapped back to the source when the evidence supports it; inconclusive
-music keeps the target video/audio for manual review. Truly unrelated
-audio can still be removed by the explicitly selected video-removal mode.
+**Preview & Edit** is non-destructive. For final exports, choosing
+**Main episode only** or **Keep target opening / ending** still requires
+a reliable opening/ending boundary. If it cannot be verified, AutoSync
+will ask for a manual boundary rather than guess and cut footage.
 
 
 ### Building Windows portable
