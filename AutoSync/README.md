@@ -75,9 +75,15 @@ the selected pair automatically and saves a lasting alignment plan; no
 separate `plan.json` selection is required. You can also open a saved plan
 from the Saved plan workspace.
 
-The editor has Source/Target/Edited output waveforms, audio playback, video
-frames, a three-track timeline, editable regions, +/-40 ms nudges, zoom,
-split/join, target/source audio selection and undo/redo. Use **Previous issue**
+The editor has synchronized real-time source/target video playback, a three-track
+waveform timeline, audio auditioning and non-destructive editing. Formats that
+the built-in player cannot decode use a reusable lower-resolution MP4 proxy
+created automatically; your source video is not modified.
+
+Use **Split (S)**, **Copy (Ctrl+C)**, **Paste (Ctrl+V)**, **Cut (Ctrl+X)**,
+**Set In/Out (I/O)** and **Trim Start/End (Q/W)** to edit audio mappings.
+Pasting overwrites the target time span without shifting the video; a trimmed
+or cut portion uses the target soundtrack. Undo/redo remains available. Use **Previous issue**
 or **Next issue** to jump through suspected splices, **Listen across join**
 to hear the transition, and **A/B** to switch output/target audio quickly.
 Press Space to play/pause, J/L to navigate issues, and A to switch A/B.
