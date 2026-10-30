@@ -135,7 +135,7 @@ def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut
     for left,right in zip(models[:-1],models[1:]):
         cut=locate_cut(left,right,ref,energy,source)
         if refine_cut is not None:cut=refine_cut(left,right,cut)
-        if 'target_gap' in cut:gaps.append((*cut['target_gap'],cut.get('target_gap_kind','verified_gap')))
+        if 'target_gap' in cut:gaps.append((*cut['target_gap'],cut.get('target_gap_kind','verified_gap'),cut.get('confidence')=='supported'))
         t=cut['time']
         bounds.append(max(bounds[-1]+.001,min(duration-.001,t)))
         t=bounds[-1]
@@ -157,7 +157,7 @@ def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut
         if end>supported_end:
             segments.append(dict(kind='reference',target_start=supported_end,target_end=end,reason='source ends early'))
             notes.append(dict(start=supported_end,end=end,reason='source audio unavailable; reference fallback needed'))
-    for ga,gb,gap_kind in gaps:
+    for ga,gb,gap_kind,verified_insert in gaps:
         updated=[]
         for section in segments:
             a,b=section['target_start'],section['target_end']
@@ -167,7 +167,9 @@ def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut
                 tail=dict(section,target_start=gb)
                 if tail['kind']=='audio':tail['source_start']+=(gb-a)*tail['speed']
                 updated.append(tail)
-        updated.append(dict(kind=gap_kind,target_start=ga,target_end=gb,reason='Target-only footage; target audio required' if gap_kind=='reference' else 'Verified black pause with near-silent target audio'))
+        updated.append(dict(kind=gap_kind,target_start=ga,target_end=gb,
+            verified_insert=bool(verified_insert and gap_kind=='reference'),
+            reason='Picture-verified target-only eyecatch/title-card; use selected target audio' if gap_kind=='reference' else 'Verified black pause with near-silent target audio'))
         segments=sorted(updated,key=lambda x:x['target_start'])
     # Audit unsupported spans but keep original-language audio playing using inferred mapping.
     points=np.r_[0,anchors[:,0],duration]
@@ -213,7 +215,7 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
         cursor=end
     if not np.isfinite(plan['duration']) or abs(cursor-plan['duration'])>.0001:raise RuntimeError('Plan does not cover its declared duration.')
     audio=plan['audio'];stream=int(plan['audio_stream']);ref=plan.get('reference');refstream=int(plan.get('reference_stream',0))
-    if any(s['kind']=='reference' for s in plan['segments']) and (not reference_fallback or not ref):
+    if any(s['kind']=='reference' for s in plan['segments']) and not ref:
         raise RuntimeError('The target contains a section with no usable source audio. No silence or repeated source audio was written. Enable --reference-fallback to use the target soundtrack there (possibly another language), or inspect the reported interval.')
     if any(s['kind']=='verified_gap' for s in plan['segments']) and not ref:raise RuntimeError('Verified pause requires reference audio.')
     streams=audio_streams(audio);ch=int(streams[stream]['channels']);layout=streams[stream].get('channel_layout') or {1:'mono',2:'stereo',6:'5.1'}.get(ch)
@@ -453,7 +455,7 @@ def _run_job(job,args):
     if args.main_only or args.keep_target_op_ed:
         from main_episode import detect_main,trim_plan,keep_target_outer
         (out/'full_plan.json').write_text(json.dumps(rebase(plan,input_meta),indent=2),encoding='utf-8')
-        try:trim=detect_main(plan,visual,delay,args.main_start,args.main_end,source_features=sf,target_features=ref)
+        try:trim=detect_main(plan,visual,delay,args.main_start,args.main_end,source_features=sf,target_features=ref,keep_target_outer=bool(args.keep_target_op_ed))
         except (RuntimeError,ValueError,OSError) as e:
             (out/'trim_report.json').write_text(json.dumps({'status':'needs_review','reason':str(e)},indent=2))
             raise
