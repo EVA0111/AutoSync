@@ -7,10 +7,10 @@ let setupFocus=null;
 function readinessIssue(){
  if(importing||subtitleImporting||trackLoading)return ['Reading files and tracks…',null];
  if(!$('output-destination').value.trim()&&!defaultOutputFolder()&&workspace!=='Settings')return ['Choose source/target media or select an output folder.','output-destination'];
- if(prefs.reports&&!$('reports-destination').value.trim())return ['Choose a reports folder in Settings, or disable reports.','reports-destination'];
+ if(prefs.reports&&!reportsRoot())return ['Set a reports folder or restart the app to resolve its default directory.','reports-destination'];
  if(prefs.reports){
   const clean=s=>s.trim().replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase();
-  const a=clean($('output-destination').value),b=clean($('reports-destination').value);
+  const a=clean($('output-destination').value.trim()||defaultOutputFolder()),b=clean(reportsRoot());
   if(a===b||a.startsWith(b+'/')||b.startsWith(a+'/'))return ['Choose separate, non-nested output and report folders.','reports-destination'];
  }
  if(workspace==='Saved plan')return $('plan').value.trim()?null:['Choose a saved timing plan.','plan'];
