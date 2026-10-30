@@ -442,9 +442,12 @@ def _run_job(job,args):
             return dict(time=t,confidence='manual',method='user supplied target join',uncertainty_start=t,uncertainty_end=t)
         if source_video and target and not args.audio_only and left['offset']-right['offset']>.3:
             from visual_cuts import calibrated_models,locate_target_insert
-            vl,vr=calibrated_models(left,right,visual)
-            inserted=locate_target_insert(vl,vr,source_video,target,se,delay,source_crop,target_crop,audio_models=(left,right))
-            if inserted is not None:return inserted
+            try:
+                vl,vr=calibrated_models(left,right,visual)
+                inserted=locate_target_insert(vl,vr,source_video,target,se,delay,source_crop,target_crop,audio_models=(left,right))
+                if inserted is not None:return inserted
+            except (RuntimeError,ValueError,OSError) as e:
+                warnings.append('Eyecatch/title-card verification unavailable: '+str(e))
         if cut['confidence']=='uncertain' and source_video and target and not args.audio_only:
             say(f'Checking pictures around uncertain cut: target {lo:.2f}–{hi:.2f}s')
             try:
