@@ -86,7 +86,11 @@ class OutputTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as td:
    root=Path(td);jobs=[{'task':'Single episode','values':{}}]
    self.assertRaisesRegex(ValueError,'specify',run_managed,{'jobs':jobs},lambda _:0)
-   self.assertRaisesRegex(ValueError,'separate',run_managed,{'jobs':jobs,'output_dir':str(root),'save_reports':True,'reports_dir':str(root/'reports')},lambda _:0)
+   self.assertRaisesRegex(ValueError,'cannot be saved inside',run_managed,{'jobs':jobs,'output_dir':str(root/'reports'/'output'),'save_reports':True,'reports_dir':str(root/'reports')},lambda _:0)
+   def runner(job):
+    p=Path(job['values']['out']);p.mkdir();return 0
+   self.assertEqual(run_managed({'jobs':jobs,'output_dir':str(root),'save_reports':True,'reports_dir':str(root/'AutoSync Reports')},runner),0)
+   self.assertTrue((root/'AutoSync Reports').is_dir())
  def test_real_subtitle_one_file_uses_flat_output_and_progress(self):
   with tempfile.TemporaryDirectory() as td:
    root=Path(td);src=root/'Episode01.srt';ref=root/'reference.srt'
