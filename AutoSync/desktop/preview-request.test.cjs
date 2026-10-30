@@ -40,4 +40,7 @@ test('reject reusing a trimmed or altered plan in full-timeline Preview & Edit',
  assert.equal(reusablePreviewPlan({...plan,input_trims:{target:{start:0,end:20}}},values),false);
  assert.equal(reusablePreviewPlan(plan,{...values,target:'C:\\m\\different.mkv'}),false);
  assert.equal(reusablePreviewPlan(plan,{...values,reference:'C:\\m\\other.mkv'}),false);
+ assert.equal(reusablePreviewPlan({...plan,audio_stream:2},values),false);
+ assert.equal(reusablePreviewPlan({...plan,reference_stream:1},values),false);
+ assert.equal(reusablePreviewPlan({...plan,audio_stream:2},{...values,audio_stream:'2'}),true);
 });
