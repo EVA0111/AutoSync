@@ -3,7 +3,7 @@ name: Build AutoSync Preview & Edit portable (Windows)
 on:
   push:
     branches:
-      - feature/windows-portable-preview-build
+      - main
   workflow_dispatch:
 
 env:
@@ -11,7 +11,7 @@ env:
   PYTHONIOENCODING: utf-8
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows-portable:
@@ -112,3 +112,20 @@ jobs:
           path: AutoSync-PreviewEdit-Windows-Portable.zip
           retention-days: 30
           if-no-files-found: error
+
+      - name: Publish a public preview release
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'preview-edit-20261030'
+          $artifact = 'AutoSync-PreviewEdit-Windows-Portable.zip'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $artifact --repo $env:GITHUB_REPOSITORY --clobber
+          } else {
+            gh release create $tag $artifact --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'AutoSync Preview & Edit portable (v1.1 engine)' --notes 'Portable Electron, embedded Python 3.12, NumPy/SciPy and FFmpeg. Includes the three-track Preview & Edit interface and synthetic opening-music tests. Based on the public GitHub v1.1 engine: not a replacement for a separately installed v1.3 build. Case 1 has not been validated end to end.'
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not publish portable preview release.' }
