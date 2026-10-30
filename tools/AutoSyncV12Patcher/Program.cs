@@ -9,7 +9,7 @@ namespace AutoSyncPatcher;
 internal static class Program
 {
     private const string PreviewUrl =
-        "https://github.com/EVA0111/AutoSync/releases/download/preview-edit-20261030/AutoSync-PreviewEdit-Windows-Portable.zip";
+        "https://github.com/EVA0111/AutoSync/releases/download/v1.2-preview-edit-patcher/AutoSync-PreviewEdit-Shell.zip";
     private const string OutputBaseName = "AutoSync-v1.2-PreviewEdit-Windows-Portable";
 
     [STAThread]
@@ -58,6 +58,13 @@ internal static class Program
             {
                 Console.WriteLine("\n[1/6] Downloading Preview & Edit desktop app ...");
                 string archive = Path.Combine(temporary, "preview.zip");
+                string bundledShell = Path.Combine(AppContext.BaseDirectory, "AutoSync-PreviewEdit-Shell.zip");
+                if (File.Exists(bundledShell))
+                {
+                    Console.WriteLine("Found local Preview & Edit shell archive.");
+                    File.Copy(bundledShell, archive);
+                }
+                else
                 using (var http = new HttpClient() { Timeout = TimeSpan.FromMinutes(15) })
                 using (var response = await http.GetAsync(PreviewUrl, HttpCompletionOption.ResponseHeadersRead))
                 {
