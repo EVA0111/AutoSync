@@ -34,7 +34,7 @@ trackDetails.append($('track-context'),$('audio-track-options'));$('audio-tracks
 $('subtitle-section').after($('destination-panel'));$('destination-panel').after(setupCheck);
 $('destination-panel').querySelector('p').textContent='Reports and advanced options are available in Settings.';
 $('start').textContent='Start selected jobs';
-const jobsPanel=document.createElement('section');jobsPanel.id='jobs-panel';jobsPanel.className='panel hidden';jobsPanel.innerHTML='<div class="section-heading"><h2>Jobs</h2><span>Results from the current run</span></div><p id="jobs-empty" class="hint">Completed jobs and review warnings will appear here.</p><div class="jobs-scroll"><table><thead><tr><th>Job</th><th>Status</th><th>Output</th></tr></thead><tbody id="job-rows"></tbody></table></div>';
+const jobsPanel=document.createElement('section');jobsPanel.id='jobs-panel';jobsPanel.className='panel hidden';jobsPanel.innerHTML='<div class="section-heading"><h2>Jobs</h2><span>Results from the current run</span></div><p id="jobs-empty" class="hint">Completed jobs and review warnings will appear here.</p><div class="jobs-scroll"><table><thead><tr><th>Job</th><th>Status</th><th>Output</th><th>Reports</th></tr></thead><tbody id="job-rows"></tbody></table></div>';
 $('destination-panel').before(jobsPanel);const activity=document.querySelector('.log-panel');jobsPanel.append(activity);
 function applyRemodel(){
  const sync=workspace==='Sync jobs';audioSection.classList.toggle('hidden',!sync||activeTab!=='audio');subSection.classList.toggle('hidden',!sync||activeTab!=='subtitles');jobsPanel.classList.toggle('hidden',!sync||activeTab!=='jobs');
@@ -55,7 +55,15 @@ async function addInlineTrack(row,side,file){
 // Reflect the selected-pair editors in file-row controls as well.
 for(const id of ['audio_stream','reference_stream'])$(id).addEventListener('change',()=>{const side=id==='audio_stream'?'source':'target',i=selectedIndex>=0?selectedIndex:0;const select=$(side+'-list').children[i]?.querySelector('.inline-track');if(select)select.value=$(id).value;});
 window.autosync.onEvent(({type,data})=>{
- if(type==='result'){$('jobs-empty').classList.add('hidden');const row=document.createElement('tr');const name=document.createElement('td');name.textContent=data.name;name.dir='auto';const status=document.createElement('td');const badge=document.createElement('span');badge.className='result-badge '+(data.status==='review'?'review':data.status==='complete'?'success':'failed');badge.textContent=data.status==='review'?'Needs review':data.status==='complete'?'Finished':'Failed';status.append(badge);const files=document.createElement('td');files.className='output-path';files.textContent=data.error||(data.files||[]).join('\n');row.append(name,status,files);$('job-rows').append(row);}
+ if(type==='result'){$('jobs-empty').classList.add('hidden');const row=document.createElement('tr');const name=document.createElement('td');name.textContent=data.name;name.dir='auto';const status=document.createElement('td');const badge=document.createElement('span');badge.className='result-badge '+(data.status==='review'?'review':data.status==='complete'?'success':'failed');badge.textContent=data.status==='review'?'Needs review':data.status==='complete'?'Finished':'Failed';status.append(badge);const files=document.createElement('td');files.className='output-path';files.textContent=data.error||(data.files||[]).join('\n');
+ const reportCell=document.createElement('td');
+ if(data.reports_folder){
+  const open=document.createElement('button');open.type='button';open.className='secondary';
+  open.textContent='Open reports';open.title=data.reports_folder;
+  open.onclick=()=>window.autosync.openJobReports(data.reports_folder).catch(error);
+  reportCell.append(open);
+ }else{reportCell.textContent='—';}
+ row.append(name,status,files,reportCell);$('job-rows').append(row);}
  if(type==='done')syncRemodelBusy();
 });
 const previousReset=resetProgress;resetProgress=function(){previousReset();$('job-rows').replaceChildren();$('jobs-empty').classList.remove('hidden');};
