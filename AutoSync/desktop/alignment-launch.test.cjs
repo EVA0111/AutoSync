@@ -57,6 +57,14 @@ test('Preview & Edit auto-analyzes selected source/target and saves edits in an 
      const request=JSON.parse(raw);
      assert.equal(request.task,'Single episode');
      assert.equal(request.values.analyze_only,true);
+     assert.equal(request.values.mode,'Sync full target audio');
+     assert.equal(request.values.main_start,'');
+     assert.equal(request.values.main_end,'');
+     assert.equal(request.values.source_main_start,'');
+     assert.equal(request.values.source_main_end,'');
+     assert.equal(request.values.remove_unmatched_video,false);
+     assert.equal(request.values.reference_fallback,false);
+     assert.equal(request.values.allow_uncertain_cuts,false);
      assert.equal(request.values.source,source);
      assert.equal(request.values.target,target);
      fs.writeFileSync(path.join(request.values.out,'plan.json'),JSON.stringify({
@@ -79,7 +87,7 @@ test('Preview & Edit auto-analyzes selected source/target and saves edits in an 
  try{
   const instance=create(temp,()=>['python',[]]);
   const result=await instance.analyzeAndOpen({},{
-   task:'Single episode',values:{source,target,audio:source,reference:target}
+   task:'Single episode',values:{source,target,audio:source,reference:target,mode:'Keep target opening / ending',main_start:'22',main_end:'1300',source_main_start:'18',source_main_end:'1290',remove_unmatched_video:true,allow_uncertain_cuts:true}
   },temp,()=>{});
   assert.equal(result,true);
   assert.equal(filePickerCount,0,'No plan chooser should appear');

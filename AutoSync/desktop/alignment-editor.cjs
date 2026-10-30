@@ -8,6 +8,7 @@ const {randomUUID,createHash}=require('node:crypto');
 const {validateSegments}=require('./alignment-model.cjs');
 const clips=require('./audio-clip-tools.cjs');
 const timelineGestures=require('./timeline-gestures.cjs');
+const {preparePreviewValues}=require('./preview-request.cjs');
 
 function createAlignmentEditor(root,python){
  let editor=null,project=null,exportChild=null,prepareChild=null,lastPrepared=null;
@@ -80,7 +81,7 @@ function createAlignmentEditor(root,python){
   if(prepareChild)throw Error('Preview analysis is already running.');
   if(!job||job.task!=='Single episode'||!job.values||typeof job.values!=='object')throw Error('Choose a source and target pair before previewing.');
   if(JSON.stringify(job).length>100000)throw Error('Preview request is too large.');
-  const values={...job.values};
+  const values=preparePreviewValues(job.values);
   for(const field of ['source','target']){
    if(typeof values[field]!=='string'||!path.isAbsolute(values[field])||!fs.existsSync(values[field]))throw Error('Choose a valid '+field+' video.');
   }
@@ -97,11 +98,11 @@ function createAlignmentEditor(root,python){
   if(!path.isAbsolute(outputRoot)||!fs.statSync(outputRoot).isDirectory())throw Error('Choose an existing output directory.');
   const output=await fs.promises.mkdtemp(path.join(outputRoot,'AutoSync_Alignment_'));
   values.out=output;
-  values.analyze_only=true;
   const request={task:'Single episode',values};
   const [bin,prefix]=python();
   let tail='';
-  notify('Analyzing source and target for Preview & Edit. Alignment will be saved in '+output+'\n');
+  notify('Preview & Edit analyzes the entire target without automatically trimming the opening/ending or removing video.\n');
+  notify('Alignment will be saved in '+output+'\n');
   await new Promise((resolve,reject)=>{
    let done=false;
    function finish(err){

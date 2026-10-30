@@ -1,6 +1,7 @@
 const {probe}=require('./media.cjs');
 const {createPreview}=require('./video-preview.cjs');
 const {createAlignmentEditor}=require('./alignment-editor.cjs');
+const {reusablePreviewPlan}=require('./preview-request.cjs');
 const {collect,prepareBatch}=require('./batch.cjs');
 const {app,BrowserWindow,ipcMain,dialog,shell}=require('electron');
 const {spawn}=require('node:child_process');
@@ -37,9 +38,7 @@ app.whenReady().then(()=>{
    try{
     const previous=JSON.parse(await fs.promises.readFile(lastPlan,'utf8'));
     const values=request.job.values||{};
-    const same=(a,b)=>typeof a==='string'&&typeof b==='string'&&path.resolve(a)===path.resolve(b);
-    if(same(previous.source_video,values.source)&&same(previous.target_video,values.target)&&
-       same(previous.audio,values.audio)&&same(previous.reference,values.reference)){
+    if(reusablePreviewPlan(previous,values)){
      return alignmentEditor.open(win,lastPlan);
     }
    }catch(err){send('log','Could not reuse alignment: '+err.message+'\n');}
