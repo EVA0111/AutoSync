@@ -22,7 +22,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File build/windows/build-port
 Each build refuses to overwrite an existing output, so use an empty build
 destination or move the previous output first. Internet access is needed for
 dependencies. GitHub Actions uses this same script; the tests must pass before
-the ZIP artifact is uploaded.
+the ZIP artifact is uploaded. Publishing GitHub Releases is manual.
 
 Project organization:
 - `AutoSync/*.py`: syncing core, audio/video algorithms and regression tests
