@@ -21,7 +21,14 @@ app.whenReady().then(()=>{
  ipcMain.handle('open-github-profile',async e=>{trusted(e);await shell.openExternal('https://github.com/EVA0111');});
  ipcMain.handle('browse',async(e,kind)=>{trusted(e);if(!['media','subtitle','csv','plan','output'].includes(kind))throw Error('Unknown file type');const dir=kind==='output';const result=await dialog.showOpenDialog(win,{properties:[dir?'openDirectory':'openFile'],filters:dir?undefined:kind==='subtitle'?[{name:'Subtitles or container',extensions:['ass','ssa','srt','vtt','sbv','sub','mpl2','smi','sami','ttml','dfxp','xml','sup','mkv','mp4']},{name:'All files',extensions:['*']}]:kind==='csv'?[{name:'Batch CSV',extensions:['csv']}]:kind==='plan'?[{name:'Saved plan',extensions:['json']}]:[{name:'Media',extensions:['mkv','mp4','avi','wmv','mov','m2ts','wav','flac','mp3','aac','ac3','wma']},{name:'All files',extensions:['*']}]});if(result.canceled)return '';const p=result.filePaths[0];return p;});
  win.on('closed',()=>{preview.cancel();alignmentEditor.close();});
- ipcMain.handle('alignment-editor-open',async e=>{trusted(e);return alignmentEditor.open(win);});
+ ipcMain.handle('alignment-editor-open',async(e,request={})=>{
+  trusted(e);
+  if(child)throw Error('Finish the running sync job before opening Preview & Edit.');
+  if(!request||typeof request!=='object'||JSON.stringify(request).length>100000)throw Error('Invalid Preview & Edit request.');
+  if(request.plan)return alignmentEditor.open(win,request.plan);
+  if(request.job)return alignmentEditor.analyzeAndOpen(win,request.job,request.outputDirectory,message=>send('alignment-log',message));
+  return alignmentEditor.open(win);
+ });
  ipcMain.handle('preview-open',async(e,file)=>{trusted(e);return preview.open(file);});
  ipcMain.handle('preview-frame',async(e,index)=>{trusted(e);return preview.frame(index);});
  ipcMain.handle('preview-close',e=>{trusted(e);preview.cancel();});
@@ -30,7 +37,7 @@ app.whenReady().then(()=>{
  ipcMain.handle('subtitle-pick',async(e,folder)=>{trusted(e);const r=await dialog.showOpenDialog(win,{properties:folder?['openDirectory']:['openFile','multiSelections']});return r.canceled?[]:collect(r.filePaths,'subtitle-target');});
  ipcMain.handle('collect',async(e,paths,videoOnly)=>{trusted(e);return collect(paths,videoOnly!==false);});
  ipcMain.handle('pick-batch',async(e,folder)=>{trusted(e);const r=await dialog.showOpenDialog(win,{properties:folder?['openDirectory']:['openFile','multiSelections']});return r.canceled?[]:collect(r.filePaths);});
- ipcMain.handle('start',async(e,job)=>{trusted(e);if(child)throw Error('A job is already running.');if(!job||typeof job!=='object'||JSON.stringify(job).length>100000)throw Error('Invalid job.');const queued=job.task==='Queue'?job.jobs:[job];if(!Array.isArray(queued)||!queued.length||queued.length>2)throw Error('Invalid queue.');for(const entry of queued){if(entry.task==='Folder batch'){if(!entry.reviewed)throw Error('Review the episode pairs first.');entry.values.batch=await prepareBatch(entry.pairs,entry.values);entry.task='Batch CSV';}}if(job.task==='Setup'&&!['engine','ai'].includes(job.kind))throw Error('Invalid setup option.');const [bin,prefix]=python();stopping=false;lastOutput=job.task==='Managed queue'?job.output_dir:null;lastReport=null;const managed=job.task==='Managed queue';let workRoot=null;if(managed){workRoot=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'autosync-work-'));job.work_root=workRoot;}
+ ipcMain.handle('start',async(e,job)=>{trusted(e);if(child||alignmentEditor.isBusy())throw Error('A sync or Preview & Edit analysis is already running.');if(!job||typeof job!=='object'||JSON.stringify(job).length>100000)throw Error('Invalid job.');const queued=job.task==='Queue'?job.jobs:[job];if(!Array.isArray(queued)||!queued.length||queued.length>2)throw Error('Invalid queue.');for(const entry of queued){if(entry.task==='Folder batch'){if(!entry.reviewed)throw Error('Review the episode pairs first.');entry.values.batch=await prepareBatch(entry.pairs,entry.values);entry.task='Batch CSV';}}if(job.task==='Setup'&&!['engine','ai'].includes(job.kind))throw Error('Invalid setup option.');const [bin,prefix]=python();stopping=false;lastOutput=job.task==='Managed queue'?job.output_dir:null;lastReport=null;const managed=job.task==='Managed queue';let workRoot=null;if(managed){workRoot=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'autosync-work-'));job.work_root=workRoot;}
  const setup=job.task==='Setup';
  child=spawn(bin,[...prefix,'-u',path.join(root,setup?'runtime_setup.py':'desktop_bridge.py'),...(setup&&job.kind==='ai'?['--ai']:[])],{cwd:root,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONUNBUFFERED:'1'},windowsHide:true,detached:process.platform!=='win32',stdio:['pipe','pipe','pipe']});
  const running=child;let pending='';

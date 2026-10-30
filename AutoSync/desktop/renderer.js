@@ -88,5 +88,51 @@ for(const id of ['source','target','audio','reference','sub_subtitle','sub_refer
 for(const kind of ['engine','ai'])$('setup-'+kind).onclick=async()=>{setupRunning=true;busy(true);$('status').textContent='Installing dependencies…';try{await window.autosync.start({task:'Setup',kind});}catch(e){setupRunning=false;busy(false);error(e);}};
 refreshTracks();
 
-// The editor opens a saved alignment plan and never alters the running job.
-$('alignment-editor-open').onclick=()=>window.autosync.openAlignmentEditor().catch(error);
+// Preview & Edit works with the currently selected source and target, too.
+// When no plan is supplied, the engine creates one (analyze-only) on the chosen drive.
+let editorOpening=false;
+$('alignment-editor-open').onclick=async()=>{
+ if(editorOpening||running)return;
+ const button=$('alignment-editor-open'),caption=button.textContent;
+ editorOpening=true;button.disabled=true;button.textContent='Preparing Preview…';
+ try{
+  let request={};
+  if(workspace==='Saved plan'&&$('plan').value.trim()){
+   request={plan:$('plan').value.trim()};
+  }else{
+   const index=selectedIndex>=0?selectedIndex:0;
+   const source=batchFiles.source[index]||$('source').value.trim();
+   const target=batchFiles.target[index]||$('target').value.trim();
+   if(source&&target){
+    const values={};
+    for(const id of [...paths.map(x=>x[0]),...advanced.map(x=>x[0]),
+      'audio_stream','reference_stream','outer_stream','audio_only',
+      'reference_fallback','remove_unmatched_video','allow_uncertain_cuts','analyze_only']){
+     const element=$(id);
+     values[id]=element?.type==='checkbox'?element.checked:element?.value?.trim()||'';
+    }
+    values.mode=document.querySelector('[name=mode]:checked').value;
+    values.main_start='';values.main_end='';
+    values.source=source;values.target=target;
+    const selectedPair=batchTrackValues(source,target);
+    values.audio_stream=selectedPair.audio_stream;
+    values.reference_stream=selectedPair.reference_stream;
+    values.outer_stream=selectedPair.outer_stream;
+    values.audio=$('audio').value.trim()||source;
+    values.reference=$('reference').value.trim()||target;
+    audioDefaultsWhenDisabled(values);
+    values.analyze_only=true;
+    request={job:{task:'Single episode',values},
+      outputDirectory:$('output-destination').value.trim()};
+   }
+   // When nothing is selected, show the standard existing-plan picker.
+  }
+  $('status').textContent=request.job?'Analyzing the selected pair for Preview & Edit…':'Opening Preview & Edit…';
+  const opened=await window.autosync.openAlignmentEditor(request);
+  $('status').textContent=opened?'Preview & Edit opened':'Preview cancelled';
+ }catch(e){error(e);}
+ finally{editorOpening=false;button.textContent=caption;button.disabled=false;}
+};
+window.autosync.onEvent(({type,data})=>{
+ if(type==='alignment-log')log(data);
+});

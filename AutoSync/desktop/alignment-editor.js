@@ -319,7 +319,7 @@ $('source-mode').onclick=()=>mode('audio');$('target-mode').onclick=()=>mode('re
 $('save').onclick=async()=>{
  pause();
  try{const location=await window.alignment.save(segments);if(!location){report('Save cancelled.');return;}
-  saved=true;setButtons();report('Edited plan saved to '+location);
+  saved=true;setButtons();report('Edited project saved: '+location+'. The corrected output will be exported to that folder.');
  }catch(e){report('Save failed: '+e.message,true);}
 };
 $('export').onclick=async()=>{
