@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feature/realtime-editor-audio-tools-no-release
+      - feature/filmcraft-style-timeline-interactions
     paths:
       - 'AutoSync/**'
       - 'build/windows/**'
