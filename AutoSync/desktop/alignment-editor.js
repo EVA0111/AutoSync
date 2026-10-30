@@ -524,7 +524,7 @@ async function onUp(e){
  const action=drag;drag=null;draw();
  if(action.mode==='scrub'||!action.moved)return;
  const b=canvas.getBoundingClientRect(),row=timelineRow(e.clientY-b.top);
- if(action.row!==3&&row!==3){
+ if(action.mode==='move'&&action.row!==3&&row!==3){
   report('Drag a clip from A1 or A2 down to MIX to place it into the edited output.');return;
  }
  try{
