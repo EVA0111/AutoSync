@@ -103,6 +103,24 @@ function createAlignmentEditor(root,python){
   const max=Math.max(.0001,...peaks);
   return {peaks:peaks.map(x=>Math.min(1,x/max)),duration:count/200};
  });
+
+ ipcMain.handle('align-waveform-range',async(e,track,start,end)=>{
+  trusted(e);
+  const {file,stream}=trackInfo(track);
+  const from=assertTime(start),to=assertTime(end);
+  if(to<=from||to-from>120)throw Error('Waveform range must be between 0 and 120 seconds.');
+  const data=await run('ffmpeg',['-v','error','-nostdin','-ss',String(from),'-t',String(to-from),'-i',file,'-map','0:a:'+stream,'-ac','1','-ar','2000','-f','f32le','pipe:1'],8*1024*1024);
+  const count=Math.floor(data.length/4),step=Math.max(1,Math.ceil(count/6000)),peaks=[];
+  for(let i=0;i<count;i+=step){
+   let max=0;
+   for(let j=i;j<Math.min(count,i+step);j++){
+    const x=data.readFloatLE(j*4);
+    if(Number.isFinite(x))max=Math.max(max,Math.abs(x));
+   }
+   peaks.push(Math.min(1,max));
+  }
+  return {start:from,duration:count/2000,peaks};
+ });
  ipcMain.handle('align-frame',async(e,track,time)=>{
   trusted(e);
   if(!['source','target'].includes(track))throw Error('Invalid preview track.');
