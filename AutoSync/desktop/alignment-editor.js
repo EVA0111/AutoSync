@@ -560,7 +560,7 @@ window.addEventListener('keydown',e=>{
  if(nleUI){
   const k=e.key.toLowerCase(),mod=e.ctrlKey||e.metaKey;
   if(mod&&k==='c'&&nleUI.hasSelection()){e.preventDefault();nleUI.copy();return;}
-  if(mod&&k==='v'&&nleUI.hasSelection()){e.preventDefault();nleUI.paste(false);return;}
+  if(mod&&k==='v'&&nleUI.hasClipboard()){e.preventDefault();nleUI.paste(false);return;}
   if(mod&&k==='x'&&nleUI.hasSelection()){e.preventDefault();nleUI.copy();nleUI.lift();return;}
   if(mod&&k==='z'&&nleUI.canUndo()){e.preventDefault();nleUI.undo();return;}
   if(mod&&k==='y'&&nleUI.canRedo()){e.preventDefault();nleUI.redo();return;}
