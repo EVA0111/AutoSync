@@ -16,6 +16,24 @@ Build the complete application from this source repository using **`build/window
 
 Settings enables optional reports, advanced options, saved plans, and subtitle AI setup. Reports default to `AutoSync Reports` beside `AutoSync.exe`, with a separate folder for each job, including failed jobs. Choose another reports root in Settings if preferred. Open each job's reports directly from the Jobs tab. Subtitle jobs have their own section with batch pairing and track selection.
 
+## Optional AI-assisted matching
+
+The **Matching method** selector independently offers **Standard** and
+**AI-assisted (experimental)**. It does not change the chosen output mode.
+The AI option uses a pretrained Audio Spectrogram Transformer (AST) to
+suggest sound matches, and DINOv2-small for scene correspondence only when
+ordinary visual matching is weak. The normal audio correlation verifies
+learned audio matches before they become timing anchors.
+
+Install optional libraries using the **Install AI Sync models** button in
+Setup, or in source form with `python runtime_setup.py --sync-ai`.
+The neural weights download on first analysis and are cached on disk; they
+are not bundled into the basic portable application. GPU acceleration is
+used if compatible PyTorch CUDA support is available, otherwise CPU.
+
+The AI method is experimental. Uncertain timing must be reviewed; the app
+does not let learned similarity alone approve a destructive video cut.
+
 ## Features
 
 - Audio and picture matching across different edits and playback speeds.
