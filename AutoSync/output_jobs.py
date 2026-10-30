@@ -68,7 +68,7 @@ def run_managed(request,runner):
     reports=folder(request.get('reports_dir'),'reports') if request.get('save_reports') else None
     if reports and (output==reports or output in reports.parents or reports in output.parents):raise ValueError('Choose separate, non-nested output and report folders.')
     jobs=flatten(request.get('jobs',[]))
-    if not reports and any(j['values'].get('analyze_only') for j in jobs):raise ValueError('Enable Save reports in Settings and choose a reports folder for Analyze only.')
+    # Analysis-only runs still publish their plan to the chosen output folder.
     output.mkdir(parents=True,exist_ok=True)
     if reports:reports.mkdir(parents=True,exist_ok=True)
     run_id=datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6]
@@ -106,6 +106,14 @@ def run_managed(request,runner):
                     path_map={}
                     for src,destname in candidates:
                         dest=publish(src,output,destname);files.append(str(dest));path_map[str(src)]=str(dest)
+                    # An alignment belongs to the user, not a temporary staging directory.
+                    # Publish even when reports are disabled and the run is analyze-only.
+                    if job['task'] in ('Single episode','Saved plan') and (stage/'plan.json').is_file():
+                        source_plan=stage/'plan.json'
+                        published=publish(source_plan,output,name+'.alignment.json')
+                        files.append(str(published))
+                        path_map[str(source_plan)]=str(published)
+                        print('AUTOSYNC_PLAN='+json.dumps(str(published)),flush=True)
                     # Fonts are required playback assets, not optional reports.
                     for font in stage.glob('input_subtitle_fonts/*'):
                         if font.is_file():
