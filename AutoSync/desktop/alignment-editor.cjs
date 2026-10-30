@@ -239,6 +239,14 @@ function createAlignmentEditor(root,python){
   trusted(e);
   if(project.exporting)throw Error('Cannot save while export is running.');
   const revised=validateSegments(segments,project.plan.duration);
+  if(timeline!==null){
+   nle.validateProject(timeline);
+   if(Math.abs(timeline.duration-project.plan.duration)>.001)throw Error('Clip timeline duration differs from the source plan.');
+   const fromTracks=nle.flatSegments(timeline);
+   const core=rows=>rows.map(s=>[s.kind,s.target_start,s.target_end,s.source_start??null,s.speed??null]);
+   if(JSON.stringify(core(fromTracks))!==JSON.stringify(core(revised)))
+    throw Error('Audio tracks and rendered alignment disagree. Save again after refreshing the timeline.');
+  }
   // Save As can choose any drive, directory and name. Its filename stem becomes
   // the new output folder, so rendered media never overwrites another episode.
   if(!project.outputPlan||project.exported){
