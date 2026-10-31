@@ -1,6 +1,14 @@
-# AutoSync v1.2.0
+# AutoSync v1.2.5
 
 Windows x64 portable release by [EVA0111](https://github.com/EVA0111).
+
+## What's new in v1.2.5
+
+- Recover verified shared source opening music in Standard and AI-assisted full-target syncing, including unmatched-video export.
+- Improved handling of differing openings/endings, target-only eyecatches/title cards and backward source-audio joins, with conservative checks and regression coverage.
+- AI cache timestamp validation and stable rewind review warnings after plan edits.
+- Default temporary work to `AutoSync Temp` beside the target video; configure a different folder in Settings. Temporary per-run work is cleaned up on normal completion and failure.
+- Optional AST audio and DINOv2 visual matching still require **Setup → Install AI Sync models** before first use.
 
 ## What's included
 
@@ -13,9 +21,9 @@ Windows x64 portable release by [EVA0111](https://github.com/EVA0111).
 
 ## Installation
 
-1. Download **AutoSync-v1.2.0-Windows-Portable.zip**.
+1. Download **AutoSync-v1.2.5-Windows-Portable.zip**.
 2. Extract it into a writable location.
-3. Open **AutoSync.exe** inside the extracted **AutoSync-v1.2.0-Windows-Portable** folder.
+3. Open **AutoSync.exe** inside the extracted **AutoSync-v1.2.5-Windows-Portable** folder.
 
 Optional subtitle AI models and components may require additional downloads through the application.
 
@@ -23,4 +31,4 @@ Review flagged joins and uncertain timing before distributing outputs. The app d
 
 ## Source
 
-The source repository includes the portable Windows build scripts under `build/windows`. All main application windows and package metadata display **v1.2.0**.
+The source repository includes the portable Windows build scripts under `build/windows`. All main application windows and package metadata display **v1.2.5**.
