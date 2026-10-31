@@ -34,8 +34,3 @@ For example, if you want audio from DVD version A to fit Blu-ray version B, add 
 
 **Matching method** is a separate choice. **Standard (default)** requires no optional AI installation. **AI-assisted (experimental)** requires extra downloads.
 
-## A video walkthrough
-
-[Issue #10](https://github.com/EVA0111/AutoSync/issues/10) requests a recorded step-by-step tutorial. These written pages give the same sequence to follow now, but **a recorded video has not been supplied by this guide**. A future screencast should show download, extraction, choosing files, choosing tracks and mode, clicking **Start selected jobs**, then opening and reviewing the result.
-
-These wiki-style pages live under the repository's **docs/** folder so they can be read without GitHub Wiki-specific tooling.
