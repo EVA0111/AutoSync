@@ -466,6 +466,11 @@ def _run_job(job,args):
     if ai_mode:method='AI-assisted: '+method
     plan=dict(source_crop=source_crop,target_crop=target_crop,source_cuts=source_cuts(segments),audio=audio,audio_stream=stream,reference=reference,reference_stream=rs,reference_shift=refshift,source_video=source_video,target_video=target,duration=duration,method=method,sync_method='ai_assisted' if ai_mode else 'standard',segments=segments,models=models,review=review,warnings=warnings)
     np.savez_compressed(out/'matching_diagnostics.npz',visual=visual,anchors=anchors)
+    # Recover shared source opening music for both Standard and AI matching.
+    # Keep-target-OP/ED deliberately uses the target's outside soundtrack.
+    if not args.main_only and not args.keep_target_op_ed:
+        from video_edits import recover_shared_opening
+        plan=recover_shared_opening(plan,sf,ref,sl)
     if args.main_only or args.keep_target_op_ed:
         from main_episode import detect_main,trim_plan,keep_target_outer
         (out/'full_plan.json').write_text(json.dumps(rebase(plan,input_meta),indent=2),encoding='utf-8')

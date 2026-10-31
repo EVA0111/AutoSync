@@ -54,7 +54,11 @@ def _load_cached(file, stream, model, kind):
         try:
             with np.load(p, allow_pickle=False) as data:
                 ts, feats = np.asarray(data["times"], dtype=np.float32), np.asarray(data["vectors"], dtype=np.float32)
-            if feats.ndim == 2 and len(feats) == len(ts) and np.all(np.isfinite(feats)):
+            # A structurally readable NPZ can still contain corrupted timestamps.
+            # Do not let NaNs or out-of-order samples reach timing calculations.
+            if (ts.ndim == 1 and feats.ndim == 2 and len(feats) == len(ts)
+                    and np.all(np.isfinite(ts)) and np.all(ts >= 0)
+                    and np.all(np.diff(ts) > 0) and np.all(np.isfinite(feats))):
                 return ts, feats
         except (ValueError, KeyError, OSError):
             pass

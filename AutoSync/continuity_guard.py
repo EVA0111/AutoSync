@@ -44,10 +44,14 @@ def annotate_rewinds(plan):
     """Annotate, never rewrite, a timing plan with overlapping-source risks."""
     overlap=source_rewinds(plan.get('segments',[]))
     plan['source_rewinds']=overlap
-    if not overlap:
-        return plan
     reviews=plan.setdefault('review',[])
     warnings=plan.setdefault('warnings',[])
+    # Rebuild generated diagnostics against the *current* segments. Preview &
+    # Edit can correct a join and rerun the audit; stale flags must disappear.
+    reviews[:]=[r for r in reviews if r.get('issue_type')!='source_rewind']
+    warnings[:]=[w for w in warnings if not (
+        isinstance(w,str) and w.startswith('Source mapping goes BACKWARD by ')
+        and ' Target at ' in w)]
     for issue in overlap:
         t=issue['target_time']
         duration=float(plan['duration'])
