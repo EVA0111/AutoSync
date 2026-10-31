@@ -1,4 +1,4 @@
-# AutoSync v1.2.0
+# AutoSync v1.2.5
 
 An Electron + Python/FFmpeg tool for matching audio and subtitles between
 different video editions, including different playback speeds, openings,
@@ -13,7 +13,7 @@ build\windows\build-portable.cmd
 ```
 
 The builder installs dependencies in a private build environment and produces
-`dist/AutoSync-v1.2.0-Windows-Portable.zip`. Unzip the result and run
+`dist/AutoSync-v1.2.5-Windows-Portable.zip`. Unzip the result and run
 `AutoSync.exe`; the finished portable application includes Electron,
 Python 3.12, NumPy, SciPy, FFmpeg and FFprobe.
 
@@ -40,7 +40,7 @@ the original scene matcher has insufficient evidence. Inspect uncertain
 sections in Preview & Edit. There is no automatic guarantee of better sync
 for different dubs or editions.
 
-## Beginner guide (v1.2.0)
+## Beginner guide (v1.2.5)
 
 New to AutoSync? Start with the **[Beginner Wiki](docs/Home.md)**, then follow **[Getting Started](docs/Getting-Started.md)** for a click-by-click first sync. The **[AI-assisted matching guide](docs/AI-Assisted-Matching.md)** covers optional model installation separately. No coding or media folders inside the app are required for the Windows portable release.
 
