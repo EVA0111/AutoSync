@@ -19,7 +19,8 @@ window.autosync.defaultReportsPath().then(folder=>{
  if(typeof refreshReadiness==='function')queueMicrotask(refreshReadiness);
 }).catch(error=>{console.warn('Reports default path unavailable:',error);});
 function reportsRoot(){return reportsField.value.trim()||defaultReportsRoot;}
-fileField('report-fields',['temp-destination','Temporary work folder (optional)','output','Auto — AutoSync Temp beside target video']);
+const tempFields=document.createElement('div');tempFields.id='temp-fields';settingsPanel.append(tempFields);
+fileField('temp-fields',['temp-destination','Temporary work folder (optional)','output','Auto — AutoSync Temp beside target video']);
 const tempField=$('temp-destination');
 tempField.value=localStorage.getItem('autosync-temp-folder')||'';
 tempField.addEventListener('change',()=>{
@@ -27,10 +28,9 @@ tempField.addEventListener('change',()=>{
  if(chosen)localStorage.setItem('autosync-temp-folder',chosen);
  else localStorage.removeItem('autosync-temp-folder');
 });
-$('report-fields').append(tempField.closest('.field'));
 const tempHint=document.createElement('p');tempHint.className='hint';
 tempHint.textContent='Leave blank for an AutoSync Temp folder beside the target video. Per-run scratch files are removed on completion or failure.';
-$('report-fields').append(tempHint);
+$('temp-fields').append(tempHint);
 settingsPanel.append($('setup-engine').closest('details'));
 const destinationPanel=document.createElement('section');destinationPanel.id='destination-panel';destinationPanel.className='panel';
 destinationPanel.innerHTML='<h2>Save output</h2><p>Leave blank to save next to the target, or choose any folder or drive. Existing files are never overwritten.</p><div id="destination-fields"></div><p id="destination-reminder" role="alert" class="hidden"></p>';
