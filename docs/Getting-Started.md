@@ -1,4 +1,4 @@
-# Getting started — your first AutoSync audio sync (v1.2.0)
+# Getting started — your first AutoSync audio sync (v1.2.5)
 
 This guide is for people who have never used a sync tool or written code. You only need a **Windows 10/11 64-bit** computer, two video versions, and enough free disk space for output.
 
@@ -6,11 +6,11 @@ This guide is for people who have never used a sync tool or written code. You on
 
 ## 1. Download AutoSync
 
-1. Open the [AutoSync v1.2.0 release page](https://github.com/EVA0111/AutoSync/releases/tag/v1.2.0).
-2. Under **Assets**, download **AutoSync-v1.2.0-Windows-Portable.zip**. Do not download the repository's **Source code** ZIP for this beginner workflow.
+1. Open the [AutoSync v1.2.5 release page](https://github.com/EVA0111/AutoSync/releases/tag/v1.2.5).
+2. Under **Assets**, download **AutoSync-v1.2.5-Windows-Portable.zip**. Do not download the repository's **Source code** ZIP for this beginner workflow.
 3. In Windows File Explorer, right-click the downloaded ZIP and choose **Extract All…**.
 4. Extract everything into a folder you can write to, such as **Documents\AutoSync**. **Do not run the app from inside the ZIP** or move only the EXE out of the extracted folder.
-5. Open the extracted **AutoSync-v1.2.0-Windows-Portable** folder and double-click **AutoSync.exe**.
+5. Open the extracted **AutoSync-v1.2.5-Windows-Portable** folder and double-click **AutoSync.exe**.
 
 The portable download already includes the regular Python and FFmpeg components. **You do not need Python, a coding editor, or a command prompt** for normal Standard audio sync. You also do not have to build AutoSync from source.
 
@@ -86,6 +86,16 @@ Find **Save output** and its **Folder (optional)** field.
 
 You do not need to create an output directory by hand. The app does **not overwrite your original source or target video**. Keep output separate from inputs when possible, and make sure there is enough free disk space.
 
+## 6A. Temporary files (new in v1.2.5)
+
+AutoSync may create large working files while analyzing or exporting media. These are **temporary files**, not your finished result.
+
+- **Default:** leave the setting blank. AutoSync uses an `AutoSync Temp` folder **beside the target video**.
+- **Custom location:** open **Settings**, find **Temporary work folder (optional)**, and choose another writable folder or drive with enough free space.
+- **Cleanup:** per-run temporary files are normally removed after completion or failure. Unexpected interruption may require you to check the folder yourself.
+
+The temporary folder is different from **Save output** (`AutoSync Outputs` by default) and the optional **AutoSync Reports** folder. Do not select your valuable media folder as a scratch destination.
+
 ## 7. Start synchronization
 
 1. Look at the readiness message. When the inputs are ready, it says **Ready to sync the selected jobs.**
@@ -98,6 +108,12 @@ You do not need to create an output directory by hand. The app does **not overwr
 **For Full target audio:** the synchronized result is a **FLAC audio file**, not necessarily a new finished video containing that audio. Bring the FLAC into your video editor or muxing tool along with the target video if you want a final combined video. Check that their starting times and lengths match.
 
 The application stores a sync plan along with audio output. Optional detailed reports can be enabled under **Settings → Save reports and timing plans**; the default reports location is **AutoSync Reports** beside the application, with a folder for each job. You can choose another reports location in Settings.
+
+## What's improved in v1.2.5?
+
+AutoSync now includes additional safety checks for different openings/endings, target-only eyecatches and title cards, and joins that would jump **backward** in the source soundtrack. In **Full target audio** mode, Standard and AI-assisted matching can recover verified source opening music even when the two editions differ. These protections also apply to the unmatched-video export workflow where supported.
+
+**You do not have to enable these improvements manually.** Start with Standard matching and the normal settings. If a join or boundary is uncertain, AutoSync may preserve the material or ask for review rather than risking the wrong cut. Use **Preview & Edit** to listen to those areas.
 
 ## 8. Listen and check the result
 
@@ -127,20 +143,20 @@ You can also use a video's small preview icon **before** syncing to set source o
 | I can add files but nothing happens | Adding files only builds a job. Select a mode and click **Start selected jobs**. |
 | The wrong language is used | Check **Source audio** and **Target reference audio** in the track selectors before syncing. |
 | Episodes are paired incorrectly | Expand **Review pairing & reorder** and inspect each source/target row. |
-| I cannot find my output | Check **Save output**, the **Jobs** tab, and **Open output**. Blank destination defaults to **AutoSync Outputs** next to the target. |
+| My disk is filling up during sync | Check **Settings → Temporary work folder (optional)**. The default is **AutoSync Temp** beside the target; choose a drive with more space. Keep temporary files separate from finished outputs. |\n| I cannot find my output | Check **Save output**, the **Jobs** tab, and **Open output**. Blank destination defaults to **AutoSync Outputs** next to the target. |
 | Audio drifts at opening/ending or cuts | Review the selected mode, try **Preview & Edit**, and inspect any flagged joins. |
 | I just want a new video with the new audio | Full-target mode exports **FLAC**. You must combine it with the target video in your editor/muxer. |
 | AI setup is confusing | Keep **Standard (default)** until the basic workflow succeeds. See the separate AI page for the optional install. |
 
 ## What is not yet completely documented?
 
-This guide follows the v1.2.0 release notes, README, and current interface labels. The repository still does **not** provide all of these beginner-facing details:
+This guide follows the v1.2.5 release notes, README, and current interface labels. The repository still does **not** provide all of these beginner-facing details:
 
 - **A recorded video tutorial** showing actual clicks and a complete successful run (requested in [issue #10](https://github.com/EVA0111/AutoSync/issues/10)). This is a written guide, not a video.
 - A validated **disk-space / RAM / first-run duration** estimate for typical jobs, especially AI model downloads.
 - A novice-friendly, tested procedure for **muxing** the exported FLAC back into an MKV or MP4 in a chosen editor.
 - A screenshot-by-screenshot walkthrough of selecting the correct audio stream, responding to a manual OP/ED boundary request, and fixing a **Needs review** output.
 
-For the latest instructions and any changes after v1.2.0, check the [repository README](../README.md) and [releases](https://github.com/EVA0111/AutoSync/releases).
+For the latest instructions and any changes after v1.2.5, check the [repository README](../README.md) and [releases](https://github.com/EVA0111/AutoSync/releases).
 
 [← Wiki home](Home.md) · [Optional AI-assisted mode →](AI-Assisted-Matching.md)
