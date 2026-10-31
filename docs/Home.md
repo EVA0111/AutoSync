@@ -1,4 +1,4 @@
-# AutoSync Wiki — v1.2.0
+# AutoSync Wiki — v1.2.5
 
 Welcome! This is the beginner-friendly documentation for **AutoSync**, a Windows program that helps line up audio (and, separately, subtitles) between two versions of a video.
 
@@ -9,7 +9,7 @@ Welcome! This is the beginner-friendly documentation for **AutoSync**, a Windows
 - **[Getting started: your first audio sync](Getting-Started.md)** — download, unzip, add videos, choose audio tracks, start a sync, and find the result.
 - **[AI-assisted matching (optional)](AI-Assisted-Matching.md)** — install the additional models, switch matching methods, and understand the limitations.
 - [Subtitle syncing documentation](../AutoSync/README_SUBTITLES.md) — a separate workflow for subtitles.
-- [Download AutoSync v1.2.0](https://github.com/EVA0111/AutoSync/releases/tag/v1.2.0)
+- [Download AutoSync v1.2.5](https://github.com/EVA0111/AutoSync/releases/tag/v1.2.5)
 - [Ask a question / report a problem](https://github.com/EVA0111/AutoSync/issues)
 
 ## What do “Source” and “Target” mean?
@@ -23,6 +23,15 @@ Welcome! This is the beginner-friendly documentation for **AutoSync**, a Windows
 For example, if you want audio from DVD version A to fit Blu-ray version B, add DVD A under **Source** and Blu-ray B under **Target**. Choose the correct language/audio track for each.
 
 **You do not need to make special “source” or “target” folders inside AutoSync.** Keep your media wherever you like and select them from the program.
+
+## Improvements in v1.2.5
+
+- **More reliable handling of different openings and endings.** Full-target synchronization can recover verified shared source opening music, using either Standard or AI-assisted matching.
+- **Safer handling of eyecatches and title cards.** Target-only material and suspicious backward jumps in source audio are checked conservatively; uncertain edits may be flagged for review.
+- **Custom temporary folder.** By default, temporary processing files go into `AutoSync Temp` beside the target video. Choose another temporary location in **Settings → Temporary work folder (optional)** if needed. Per-run scratch files are normally cleaned up after a successful or failed job.
+- **AI checks and review warnings.** AI cache timestamps are validated, and rewind-related review warnings remain stable after plan edits.
+
+These improvements do not guarantee a correct sync for every pair. Listen across edits and review flagged sections.
 
 ## Which sync mode should I use?
 
