@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   portable:
@@ -45,7 +45,24 @@ jobs:
       - name: Upload finished portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: AutoSync-v1.2.0-Windows-Portable
-          path: dist/AutoSync-v1.2.0-Windows-Portable.zip
+          name: AutoSync-v1.2.5-Windows-Portable
+          path: dist/AutoSync-v1.2.5-Windows-Portable.zip
           if-no-files-found: error
           retention-days: 30
+
+  publish-release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message != '' && contains(github.event.head_commit.message, 'Release AutoSync v1.2.5')
+    needs: portable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: AutoSync-v1.2.5-Windows-Portable
+          path: release-assets
+      - name: Publish v1.2.5 Windows release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          test -s release-assets/AutoSync-v1.2.5-Windows-Portable.zip
+          gh release create v1.2.5 release-assets/AutoSync-v1.2.5-Windows-Portable.zip --title 'AutoSync v1.2.5' --notes-file AutoSync/RELEASE_NOTES.md --target "$GITHUB_SHA" --latest
