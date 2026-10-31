@@ -51,7 +51,7 @@ jobs:
           retention-days: 30
 
   publish-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message != '' && contains(github.event.head_commit.message, 'Release AutoSync v1.2.5')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: portable
     runs-on: ubuntu-latest
     steps:
@@ -65,4 +65,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           test -s release-assets/AutoSync-v1.2.5-Windows-Portable.zip
+          if gh release view v1.2.5 >/dev/null 2>&1; then echo 'v1.2.5 already published'; exit 0; fi
           gh release create v1.2.5 release-assets/AutoSync-v1.2.5-Windows-Portable.zip --title 'AutoSync v1.2.5' --notes-file AutoSync/RELEASE_NOTES.md --target "$GITHUB_SHA" --latest
