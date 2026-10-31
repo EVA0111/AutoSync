@@ -7,6 +7,40 @@ from cut_detection import source_cuts
 
 
 
+
+def recover_shared_opening(plan, source_features, target_features, source_length):
+    """Replace only a *verified* target-audio opening with matching source audio.
+
+    Unlike protect_opening this is safe for ordinary full-target output: when
+    acoustic evidence is inconclusive, leave the plan unchanged. AI and
+    Standard must use the same independent acoustic verification.
+    """
+    p=copy.deepcopy(plan)
+    segments=p.get('segments') or []
+    if not segments:return p
+    opening=segments[0]
+    a=float(opening['target_start']);b=float(opening['target_end'])
+    if opening.get('kind')!='reference' or abs(a)>1e-3 or not .1<b<=45:
+        return p
+    from main_episode import opening_audio_correspondence
+    speed=float((p.get('models') or [{}])[0].get('speed',1.))
+    evidence=opening_audio_correspondence(source_features,target_features,b,speed)
+    if not evidence or not evidence.get('matched'):return p
+    source_start=float(evidence['offset'])
+    if not np.isfinite(source_start) or source_start<0 or source_start+speed*b>float(source_length)+.025:
+        return p
+    segments[0]=dict(kind='audio',target_start=a,target_end=b,
+                     source_start=source_start,speed=speed,
+                     confidence='supported',
+                     reason='Independently verified shared opening music from source')
+    reason='Shared opening music: use aligned source audio, not target audio'
+    p.setdefault('review',[]).append(dict(start=a,end=b,confidence='supported',
+                                         reason=reason+'; listen at opening join'))
+    p.setdefault('warnings',[]).append(reason)
+    p['source_cuts']=source_cuts(segments)
+    return p
+
+
 def protect_opening(plan, source_features, target_features, source_length):
     """Protect unmatched target openings before destructive video trimming.
 
