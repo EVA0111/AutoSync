@@ -1,6 +1,6 @@
 {
   "name": "autosync-desktop",
-  "version": "1.2.0",
+  "version": "1.2.5",
   "private": true,
   "description": "Desktop audio and subtitle synchronization between video editions",
   "main": "desktop/main.cjs",
