@@ -40,6 +40,10 @@ the original scene matcher has insufficient evidence. Inspect uncertain
 sections in Preview & Edit. There is no automatic guarantee of better sync
 for different dubs or editions.
 
+## Beginner guide (v1.2.0)
+
+New to AutoSync? Start with the **[Beginner Wiki](docs/Home.md)**, then follow **[Getting Started](docs/Getting-Started.md)** for a click-by-click first sync. The **[AI-assisted matching guide](docs/AI-Assisted-Matching.md)** covers optional model installation separately. No coding or media folders inside the app are required for the Windows portable release.
+
 ## Use
 
 1. Select source and target videos (single pair or batch). Choose audio tracks.
