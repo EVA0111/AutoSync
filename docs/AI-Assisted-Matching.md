@@ -1,4 +1,4 @@
-# AI-assisted matching — optional (v1.2.0)
+# AI-assisted matching — optional (v1.2.5)
 
 **For a first sync, use Standard instead.** AI-assisted matching is experimental, takes additional installation space and time, and does not guarantee better alignment.
 
@@ -6,7 +6,7 @@ AI-assisted matching is **not an output mode**. You still choose **Full target a
 
 ## Install the AI models
 
-1. Extract and open **AutoSync.exe** from the [Windows v1.2.0 release](https://github.com/EVA0111/AutoSync/releases/tag/v1.2.0) as explained in [Getting started](Getting-Started.md).
+1. Extract and open **AutoSync.exe** from the [Windows v1.2.5 release](https://github.com/EVA0111/AutoSync/releases/tag/v1.2.5) as explained in [Getting started](Getting-Started.md).
 2. Open **Settings** (the gear button).
 3. Expand **Setup**.
 4. Click **Install AI Sync models**.
@@ -30,6 +30,15 @@ No separate manual Python installation is needed for the official Windows portab
 9. Check the **Jobs** result and review difficult sections in **Preview & Edit**.
 
 If the installation or AI run fails, check the activity information, return to **Standard**, and try the basic workflow. AI-assisted matching should never be your only copy of a project or a substitute for checking output.
+
+## Changes in v1.2.5
+
+- Full-target AI-assisted matching can recover **verified shared source opening music** when different versions have different openings, rather than always treating the opening as unmatched.
+- Cached AI features receive **timestamp validation**, helping avoid stale cached matches after input changes.
+- Revised checks for target-only eyecatches/title cards and backward audio joins reduce the risk of unsupported edits; review warnings for source-audio rewinds are kept after plan edits.
+- The default temporary work directory is `AutoSync Temp` next to the target video. You can change it under **Settings → Temporary work folder (optional)** if disk space is limited.
+
+These safeguards also affect ordinary Standard matching where applicable. They do **not** make AI-assisted matching automatically more accurate in all cases.
 
 ## What does AI mode do?
 
