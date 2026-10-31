@@ -18,7 +18,20 @@ window.autosync.defaultReportsPath().then(folder=>{
  if(!reportsField.value.trim())reportsField.placeholder='Auto — '+folder;
  if(typeof refreshReadiness==='function')queueMicrotask(refreshReadiness);
 }).catch(error=>{console.warn('Reports default path unavailable:',error);});
-function reportsRoot(){return reportsField.value.trim()||defaultReportsRoot;}settingsPanel.append($('setup-engine').closest('details'));
+function reportsRoot(){return reportsField.value.trim()||defaultReportsRoot;}
+const tempFields=document.createElement('div');tempFields.id='temp-fields';settingsPanel.append(tempFields);
+fileField('temp-fields',['temp-destination','Temporary work folder (optional)','output','Auto — AutoSync Temp beside target video']);
+const tempField=$('temp-destination');
+tempField.value=localStorage.getItem('autosync-temp-folder')||'';
+tempField.addEventListener('change',()=>{
+ const chosen=tempField.value.trim();
+ if(chosen)localStorage.setItem('autosync-temp-folder',chosen);
+ else localStorage.removeItem('autosync-temp-folder');
+});
+const tempHint=document.createElement('p');tempHint.className='hint';
+tempHint.textContent='Leave blank for an AutoSync Temp folder beside the target video. Per-run scratch files are removed on completion or failure.';
+$('temp-fields').append(tempHint);
+settingsPanel.append($('setup-engine').closest('details'));
 const destinationPanel=document.createElement('section');destinationPanel.id='destination-panel';destinationPanel.className='panel';
 destinationPanel.innerHTML='<h2>Save output</h2><p>Leave blank to save next to the target, or choose any folder or drive. Existing files are never overwritten.</p><div id="destination-fields"></div><p id="destination-reminder" role="alert" class="hidden"></p>';
 $('audio-section').before(destinationPanel);
@@ -67,9 +80,9 @@ function destinationRequest(jobs){
  const out=$('output-destination').value.trim()||defaultOutputFolder();const reports=reportsRoot();const note=$('destination-reminder');note.classList.add('hidden');
  if(!out){note.textContent='Choose a source or target file to determine the default output folder, or Browse to select one.';note.classList.remove('hidden');throw Error(note.textContent);}
  if(prefs.reports&&!reports){workspace='Settings';applyWorkspace();throw Error('Cannot locate the app reports folder. Choose a reports folder in Settings.');}
- return {task:'Managed queue',jobs,output_dir:out,save_reports:prefs.reports,reports_dir:reports};
+ return {task:'Managed queue',jobs,output_dir:out,save_reports:prefs.reports,reports_dir:reports,temp_dir:tempField.value.trim()};
 }
 function audioDefaultsWhenDisabled(values){if(prefs.audioAdvanced)return;for(const [id,,def] of advanced)values[id]=Array.isArray(def)?def[0]:def;for(const id of ['audio_only','reference_fallback','remove_unmatched_video','allow_uncertain_cuts','analyze_only'])values[id]=false;}
 function subtitleDefaultsWhenDisabled(values){if(prefs.subtitleAdvanced)return;Object.assign(values,{encoding:'utf-8-sig',source_fps:'',target_fps:'',source_crop:'',target_crop:'',whisper_model:'small',language:'',semantic:false,sushi_window:'10',sushi_max_window:'30'});}
 // One global destination replaces the old per-section output fields.
-window.autosync.onDrop(({target,paths})=>{if(!running&&paths.length===1&&['output-destination','reports-destination'].includes(target))$(target).value=paths[0];});
+window.autosync.onDrop(({target,paths})=>{if(!running&&paths.length===1&&['output-destination','reports-destination','temp-destination'].includes(target)){$(target).value=paths[0];$(target).dispatchEvent(new Event('change'));}});
