@@ -103,8 +103,80 @@ class Pieces(unittest.TestCase):
         self.assertEqual(out[1]['kind'], 'match')
 
 
-if __name__ == '__main__':
-    unittest.main()
+def noisy(T, level, seed=9):
+    """Re-encoded target: clip scores ~0.91 at the true offset, as measured on the media."""
+    rng = np.random.default_rng(seed)
+    n = rng.normal(size=T.shape).astype(np.float32)
+    n = sum(np.roll(n, k, 0) for k in range(4))
+    n /= np.linalg.norm(n, axis=1, keepdims=True)
+    x = T + level * n
+    x -= x.mean(axis=1, keepdims=True)
+    return x / np.linalg.norm(x, axis=1, keepdims=True)
+
+
+def source_at(segs, t):
+    seg = next(s for s in segs if s['target_start'] <= t < s['target_end'])
+    return None if seg['kind'] != 'audio' else seg['source_start'] + (t - seg['target_start']) * seg['speed']
+
+
+class BalancedEdits(unittest.TestCase):
+    """Case 3 (1007-1060 s): the target adds a few seconds of its own footage and
+    cuts as much source nearby, so the shots on both sides of the gap share one
+    timing while the shots inside sit 1-5 s away. Restricting the gap re-solve
+    to the neighbours' range bridged them with continuous source audio, 1-5 s
+    away from the pictures (and from the target's own soundtrack)."""
+    @classmethod
+    def setUpClass(cls):
+        S = unique_frames(220 * FPS, 11); X = unique_frames(40 * FPS, 12)
+        T = np.vstack([S[:100 * FPS], X[:3 * FPS], S[100 * FPS:106 * FPS], S[109 * FPS:150 * FPS],
+                       X[10 * FPS:15 * FPS], S[150 * FPS:157 * FPS], S[162 * FPS:]])
+        cls.segs = plan(solve(S, noisy(T, .45)), len(T) / FPS)
+
+    def test_shots_inside_the_gap_follow_their_pictures(self):
+        for t, want in [(50., 50.), (105., 102.), (130., 130.), (158., 153.), (190., 190.)]:
+            self.assertAlmostEqual(source_at(self.segs, t), want, delta=.05)
+
+    def test_inserted_footage_uses_target_audio(self):
+        refs = [s for s in self.segs if s['kind'] == 'reference']
+        self.assertEqual([(round(s['target_start']), round(s['target_end'])) for s in refs], [(100, 103), (150, 155)])
+        from continuity_guard import source_rewinds
+        self.assertEqual(source_rewinds(self.segs), [])
+
+
+class HeldShot(unittest.TestCase):
+    """Case 2 (target 128-138 s): a still shot is held 1.48 s longer in the target.
+    Every placement of the extra time fits the pictures; it was put at an
+    arbitrary point where the target audio (here the same soundtrack, offset)
+    repeated 1.5 s of audible source sound. It now goes where the target audio
+    that fills it is quietest."""
+    def setUp(self):
+        S = unique_frames(120 * FPS, 13)
+        S[50 * FPS:58 * FPS] = S[50 * FPS]                      # 8 s still shot
+        self.T = np.vstack([S[:53 * FPS], np.repeat(S[50 * FPS][None], int(1.5 * FPS), 0), S[53 * FPS:]])
+        self.tl = solve(S, self.T)
+        self.energy = np.ones(len(self.T) * 2)                 # 50 Hz loudness
+        self.energy[int(55.2 * 50):int(57.2 * 50)] = 0.          # a pause inside the held shot
+
+    def quiet(self, starts, length):
+        c = np.r_[0., np.cumsum(self.energy)]
+        i0 = np.round(np.asarray(starts) * 50).astype(int); i1 = i0 + int(round(length * 50))
+        return (c[i1] - c[i0]) / (i1 - i0)
+
+    def test_extra_time_goes_to_the_quietest_point(self):
+        segs = pt.to_plan_segments(self.tl, len(self.T) / FPS, 120., 0., quiet=self.quiet)[0]
+        ref = [s for s in segs if s['kind'] == 'reference']
+        self.assertEqual(len(ref), 1)
+        self.assertTrue(55.1 <= ref[0]['target_start'] and ref[0]['target_end'] <= 57.3, ref[0])
+        self.assertAlmostEqual(source_at(segs, 40.), 40., delta=.05)
+        self.assertAlmostEqual(source_at(segs, 80.), 78.5, delta=.05)
+
+    def test_new_footage_is_still_placed_by_pictures(self):
+        S = unique_frames(180 * FPS, 1); extra = unique_frames(10 * FPS, 2)
+        T = np.vstack([S[:60 * FPS], extra, S[60 * FPS:]])
+        loud = lambda starts, length: np.abs(np.asarray(starts) - 20.)    # 'quietest' far away
+        segs = pt.to_plan_segments(solve(S, T), len(T) / FPS, 180., 0., quiet=loud)[0]
+        ref = next(s for s in segs if s['kind'] == 'reference')
+        self.assertAlmostEqual(ref['target_start'], 60., delta=.3)
 
 
 class FrameOrigin(unittest.TestCase):

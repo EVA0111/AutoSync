@@ -342,8 +342,14 @@ def refine_gaps(sections, cand, samples, FT, FS, r):
         if x['kind'] != 'none' or not (prev_m or next_m):
             out.append(x); continue
         if prev_m and next_m:
+            # An insert and a cut inside one gap can cancel, so the neighbours
+            # may agree while the shots between them sit seconds away. A
+            # forward source path through the gap deviates from the neighbours
+            # by at most the gap length (an insert is no longer than the gap,
+            # and a cut is bounded by the insert that compensates it).
             oa, ob = sections[i - 1]['offset'], sections[i + 1]['offset']
-            lo, hi = min(oa, ob) - 2, max(oa, ob) + 2
+            span = r * (x['last'] - x['first']) + FPS
+            lo, hi = min(oa, ob) - span, max(oa, ob) + span
         elif next_m and i == 0:
             # Opening before the first match (shared OP under credit overlays):
             # source must not run past the first match.
@@ -364,10 +370,14 @@ def refine_gaps(sections, cand, samples, FT, FS, r):
         path = solve(local, r, match=.74, jump=.6, allowed=lambda o: lo <= o <= hi)
         runs = runs_from_path(path, samples[ks])
         pieces = []
+        inner_lo, inner_hi = min(oa, ob) - 2, max(oa, ob) + 2
         for kind, a, b, o in runs:
             first, last = int(samples[ks[a]]), int(samples[ks[b]])
-            solid = int(sum(local[k].get(o, -1) > .78 for k in range(a, b + 1))) if o is not None else 0
-            if kind == 'match' and solid >= 3:
+            # Timing outside the neighbours' range needs full-strength evidence.
+            outside = o is not None and not inner_lo <= o <= inner_hi
+            level = MATCH if outside else .78
+            solid = int(sum(local[k].get(o, -1) > level for k in range(a, b + 1))) if o is not None else 0
+            if kind == 'match' and solid >= (4 if outside else 3):
                 pieces.append(dict(kind='match', first=first, last=last, offset=float(o), samples=b - a + 1,
                                    strong=solid, gap_refined=True))
             else:
@@ -492,12 +502,31 @@ def edge_frame(FT, FS, r, lo, hi, offset, side):
     return lo + int(good[0]) if side == 'start' else lo + int(good[-1]) + k
 
 
-def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place_cut, audio_cut=None, target_shift=0.):
+def held_span(FT, FS, r, lo, hi, oa, ob, limit=30):
+    """Widen [lo, hi) over adjacent frames that fit both mappings equally (a held shot)."""
+    def held(x0, x1):
+        if x0 < 0 or x1 > len(FT) or x1 <= x0:
+            return False
+        a = frame_scores(FT, FS, r, x0, x1, oa); b = frame_scores(FT, FS, r, x0, x1, ob)
+        return bool(np.min(np.minimum(a, b)) > MATCH and np.mean(np.abs(a - b)) < .03)
+    k = 0
+    while k < limit and held(lo - FPS, lo):
+        lo -= FPS; k += 1
+    k = 0
+    while k < limit and held(hi, hi + FPS):
+        hi += FPS; k += 1
+    return lo, hi
+
+
+def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place_cut, audio_cut=None, target_shift=0.,
+                     quiet=None):
     """Convert sections into contiguous AutoSync segments in target seconds.
 
     Internally times are decoded-frame seconds (frame k = k/FPS).
     audio_shift: source audio time = source frame seconds + audio_shift.
     target_shift: target time (video-relative) = target frame seconds + target_shift.
+    quiet(starts, length): mean target-audio loudness of windows starting at the
+    given frame seconds, or None; places inserts inside held shots.
     Returns (segments, models, notes).
     """
     d = tl.diagnostics; FT, FS, DT = d['FT'], d['FS'], d['DT']; r = tl.ratio
@@ -548,22 +577,32 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
         else:
             # Target-only footage of length `insert` lies in the gap. Place it where
             # neither mapping matches; source continues on both sides.
-            lo, hi = gap_lo - FPS, gap_hi + FPS
-            a = frame_scores(FT, FS, r, max(0, lo), min(len(FT), hi), oa)
-            b = frame_scores(FT, FS, r, max(0, lo), min(len(FT), hi), ob)
+            lo, hi = held_span(FT, FS, r, max(0, gap_lo - FPS), min(len(FT), gap_hi + FPS), oa, ob)
+            lo = max(lo, int(np.ceil(cursor * FPS)), p['first']); hi = min(hi, m['last'])
+            a = frame_scores(FT, FS, r, lo, hi, oa)
+            b = frame_scores(FT, FS, r, lo, hi, ob)
             n = int(round(insert * FPS))
+            how = 'no source picture'
             if n >= len(a):
                 x = 0
             else:
                 # choose x so that [0,x) follows a, [x,x+n) is insert, [x+n,...) follows b
                 ca = np.r_[0., np.cumsum(a)]; cb = np.r_[0., np.cumsum(b[::-1])][::-1]
-                vals = [ca[x] + cb[x + n] - .5 * n for x in range(0, len(a) - n + 1)]
+                vals = np.array([ca[x] + cb[x + n] - .5 * n for x in range(0, len(a) - n + 1)])
                 x = int(np.argmax(vals))
-            t1 = (max(0, lo) + x) / FPS; t2 = t1 + n / FPS
+                # A held (static) shot shown longer: every placement inside it fits
+                # the pictures. Put the extra time where the target audio, which
+                # fills it, is quietest, so no audible sound is doubled or cut.
+                tied = np.flatnonzero(vals >= vals[x] - .5)
+                if quiet is not None and len(tied) >= FPS // 2:
+                    loud = quiet((lo + tied) / FPS, n / FPS)
+                    if loud is not None:
+                        x = int(tied[int(np.argmin(loud))]); how = 'held shot shown longer, placed at the quietest target audio'
+            t1 = (lo + x) / FPS; t2 = t1 + n / FPS
             pieces.append([cursor, t1, 'audio', oa, {}])
             pieces.append([t1, t2, 'insert', None, {}])
             notes.append(dict(start=t1, end=t2, splice=t1, confidence='supported',
-                              reason=f'Picture-verified target-only footage ({t2-t1:.2f}s): no source picture; target audio used; preview'))
+                              reason=f'Picture-verified target-only footage ({t2-t1:.2f}s): {how}; target audio used; preview'))
             cursor = t2
         if k == len(matches) - 1:
             pass

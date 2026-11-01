@@ -422,7 +422,14 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
             return np.max([se[i+d] for d in range(-2,3)],axis=0)
         cost=level(tl.ratio*times+oa)+level(tl.ratio*times+ob)
         return float(times[int(np.argmin(cost))]),'quietest source-audio point inside the picture-bounded span'
-    segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut,target_shift=ti['origin']-ti['start'])
+    def quiet(starts,length):
+        # Mean target (reference) loudness of each window; frame seconds -> target video seconds.
+        if energy_t is None:return None
+        c=np.r_[0.,np.cumsum(energy_t)];ts=ti['origin']-ti['start']
+        i0=np.clip(np.round((np.asarray(starts)+ts)*50).astype(int),0,len(energy_t))
+        i1=np.clip(i0+max(1,int(round(length*50))),0,len(energy_t))
+        return (c[i1]-c[i0])/np.maximum(i1-i0,1)
+    segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut,target_shift=ti['origin']-ti['start'],quiet=quiet)
     rows=[[t,m['speed']*t+m['offset'],1.] for m in models for t in np.arange(m['first'],m['last']+1e-6,2.)]
     anchors=np.asarray(rows,dtype=float).reshape(-1,3)
     visual=anchors.copy();visual[:,1]-=shift+delay
