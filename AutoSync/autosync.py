@@ -620,6 +620,10 @@ def _run_job(job,args):
                 from main_episode import picture_trim
                 trim=picture_trim(plan,sf,ref,keep_target_outer=bool(args.keep_target_op_ed))
             else:trim=detect_main(plan,visual,delay,args.main_start,args.main_end,source_features=sf,target_features=ref,keep_target_outer=bool(args.keep_target_op_ed))
+            if not args.keep_target_op_ed:
+                # The trimmed picture starts on a whole frame: cut the audio there too.
+                from main_episode import snap_to_frames,frame_rate
+                trim=snap_to_frames(trim,frame_rate(plan['target_video']))
         except (RuntimeError,ValueError,OSError) as e:
             (out/'trim_report.json').write_text(json.dumps({'status':'needs_review','reason':str(e)},indent=2))
             raise

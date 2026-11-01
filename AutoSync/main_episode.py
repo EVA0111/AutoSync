@@ -251,19 +251,47 @@ def trim_plan(plan,trim):
     return p
 
 
+def frame_rate(video):
+    """Constant frame rate of the first video stream, or None."""
+    v=next((s for s in vc.probe(video)['streams'] if s['codec_type']=='video'),None)
+    for key in ('r_frame_rate','avg_frame_rate'):
+        try:
+            a,b=map(float,(v or {}).get(key,'0/0').split('/'))
+            if a>0 and b>0:return a/b
+        except (ValueError,ZeroDivisionError):pass
+    return None
+
+
+def snap_to_frames(trim,fps):
+    """Main-episode boundaries on the target frame grid.
+
+    The trimmed picture starts at the first whole frame at or after the
+    boundary; audio cut at a fractional boundary lags it by up to one frame
+    (measured: 31 ms over all of case 3, 23.976 fps, boundary 93.52 s).
+    """
+    if not fps:return trim
+    t=dict(trim);eps=1e-3
+    t['target_start']=float(np.ceil((t['target_start']-eps)*fps)/fps)
+    t['target_end']=float(max(t['target_start']+1/fps,np.floor((t['target_end']+eps)*fps)/fps))
+    t['duration']=t['target_end']-t['target_start'];t['fps']=fps
+    return t
+
+
 def export_video(plan,audio,out,codec='h264',preset='veryfast'):
     trim=plan['main_trim'];dest=Path(out)/'main_episode.mkv'
     if dest.exists():raise RuntimeError('main_episode.mkv already exists; use a new output folder.')
     tmp=Path(out)/'main_episode.partial.mkv'
     encoding=['-c:v','ffv1','-level','3'] if codec=='ffv1' else ['-c:v','libx264','-preset',preset,'-crf','16']
     print('Encoding frame-accurate trimmed target video...',flush=True)
+    # Boundaries are on the frame grid: seek a quarter frame early so rounding of
+    # the boundary frame's PTS cannot drop it.
     try:
-        vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-ss',str(trim['target_start']+plan.get('input_trims',{}).get('target',{}).get('start',0.)),'-i',plan['target_video'],'-i',str(audio),'-map','0:v:0','-map','1:a:0','-t',str(plan['duration']),'-vf','setpts=PTS-STARTPTS','-fps_mode','passthrough',*encoding,'-c:a','copy','-map_metadata','-1','-map_chapters','-1',str(tmp)])
+        vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-ss',str(trim['target_start']-(.25/trim['fps'] if trim.get('fps') else 0.)+plan.get('input_trims',{}).get('target',{}).get('start',0.)),'-i',plan['target_video'],'-i',str(audio),'-map','0:v:0','-map','1:a:0','-t',str(plan['duration']),'-vf','setpts=PTS-STARTPTS','-fps_mode','passthrough',*encoding,'-c:a','copy','-map_metadata','-1','-map_chapters','-1',str(tmp)])
         d=vc.probe(tmp);actual=float(d['format']['duration'])
         if abs(actual-plan['duration'])>.1:raise RuntimeError('Trimmed video duration does not match trimmed audio.')
-        tmp.replace(dest)
+        vc.finish_partial(tmp,dest)
     finally:
-        if tmp.exists():tmp.unlink()
+        vc.discard_partial(tmp)
     return dest
 
 
@@ -298,7 +326,7 @@ def export_full_video(plan,audio,out):
                 '-map','0:v:0','-map','1:a:0','-c:v','copy','-c:a','copy','-map_metadata','-1','-map_chapters','0',str(tmp)])
         actual=vc.video_duration(tmp)
         if abs(actual-plan['duration'])>.15:raise RuntimeError('Full episode duration differs from target timeline.')
-        tmp.replace(dest)
+        vc.finish_partial(tmp,dest)
     finally:
-        if tmp.exists():tmp.unlink()
+        vc.discard_partial(tmp)
     return dest

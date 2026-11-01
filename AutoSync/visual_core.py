@@ -22,6 +22,24 @@ def run(cmd):
 def probe(path):
     return json.loads(run([binary('ffprobe'), '-v','error','-show_format','-show_streams','-of','json',str(path)]))
 
+def finish_partial(tmp, dest, attempts=20, wait=.25):
+    """Rename a finished partial export, retrying while Windows still holds it.
+
+    A just-closed file can stay locked briefly (indexer, antivirus): WinError 32.
+    """
+    import time
+    for k in range(attempts):
+        try:
+            return Path(tmp).replace(dest)
+        except PermissionError:
+            if k == attempts - 1: raise
+            time.sleep(wait)
+
+def discard_partial(tmp):
+    """Best-effort removal; never masks the error that left the partial file."""
+    try: Path(tmp).unlink(missing_ok=True)
+    except OSError: pass
+
 def video_duration(path):
     """Presentation span of the first video track, relative to its first PTS.
 
