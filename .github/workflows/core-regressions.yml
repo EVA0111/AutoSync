@@ -46,6 +46,18 @@ jobs:
         working-directory: AutoSync
         run: npm run test:editor
 
+  windows-desktop-regressions:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Windows desktop regression tests
+        working-directory: AutoSync
+        run: npm run test:editor
+
 # Note: private six-case media and Zorro source/target files are NOT committed
 # to this repository. These CI checks are unit/synthetic tests, not full media
 # export or audio-quality verification.
