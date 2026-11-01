@@ -399,9 +399,11 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
     import picture_timeline as pt
     tl=pt.build(source_video,target,vc.binary('ffmpeg'),vc.binary('ffprobe'),say)
     si,ti=tl.diagnostics['s_info'],tl.diagnostics['t_info']
-    # Source audio time = source picture time (first-frame relative) + shift.
+    # Decoded frame k sits at the FILE origin + k/fps (ffmpeg pads to the file
+    # start), so: source audio time = source frame seconds + origin - audio start.
     shift=-delay
-    if Path(audio).resolve()==Path(source_video).resolve():shift+=si['start']-si['audio_starts'][stream]
+    if Path(audio).resolve()==Path(source_video).resolve():shift+=si['origin']-si['audio_starts'][stream]
+    else:shift+=si['origin']-si['start']   # external audio: t=0 is the source's first picture
     ref_t,energy_t=ref,energy
     if ref is not None and abs(refshift)>.001:
         k=round(refshift*50)
@@ -410,16 +412,17 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
         # Join inside a static/dark span bounded by picture evidence: dense audio
         # evidence first; otherwise the point where the least source sound is cut.
         oa,ob=p['offset']/pt.FPS+shift,m['offset']/pt.FPS+shift
+        ts=ti['origin']-ti['start']   # frame seconds -> target video seconds (reference features)
         if ref_t is not None:
-            c=locate_cut(dict(speed=tl.ratio,offset=oa,last=lo+4),dict(speed=tl.ratio,offset=ob,first=hi-4),ref_t,energy_t,sf)
-            if c['confidence']=='supported' and lo<=c['time']<=hi:return c['time'],'audio-located join inside the picture-bounded span'
+            c=locate_cut(dict(speed=tl.ratio,offset=oa-tl.ratio*ts,last=lo+ts+4),dict(speed=tl.ratio,offset=ob-tl.ratio*ts,first=hi+ts-4),ref_t,energy_t,sf)
+            if c['confidence']=='supported' and lo<=c['time']-ts<=hi:return c['time']-ts,'audio-located join inside the picture-bounded span'
         times=np.arange(lo,hi+1e-9,.02)
         def level(src):
             i=np.clip(np.round(src*50).astype(int),2,len(se)-3)
             return np.max([se[i+d] for d in range(-2,3)],axis=0)
         cost=level(tl.ratio*times+oa)+level(tl.ratio*times+ob)
         return float(times[int(np.argmin(cost))]),'quietest source-audio point inside the picture-bounded span'
-    segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut)
+    segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut,target_shift=ti['origin']-ti['start'])
     rows=[[t,m['speed']*t+m['offset'],1.] for m in models for t in np.arange(m['first'],m['last']+1e-6,2.)]
     anchors=np.asarray(rows,dtype=float).reshape(-1,3)
     visual=anchors.copy();visual[:,1]-=shift+delay
@@ -605,7 +608,11 @@ def _run_job(job,args):
     if args.main_only or args.keep_target_op_ed:
         from main_episode import detect_main,trim_plan,keep_target_outer
         (out/'full_plan.json').write_text(json.dumps(rebase(plan,input_meta),indent=2),encoding='utf-8')
-        try:trim=detect_main(plan,visual,delay,args.main_start,args.main_end,source_features=sf,target_features=ref,keep_target_outer=bool(args.keep_target_op_ed))
+        try:
+            if method.endswith('picture timeline') and args.main_start is None and args.main_end is None:
+                from main_episode import picture_trim
+                trim=picture_trim(plan,sf,ref,keep_target_outer=bool(args.keep_target_op_ed))
+            else:trim=detect_main(plan,visual,delay,args.main_start,args.main_end,source_features=sf,target_features=ref,keep_target_outer=bool(args.keep_target_op_ed))
         except (RuntimeError,ValueError,OSError) as e:
             (out/'trim_report.json').write_text(json.dumps({'status':'needs_review','reason':str(e)},indent=2))
             raise

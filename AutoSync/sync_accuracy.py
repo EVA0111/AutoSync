@@ -36,13 +36,17 @@ def probe(path):
 
 
 def starts(path, audio_index=0):
-    """First video PTS and the selected audio stream's start, in seconds."""
+    """First video PTS, the selected audio stream's start, and the file origin (s).
+
+    Decoded 50 fps frame k sits at origin + k/50: ffmpeg rebases to the FILE
+    start and pads the first picture back to it.
+    """
     p = probe(path)
     v = next(s for s in p['streams'] if s['codec_type'] == 'video')
     a = [s for s in p['streams'] if s['codec_type'] == 'audio']
     v0 = float(v.get('start_time') or 0)
     a0 = float(a[audio_index].get('start_time') or 0) if a else None
-    return v0, a0
+    return v0, a0, float(p.get('format', {}).get('start_time') or 0)
 
 
 def _cache(path, tag, cache_dir):
@@ -247,9 +251,11 @@ def independent_geometry(video, source):
 def measure(video, audio, audio_stream, audio_offset, source, source_stream, video_crop=None, source_crop=None,
             step=2., cache_dir=None, source_audio_offset=None):
     """audio_offset: delivered audio t=0 position on the delivered video timeline (seconds after first frame)."""
-    sv0, sa0 = starts(source, source_stream)
+    sv0, sa0, s_origin = starts(source, source_stream)
     if source_audio_offset is not None:
         sa0 = sv0 + source_audio_offset
+    ov0, _, o_origin = starts(video)
+    o_shift = o_origin - ov0          # frame seconds -> delivered-video seconds
     if video_crop is None or source_crop is None:
         video_crop, source_crop = independent_geometry(video, source)
     O, Od = decode_frames(video, video_crop, None)
@@ -276,13 +282,13 @@ def measure(video, audio, audio_stream, audio_offset, source, source_stream, vid
     rows = []
     for u, p in zip(times_u, pos):
         row = dict(t=round(float(u), 3), picture_src=None, audio_src=None, error=None, status='')
-        i0 = int(round((u - audio_offset - W / 200) * 100))
+        i0 = int(round((u + o_shift - audio_offset - W / 200) * 100))
         if i0 < 0 or i0 + W > Fo.shape[1]:
             row['status'] = 'outside_audio'; rows.append(row); continue
         q = Fo[:-1, i0:i0 + W]
         if float(np.median(Fo[-1, i0:i0 + W])) < .02:
             row['status'] = 'silent'; rows.append(row); continue
-        ps = None if p is None else sv0 + p[0] / FPS
+        ps = None if p is None else s_origin + p[0] / FPS
         row['picture_src'] = None if ps is None else round(ps, 4)
         found = None
         if ps is not None:
@@ -401,7 +407,7 @@ def main():
     audio = a.audio or a.video
     if a.audio_offset is None:
         if audio == a.video:
-            v0, a0 = starts(a.video, a.audio_stream); a.audio_offset = a0 - v0
+            v0, a0, _ = starts(a.video, a.audio_stream); a.audio_offset = a0 - v0
         else:
             a.audio_offset = 0.
     summary, rows = measure(a.video, audio, a.audio_stream, a.audio_offset, a.source, a.source_stream,

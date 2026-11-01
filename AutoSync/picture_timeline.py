@@ -42,7 +42,7 @@ def _run(cmd):
 
 
 def stream_info(path, ffprobe='ffprobe'):
-    d = json.loads(_run([ffprobe, '-v', 'error', '-show_streams', '-of', 'json', str(path)]))
+    d = json.loads(_run([ffprobe, '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(path)]))
     v = next(s for s in d['streams'] if s['codec_type'] == 'video')
     w, h = int(v['width']), int(v['height'])
     sar = v.get('sample_aspect_ratio', '1:1')
@@ -50,7 +50,10 @@ def stream_info(path, ffprobe='ffprobe'):
         a, b = map(float, sar.split(':')); sar = a / b if a > 0 and b > 0 else 1.
     except ValueError:
         sar = 1.
-    return dict(start=float(v.get('start_time') or 0), aspect=w * sar / h, width=w, height=h,
+    # Decoded frame k sits at origin + k/FPS: ffmpeg rebases to the FILE start
+    # and pads the first picture back to it, whatever the video stream's start.
+    return dict(start=float(v.get('start_time') or 0), origin=float(d.get('format', {}).get('start_time') or 0),
+                aspect=w * sar / h, width=w, height=h,
                 audio_starts=[float(s.get('start_time') or 0) for s in d['streams'] if s['codec_type'] == 'audio'])
 
 
@@ -332,12 +335,23 @@ def refine_gaps(sections, cand, samples, FT, FS, r):
     relaxed threshold. New runs still need several solid samples.
     """
     out = []
+    far = 120 * FPS
     for i, x in enumerate(sections):
-        if (x['kind'] != 'none' or i == 0 or i == len(sections) - 1 or
-                sections[i - 1]['kind'] != 'match' or sections[i + 1]['kind'] != 'match'):
+        prev_m = i > 0 and sections[i - 1]['kind'] == 'match'
+        next_m = i < len(sections) - 1 and sections[i + 1]['kind'] == 'match'
+        if x['kind'] != 'none' or not (prev_m or next_m):
             out.append(x); continue
-        oa, ob = sections[i - 1]['offset'], sections[i + 1]['offset']
-        lo, hi = min(oa, ob) - 2, max(oa, ob) + 2
+        if prev_m and next_m:
+            oa, ob = sections[i - 1]['offset'], sections[i + 1]['offset']
+            lo, hi = min(oa, ob) - 2, max(oa, ob) + 2
+        elif next_m and i == 0:
+            # Opening before the first match (shared OP under credit overlays):
+            # source must not run past the first match.
+            oa = ob = sections[i + 1]['offset']; lo, hi = ob - far, ob + 2
+        elif prev_m and i == len(sections) - 1:
+            oa = ob = sections[i - 1]['offset']; lo, hi = oa - 2, oa + far
+        else:
+            out.append(x); continue
         ks = [k for k in range(len(samples)) if x['first'] <= samples[k] <= x['last']]
         pool = sorted({o for k in ks for o in cand[k] if lo <= o <= hi} | {int(round(oa)), int(round(ob))})
         local = []
@@ -478,10 +492,12 @@ def edge_frame(FT, FS, r, lo, hi, offset, side):
     return lo + int(good[0]) if side == 'start' else lo + int(good[-1]) + k
 
 
-def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place_cut, audio_cut=None):
+def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place_cut, audio_cut=None, target_shift=0.):
     """Convert sections into contiguous AutoSync segments in target seconds.
 
-    audio_shift: source audio time = source picture time (video-relative) + audio_shift.
+    Internally times are decoded-frame seconds (frame k = k/FPS).
+    audio_shift: source audio time = source frame seconds + audio_shift.
+    target_shift: target time (video-relative) = target frame seconds + target_shift.
     Returns (segments, models, notes).
     """
     d = tl.diagnostics; FT, FS, DT = d['FT'], d['FS'], d['DT']; r = tl.ratio
@@ -569,12 +585,16 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
     pieces = kept
     # Build segments.
     segments = []
-    v0 = d['s_info']['start']
-    for a, b, kind, o, _ in pieces:
-        if b - a <= 1e-3:
-            continue
+    out_pieces = []
+    for a, b, kind, o, info in pieces:
+        # Frame seconds -> target video time; keep the cover exactly [0, duration].
+        a2 = 0. if a <= 0 else min(duration, a + target_shift)
+        b2 = duration if b >= duration - 1e-6 else min(duration, b + target_shift)
+        if b2 - a2 > 1e-3:
+            out_pieces.append((a2, b2, kind, o, a2 - target_shift))
+    for a, b, kind, o, frame_a in out_pieces:
         if kind == 'audio':
-            pic = r * a + o / FPS            # source picture time (relative to source first frame)
+            pic = r * frame_a + o / FPS      # source frame seconds
             ss = pic + audio_shift
             if -.05 < ss < 0:
                 ss = 0.                      # rounding at the source's first sample
@@ -598,6 +618,11 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
                                  reason='Picture-verified target-only footage; use selected target audio' if verified else
                                         'Target opening/ending with no source pictures'))
     for m in matches:
-        models.append(dict(speed=r, offset=m['offset'] / FPS + audio_shift, first=m['first'] / FPS,
-                           last=m['last'] / FPS, anchors=m['strong'], p90_residual=0.))
+        models.append(dict(speed=r, offset=m['offset'] / FPS + audio_shift - r * target_shift,
+                           first=m['first'] / FPS + target_shift, last=m['last'] / FPS + target_shift,
+                           anchors=m['strong'], p90_residual=0.))
+    for n in notes:
+        for k in ('start', 'end', 'splice'):
+            if k in n:
+                n[k] = n[k] + target_shift
     return segments, models, notes

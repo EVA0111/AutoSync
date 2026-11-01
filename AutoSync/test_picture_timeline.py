@@ -105,3 +105,23 @@ class Pieces(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class FrameOrigin(unittest.TestCase):
+    """Decoded frame k sits at FILE origin + k/fps (ffmpeg pads the first picture
+    back to the file start). Measured on the media matrix: assuming the video
+    stream start instead took source audio 40-104 ms late (cases 1, 2, 6), and
+    the evaluator, sharing the assumption, could not see it."""
+    def test_target_shift_moves_segments_but_not_the_mapping(self):
+        S = unique_frames(120 * FPS, 5)
+        tl = solve(S, S[10 * FPS:110 * FPS])
+        base = pt.to_plan_segments(tl, 100., 120., 0.)[0]
+        moved = pt.to_plan_segments(tl, 100., 120., 0., target_shift=-.036)[0]
+        a = next(s for s in base if s['kind'] == 'audio'); b = next(s for s in moved if s['kind'] == 'audio')
+        # Same picture => same source time at the same frame; video time differs by the shift.
+        t = 50.
+        sa = a['source_start'] + (t - a['target_start']) * a['speed']
+        sb = b['source_start'] + (t - .036 - b['target_start']) * b['speed']
+        self.assertAlmostEqual(sa, sb, delta=.002)
+        self.assertAlmostEqual(moved[0]['target_start'], 0.)
+        self.assertAlmostEqual(moved[-1]['target_end'], 100.)

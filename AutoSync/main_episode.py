@@ -133,6 +133,33 @@ def refine_estimated_boundary(plan,visual,delay,estimate,side):
     return fallback
 
 
+def picture_trim(plan,source_features=None,target_features=None,keep_target_outer=False):
+    """Main episode from a picture timeline: between target-only outer runs.
+
+    The picture timeline already proves which opening/ending target frames
+    have no source picture. A shared opening SONG over different pictures is
+    not removed (same veto as detect_main) unless target outer audio is kept.
+    """
+    segs=plan['segments'];d=plan['duration'];bounds={}
+    a,b=0.,d
+    first,last=segs[0],segs[-1]
+    if first['kind']=='reference' and first.get('picture_outer')=='outer_start':
+        a=float(first['target_end'])
+        bounds['start']=dict(time=a,status='supported',reason='Picture timeline: target-only opening (no source pictures)')
+        if not keep_target_outer:
+            speed=float((plan.get('models') or [{}])[0].get('speed',1.))
+            ev=opening_audio_correspondence(source_features,target_features,a,speed)
+            if ev and ev.get('matched'):
+                a=0.;bounds['start']=dict(time=0.,status='kept',reason=f"Opening music is shared with the source (score {ev['score']:.3f}); not trimmed")
+    else:bounds['start']=dict(time=0.,status='kept',reason='Picture timeline: opening pictures are shared')
+    if last['kind']=='reference' and last.get('picture_outer')=='outer_end':
+        b=float(last['target_start'])
+        bounds['end']=dict(time=b,status='supported',reason='Picture timeline: target-only ending (no source pictures)')
+    else:bounds['end']=dict(time=d,status='kept',reason='Picture timeline: ending pictures are shared')
+    if not 0<=a<b<=d or b-a<10:raise ValueError('Invalid main-episode boundaries from the picture timeline.')
+    return dict(original_duration=d,target_start=a,target_end=b,duration=b-a,boundaries=bounds)
+
+
 def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_features=None,target_features=None,keep_target_outer=False):
     if not plan.get('source_video') or not plan.get('target_video'):raise ValueError('Main-episode detection requires both videos.')
     # Keep-target-OP/ED does not delete target opening video/music: it only
