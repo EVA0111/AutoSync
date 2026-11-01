@@ -110,9 +110,30 @@ def robust_fit(a,speed):
                     val=(a[j,1]-a[i,1])/dt
                     if abs(val-speed)<.008:slopes.append(val)
     sp=float(np.median(slopes)) if slopes else speed
-    off=float(np.median(a[:,1]-sp*a[:,0]))
-    residual=np.abs(a[:,1]-sp*a[:,0]-off)
-    return sp,off,float(np.quantile(residual,.9))
+    def fitted(rate):
+        off=float(np.median(a[:,1]-rate*a[:,0]))
+        return off,float(np.quantile(np.abs(a[:,1]-rate*a[:,0]-off),.9))
+    off,res=fitted(sp)
+    # A local slope must earn its place: an unsplit small edit inside a group
+    # otherwise becomes a slope that drifts sync across the whole section.
+    if sp!=speed:
+        fixed_off,fixed_res=fitted(speed)
+        drift=abs(sp-speed)*float(a[-1,0]-a[0,0])
+        # A step at the global rate explaining the data as well as the line
+        # means an edit, not drift.
+        offsets=a[:,1]-speed*a[:,0];step_res=fixed_res
+        for k in range(3,len(a)-2):
+            l,r=offsets[:k],offsets[k:]
+            step_res=min(step_res,float(np.quantile(np.r_[np.abs(l-np.median(l)),np.abs(r-np.median(r))],.9)))
+        if not (res<.7*fixed_res and drift>.1 and res<.8*step_res):sp,off,res=speed,fixed_off,fixed_res
+    return sp,off,res
+
+def small_step(left,right,tight=.04,minimum=.08):
+    if len(left)<3 or len(right)<3:return False
+    ml,mr=float(np.median(left)),float(np.median(right))
+    return (abs(mr-ml)>minimum and
+            np.count_nonzero(abs(left-ml)<tight)>=3 and np.count_nonzero(abs(right-mr)<tight)>=3 and
+            abs(left[-1]-ml)<tight and abs(right[0]-mr)<tight)
 
 def group_anchors(a,speed):
     # A timing jump needs support on both sides; missing anchors alone never create gaps.
@@ -120,10 +141,42 @@ def group_anchors(a,speed):
     for i in range(3,len(a)-2):
         if i-splits[-1]<3:continue
         left=offsets[max(splits[-1],i-4):i];right=offsets[i:i+3]
-        if abs(np.median(right)-np.median(left))>.25 and np.ptp(right)<.16:
+        jump=abs(np.median(right)-np.median(left))
+        if jump>.25 and np.ptp(right)<.16:
+            splits.append(i)
+        # Small edits (a few frames) are real too, but only when a tight cluster
+        # of anchors supports each side (one stray anchor may sit in either), so
+        # ordinary scatter never splits a group.
+        elif small_step(offsets[max(splits[-1],i-5):i],offsets[i:i+5]):
             splits.append(i)
     splits.append(len(a))
-    return [a[l:h] for l,h in zip(splits[:-1],splits[1:]) if h>l]
+    groups=[]
+    for g in (a[l:h] for l,h in zip(splits[:-1],splits[1:]) if h>l):groups+=consistent_runs(g,speed)
+    # Groups separated only by a discarded stray anchor share one timing.
+    merged=[]
+    for g in groups:
+        if merged and abs(np.median(g[:,1]-speed*g[:,0])-np.median(merged[-1][:,1]-speed*merged[-1][:,0]))<.04:
+            merged[-1]=np.vstack([merged[-1],g])
+        else:merged.append(g)
+    return merged
+
+def consistent_runs(g,speed,spread=.3,tol=.15):
+    """Re-segment a group whose anchors disagree by seconds.
+
+    One false anchor can block the window test above and leave several timing
+    regimes in one group; its single fitted line then rewinds or skips source
+    audio. Split into runs of consistent offset; a lone anchor agreeing with
+    no run is a false match, not a timing regime.
+    """
+    off=g[:,1]-speed*g[:,0]
+    if len(g)<3 or np.quantile(abs(off-np.median(off)),.9)<=spread:return [g]
+    runs=[[0]]
+    for i in range(1,len(g)):
+        if abs(off[i]-np.median(off[runs[-1]]))>tol:runs.append([i])
+        else:runs[-1].append(i)
+    kept=[r for r in runs if len(r)>=2]
+    if not kept:return [g]
+    return [g[r] for r in kept]
 
 
 def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut=None):
