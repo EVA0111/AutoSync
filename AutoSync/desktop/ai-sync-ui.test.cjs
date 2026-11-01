@@ -41,5 +41,7 @@ test('manual opening/ending boundaries are available and forwarded to audio jobs
  assert.match(src,/\['main_end','Main end \(target seconds, optional\)'/);
  const jobBuilder=src.slice(src.indexOf('function audioJob()'),src.indexOf("$('stop').onclick"));
  assert.ok(jobBuilder.includes('...advanced.map(x=>x[0])'));
- assert.doesNotMatch(jobBuilder,/values\.main_(start|end)=''\s*;/);
+ assert.match(jobBuilder,/if\(values\.mode==='Sync full target audio'\)\{values\.main_start='';values\.main_end='';\}/);
+ // In main-episode modes the selected values remain available to the engine.
+ assert.ok(jobBuilder.includes('...advanced.map(x=>x[0])'));
 });
