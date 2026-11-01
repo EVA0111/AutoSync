@@ -54,6 +54,22 @@ def opening_audio_correspondence(source_features, target_features, proposed_star
     different = all(informative) and max(scores) < .28
     return dict(matched=False, different=bool(different), score=max(scores))
 
+def edge_matches(visual,model,side,count=15):
+    """Picture matches nearest one end, taken from the main timing model.
+
+    A recap or reused title shot at the very start maps elsewhere in the
+    source; using it as the edge makes the boundary test compare the wrong
+    source pictures. 0.5 s tolerates a dub's audio/picture delay.
+    """
+    own=visual[abs(visual[:,1]-(model['speed']*visual[:,0]+model['offset']))<.5]
+    if len(own)>=5:visual=own
+    return visual[:min(count,len(visual))] if side=='start' else visual[-min(count,len(visual)):]
+
+def unmatched_prefix(q,x,missing):
+    """Picture scores where the first `missing` target seconds have no source frame."""
+    k=min(len(q),int(round(missing*RATE)))
+    return np.r_[np.zeros(k),compare(q[k:],x)] if k else compare(q,x)
+
 def boundary_from_scores(scores,dark,lo,side):
     scores=np.asarray(scores);n=len(scores)
     if n<10*RATE:raise ValueError('Too few pictures to verify a main-episode boundary.')
@@ -123,7 +139,7 @@ def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_fe
             continue
         if len(visual)<8:raise ValueError('Not enough shared pictures for automatic OP/ending trimming.')
         m=plan['models'][0 if side=='start' else -1]
-        edge=visual[:min(15,len(visual))] if side=='start' else visual[-min(15,len(visual)):]
+        edge=edge_matches(visual,m,side)
         offsets=edge[:,1]-m['speed']*edge[:,0];off=float(np.median(offsets))
         good=edge[abs(offsets-off)<.1]
         if len(good)<5:raise ValueError('Unstable picture timing near '+side+'; use a manual boundary.')
@@ -133,10 +149,13 @@ def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_fe
         if hi-lo>min(duration*.4,420):raise ValueError('Unmatched '+side+' is too long to safely classify as OP/ending.')
         print(f'Finding main-episode {side}: target {lo:.2f}–{hi:.2f}s',flush=True)
         source_begin=m['speed']*lo+off+delay
-        if source_begin<0:raise ValueError('Source pictures unavailable at target start; supply --main-start.')
+        # Target pictures before the source begins have no counterpart: they are
+        # differing outer footage by definition, not a reason to give up.
+        missing=max(0.,-source_begin/m['speed'])
+        if missing and (side!='start' or missing>=hi-lo-10):raise ValueError('Source pictures unavailable at target start; supply --main-start.')
         q,dark=frames(plan['target_video'],lo,hi-lo,crop=plan.get('target_crop',''),with_dark=True)
-        x=frames(plan['source_video'],source_begin,hi-lo,m['speed'],plan.get('source_crop',''))
-        results[side]=boundary_from_scores(compare(q,x),dark,lo,side)
+        x=frames(plan['source_video'],max(0.,source_begin),hi-lo-missing,m['speed'],plan.get('source_crop',''))
+        results[side]=boundary_from_scores(unmatched_prefix(q,x,missing),dark,lo,side)
         if (side == 'start' and not keep_target_outer and
                 results[side]['status'] == 'supported' and results[side]['time'] > 0):
             evidence = opening_audio_correspondence(source_features, target_features, results[side]['time'], m['speed'])
