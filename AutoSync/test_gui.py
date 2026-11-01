@@ -43,7 +43,7 @@ class GUICommands(unittest.TestCase):
         self.assertFalse(should_verify_export('visual fallback',ref,plan))
         self.assertFalse(should_verify_export('AI-assisted: visual fallback',ref,plan))
         self.assertFalse(should_verify_export('AI-assisted: audio matches',None,plan))
-        self.assertFalse(should_verify_export('AI-assisted: audio matches',ref,{'video_edits':{}}))
+        self.assertFalse(should_verify_export('AI-assisted: audio matches',ref,{'video_edits':{'kept':[]}}))
 
     def test_saved_plan_skips_input_validation(self):
         self.v.update(source='',target='',plan=str(self.file),video_codec='ffv1')
