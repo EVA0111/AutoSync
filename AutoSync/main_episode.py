@@ -80,6 +80,18 @@ def boundary_from_scores(scores,dark,lo,side):
     # A common OP/ED cannot be identified semantically from correspondence alone.
     if (side=='start' and k<RATE) or (side=='end' and k>n-RATE):
         return dict(time=lo if side=='start' else lo+n/RATE,status='kept',reason='No clearly differing outer sequence detected')
+    # An outer sequence starts at the target edge. Shared pictures at the edge
+    # with only short differing runs (a localized title card) mean the opening
+    # or ending is shared; long differing runs (cold open + new OP) still need
+    # a manual boundary below.
+    edge=slice(0,3*RATE) if side=='start' else slice(n-3*RATE,n)
+    lit=scores[edge][~np.asarray(dark[:n],bool)[edge]]
+    differing=np.r_[False,uniform_filter1d(scores,RATE)<.6,False]
+    runs=np.flatnonzero(np.diff(differing.astype(int)))
+    longest=max((b-a for a,b in zip(runs[::2],runs[1::2])),default=0)
+    if len(lit)>=RATE and np.median(lit)>.75 and longest<10*RATE:
+        return dict(time=lo if side=='start' else lo+n/RATE,status='kept',
+                    reason=f'Shared pictures at the {side} edge; only short differing inserts (longest {longest/RATE:.1f}s, e.g. a title card)')
     if len(matched)<5*RATE or len(outside)<2*RATE or matched.mean()<.83 or outside.mean()>.60:
         raise ValueError(f'{side} boundary is ambiguous; enable Advanced audio settings in the desktop app and enter Main {side} (target seconds) after verifying the frame, or use --main-{side}.')
     removed=scores[:max(0,k-RATE)] if side=='start' else scores[min(n,k+RATE):]
@@ -172,6 +184,24 @@ def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_fe
     return dict(original_duration=duration,target_start=a,target_end=b,duration=b-a,boundaries=results)
 
 
+def absorb_edge_slivers(segments,limit=.25):
+    """Merge a sub-limit first/last fragment into its neighbouring audio segment.
+
+    The picture boundary and the audio cut are independent estimates; when
+    they differ by a few frames the trim keeps a sliver of the outer section,
+    mapped to unrelated source audio. Continuing the neighbour's mapping is
+    seamless; the sliver itself carries no timing evidence.
+    """
+    s=[dict(x) for x in segments]
+    if len(s)>=2 and s[-1]['target_end']-s[-1]['target_start']<limit and s[-2]['kind']=='audio':
+        last=s.pop();s[-1]['target_end']=last['target_end']
+    if len(s)>=2 and s[0]['target_end']-s[0]['target_start']<limit and s[1]['kind']=='audio':
+        n=s[1];start=s[0]['target_start']
+        earlier=n['source_start']-(n['target_start']-start)*n['speed']
+        if earlier>=0:
+            s.pop(0);n.update(target_start=start,source_start=earlier)
+    return s
+
 def trim_plan(plan,trim):
     a,b=trim['target_start'],trim['target_end'];p=copy.deepcopy(plan);segments=[]
     for s in p['segments']:
@@ -180,6 +210,7 @@ def trim_plan(plan,trim):
         q=dict(s);q['target_start']=lo-a;q['target_end']=hi-a
         if q['kind']=='audio':q['source_start']=s['source_start']+(lo-s['target_start'])*s['speed']
         segments.append(q)
+    segments=absorb_edge_slivers(segments)
     review=[]
     for r in p.get('review',[]):
         lo=max(a,r['start']);hi=min(b,r['end'])

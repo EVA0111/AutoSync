@@ -288,7 +288,7 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
     if not layout:raise RuntimeError('Unknown channel layout.')
     output=out/'synced.flac'
     if output.exists():raise RuntimeError('Output already exists. Use a new output folder.')
-    with tempfile.TemporaryDirectory(prefix='render_',dir=out) as td:
+    with tempfile.TemporaryDirectory(prefix='render_',dir=out,ignore_cleanup_errors=True) as td:
         td=Path(td);parts=[]
         from pcm_audio import PCMCache
         pcm=PCMCache(td,ch)
@@ -321,16 +321,22 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
             else:
                 vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-f','f32le','-ar','48000','-ac',str(ch),'-i',str(raw),'-af',f'atempo={sp:.10f}','-f','f32le',str(stretched)])
             x=np.memmap(stretched,dtype=np.float32,mode='r').reshape(-1,ch)
-            if abs(len(x)/max(n,1)-1)>.02:raise RuntimeError('Unexpected time-stretch length error.')
-            from fractions import Fraction
-            ratio=Fraction((n*100000 + len(x)-1)//len(x),100000)
-            fixed=np.array(x) if len(x)==n else signal.resample_poly(np.asarray(x),ratio.numerator,ratio.denominator,axis=0)[:n]
+            try:
+                # 2% relative, but at least 10 ms: atempo latency dominates very short clips.
+                if abs(len(x)-n)>max(.02*n,480):raise RuntimeError('Unexpected time-stretch length error.')
+                from fractions import Fraction
+                ratio=Fraction((n*100000 + len(x)-1)//len(x),100000)
+                fixed=np.array(x) if len(x)==n else signal.resample_poly(np.asarray(x),ratio.numerator,ratio.denominator,axis=0)[:n]
+            finally:
+                # Windows cannot delete a file that is still memory-mapped; an
+                # open map would replace the real error with a cleanup failure.
+                del x
             if len(fixed)!=n:raise RuntimeError('Exact duration correction failed.')
             # Five-millisecond fades only at actual segment joins.
             fade=min(240,n//2)
             if i>0:fixed[:fade]*=np.linspace(0,1,fade,dtype=np.float32)[:,None]
             if i<len(plan['segments'])-1:fixed[-fade:]*=np.linspace(1,0,fade,dtype=np.float32)[:,None]
-            fixed.astype(np.float32).tofile(dst);del x,fixed
+            fixed.astype(np.float32).tofile(dst);del fixed
             raw.unlink();stretched.unlink();say(f'Rendered {i+1}/{len(plan["segments"])} sections')
         joined=td/'joined.f32'
         with joined.open('wb') as dest:
