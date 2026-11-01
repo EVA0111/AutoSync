@@ -65,7 +65,7 @@ def boundary_from_scores(scores,dark,lo,side):
     if (side=='start' and k<RATE) or (side=='end' and k>n-RATE):
         return dict(time=lo if side=='start' else lo+n/RATE,status='kept',reason='No clearly differing outer sequence detected')
     if len(matched)<5*RATE or len(outside)<2*RATE or matched.mean()<.83 or outside.mean()>.60:
-        raise ValueError(f'{side} boundary is ambiguous; use --main-{side} with a verified target time.')
+        raise ValueError(f'{side} boundary is ambiguous; enable Advanced audio settings in the desktop app and enter Main {side} (target seconds) after verifying the frame, or use --main-{side}.')
     removed=scores[:max(0,k-RATE)] if side=='start' else scores[min(n,k+RATE):]
     if len(removed)>=5*RATE and np.max(uniform_filter1d(removed,5*RATE))>.86:
         raise ValueError(f'Matching footage exists in the proposed {side} trim (possible cold open/epilogue); supply a manual boundary.')
