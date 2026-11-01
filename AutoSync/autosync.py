@@ -179,12 +179,14 @@ def consistent_runs(g,speed,spread=.3,tol=.15):
     return [g[r] for r in kept]
 
 
-def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut=None):
+def build_plan(anchors,speed,duration,source_length,ref,energy,source,refine_cut=None,visual=None):
     groups=group_anchors(anchors,speed);models=[]
     for g in groups:
         sp,off,res=robust_fit(g,speed)
         models.append(dict(speed=sp,offset=off,first=float(g[0,0]),last=float(g[-1,0]),anchors=len(g),p90_residual=res))
-    bounds=[0];notes=[];gaps=[]
+    from picture_check import picture_checked_models
+    models,notes=picture_checked_models(models,visual,speed)
+    bounds=[0];gaps=[]
     for left,right in zip(models[:-1],models[1:]):
         cut=locate_cut(left,right,ref,energy,source)
         if refine_cut is not None:cut=refine_cut(left,right,cut)
@@ -525,7 +527,7 @@ def _run_job(job,args):
                 warnings.append(f'Picture comparison also uncertain near {cut["time"]:.2f}s; cut requires review.')
             except (RuntimeError,ValueError,OSError) as e:warnings.append('Local picture cut check failed: '+str(e))
         return cut
-    segments,models,review=build_plan(anchors,speed,duration,sl,ref,energy,sf,refine_cut)
+    segments,models,review=build_plan(anchors,speed,duration,sl,ref,energy,sf,refine_cut,visual if method.startswith('audio') else None)
     if len(used)!=len(manual_times):raise ValueError('A supplied --cut-times value is outside detected cut search intervals. Check target seconds against the report.')
     if ai_mode:method='AI-assisted: '+method
     plan=dict(source_crop=source_crop,target_crop=target_crop,source_cuts=source_cuts(segments),audio=audio,audio_stream=stream,reference=reference,reference_stream=rs,reference_shift=refshift,source_video=source_video,target_video=target,duration=duration,method=method,sync_method='ai_assisted' if ai_mode else 'standard',segments=segments,models=models,review=review,warnings=warnings)
