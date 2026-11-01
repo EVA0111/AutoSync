@@ -20,7 +20,7 @@ class SushiTests(unittest.TestCase):
    with patch('sushi_sync.timed_wave') as wave:
     self.assertEqual(run_sushi(args,src,out,exe,factory),0)
     self.assertEqual(wave.call_args_list[0].args[1],1);self.assertEqual(wave.call_args_list[1].args[1],2)
-   text=(out/'DRAFT-review-required.ass').read_text();self.assertIn('0:00:03.00,0:00:05.00',text);self.assertIn(r'{\pos(30,40)\t(0,500,\fscx120)}مرحبا',text);self.assertTrue(json.loads((out/'subtitle_report.json').read_text())['needs_review'])
+   text=(out/'DRAFT-review-required.ass').read_text(encoding='utf-8');self.assertIn('0:00:03.00,0:00:05.00',text);self.assertIn(r'{\pos(30,40)\t(0,500,\fscx120)}مرحبا',text);self.assertTrue(json.loads((out/'subtitle_report.json').read_text(encoding='utf-8'))['needs_review'])
  def test_missing_cues_are_not_silently_dropped(self):
   with tempfile.TemporaryDirectory() as td:
    p=Path(td)/'out.srt';p.write_text('1\n00:00:01,000 --> 00:00:03,000\nAutoSync cue 000002\n');cues=Document(p).cues

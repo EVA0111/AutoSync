@@ -51,7 +51,7 @@ class GUICommands(unittest.TestCase):
     def test_batch_relative_paths_and_duplicates(self):
         path=self.root/'jobs.csv';self.v['batch']=str(path)
         def write(rows):
-            with path.open('w',newline='') as f:
+            with path.open('w',newline='',encoding='utf-8') as f:
                 w=csv.DictWriter(f,fieldnames=['source','target','audio','out']);w.writeheader();w.writerows(rows)
         row=dict(source=self.file.name,target=self.file.name,audio=self.file.name,out='episode1')
         write([row]);cmd,out=build_command(self.v,'Batch CSV');self.assertIn('--batch',cmd);self.assertEqual(out.resolve(),(self.root/'episode1').resolve())
