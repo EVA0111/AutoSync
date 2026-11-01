@@ -427,6 +427,147 @@ def absorb_jitter(sections, short=20, near=6, agree=1.5):
     return s
 
 
+DRIFT_GRID = np.arange(-12, 12.01, .25)   # frames around the section offset
+DRIFT_SLOPE = .05        # largest audio speed change used to follow a drift (5 %)
+DRIFT_MIN = 3            # frames (0.12 s): smaller departures stay constant
+DRIFT_MOVE = .004        # cost per frame of offset change (prefers a constant offset)
+
+
+def drift_scores(FT, FS, DT, r, frames, base):
+    """Clip score of each target frame at base + DRIFT_GRID (sub-frame, interpolated source)."""
+    out = np.zeros((len(frames), len(DRIFT_GRID)))
+    informative = np.zeros(len(frames), bool)
+    for k, i in enumerate(frames):
+        ti = i + CLIP
+        ok = (ti >= 0) & (ti < len(FT))
+        if DT[i] <= 6 or ok.sum() < len(CLIP) * .7:
+            continue
+        pos = r * ti[ok][:, None] + base + DRIFT_GRID[None, :]
+        a = np.floor(pos).astype(int); w = (pos - a)[..., None]
+        if a.min() < 0 or a.max() + 1 >= len(FS):
+            continue
+        x = FS[a] * (1 - w) + FS[a + 1] * w
+        x /= np.maximum(np.linalg.norm(x, axis=2, keepdims=True), 1e-6)
+        out[k] = np.mean(np.sum(x * FT[ti[ok]][:, None, :], axis=2), axis=0)
+        informative[k] = True
+    return out, informative
+
+
+def drift_path(gain, informative):
+    """Smooth offset path (grid indices) maximizing evidence, speed change <= DRIFT_SLOPE."""
+    n, g = gain.shape
+    step = DRIFT_SLOPE * STEP * FPS           # frames of offset change allowed per sample
+    reach = int(np.floor(step / .25 + 1e-9))
+    moves = np.arange(-reach, reach + 1)
+    score = np.where(informative[0], gain[0], 0.)
+    back = np.zeros((n, g), int)
+    for k in range(1, n):
+        best = np.full(g, -np.inf); arg = np.zeros(g, int)
+        for d in moves:
+            src = np.arange(g) - d
+            ok = (src >= 0) & (src < g)
+            cand = np.full(g, -np.inf)
+            cand[ok] = score[src[ok]] - DRIFT_MOVE * abs(d) * .25
+            better = cand > best
+            best[better] = cand[better]; arg[better] = src[better]
+        score = best + (gain[k] if informative[k] else 0.)
+        back[k] = arg
+    path = [int(np.argmax(score))]
+    for k in range(n - 1, 0, -1):
+        path.append(int(back[k][path[-1]]))
+    return np.array(path[::-1])
+
+
+def follow_drift(x, FT, FS, DT, r):
+    """Knots [(frame, offset)] where a section's picture drifts against its offset, else None.
+
+    Some releases re-time a shot without a cut: the picture slides a few
+    frames against continuous sound (case 5: 2-3 % slow for 7 s, 0.24 s at
+    worst). A constant offset leaves that span out of sync; following it needs
+    a gentle, continuous audio speed change, never a cut or a repeat. Accepted
+    only where the departure is at least DRIFT_MIN frames for 2 s, the
+    pictures fit it better on nearly every sample, and the speed change stays
+    within DRIFT_SLOPE.
+    """
+    frames = np.arange(x['first'], x['last'] + 1, int(FPS * STEP))
+    if len(frames) < 8:
+        return None
+    keep = drift_runs(frames, FT, FS, DT, r, x['offset'])[0]
+    if not keep.any():
+        return None
+    # The section offset was averaged over the drift too: refine it on the rest,
+    # then solve the drift around it so the curve rejoins it without a step.
+    rest = [int(f) for f, d in zip(frames, keep) if not d]
+    base = refine_offset(FT, FS, DT, r, rest, x['offset']) if len(rest) >= 4 else x['offset']
+    keep, dev = drift_runs(frames, FT, FS, DT, r, base)
+    if not keep.any():
+        return None
+    offs = np.where(keep, base + dev, base)
+    knots = [(int(frames[0]), float(offs[0]))]
+    for k in range(1, len(frames) - 1):
+        if keep[k] or keep[k - 1] != keep[k] or keep[k + 1] != keep[k]:
+            knots.append((int(frames[k]), float(offs[k])))
+    knots.append((int(frames[-1]), float(offs[-1])))
+    return simplify_knots(knots), base
+
+
+def drift_runs(frames, FT, FS, DT, r, offset):
+    """(keep mask, deviation in frames) of accepted drift runs around an offset."""
+    sc, informative = drift_scores(FT, FS, DT, r, frames, offset)
+    zero = int(np.argmin(np.abs(DRIFT_GRID)))
+    gain = sc - sc[:, [zero]]
+    path = drift_path(gain, informative)
+    dev = DRIFT_GRID[path]
+    core = np.abs(dev) >= DRIFT_MIN
+    keep = np.zeros(len(frames), bool)
+    k = 0
+    while k < len(frames):
+        if not core[k]:
+            k += 1; continue
+        e = k
+        while e + 1 < len(frames) and core[e + 1] and np.sign(dev[e + 1]) == np.sign(dev[k]):
+            e += 1
+        idx = np.arange(k, e + 1)
+        g = gain[idx, path[idx]][informative[idx]]
+        if e - k + 1 >= 4 and len(g) >= 4 and g.mean() >= .01 and np.mean(g > 0) >= .75:
+            # Extend over the ramps back to the section offset.
+            a, b = k, e
+            while a > 0 and abs(dev[a - 1]) > .5:
+                a -= 1
+            while b + 1 < len(frames) and abs(dev[b + 1]) > .5:
+                b += 1
+            # A drift that ends in a sudden snap-back cannot be followed within
+            # the speed limit: the curve would lag the pictures after the snap.
+            span = np.arange(a, b + 1)
+            best = np.argmax(gain[span], axis=1)
+            lag = (informative[span] & (np.abs(DRIFT_GRID[best] - dev[span]) > 1.5) &
+                   (np.abs(dev[span]) > 1.5) & (gain[span, best] > gain[span, path[span]] + .003))
+            if not np.any(lag[1:] & lag[:-1]):          # sustained: two samples in a row
+                keep[a:b + 1] = True
+        k = e + 1
+    return keep, dev
+
+
+def simplify_knots(knots, tol=.5):
+    """Douglas-Peucker on (frame, offset) knots; tolerance in frames of offset."""
+    if len(knots) <= 2:
+        return knots
+    (f0, o0), (f1, o1) = knots[0], knots[-1]
+    err = [abs(o - (o0 + (o1 - o0) * (f - f0) / max(f1 - f0, 1))) for f, o in knots[1:-1]]
+    k = int(np.argmax(err)) + 1
+    if err[k - 1] <= tol:
+        return [knots[0], knots[-1]]
+    return simplify_knots(knots[:k + 1], tol)[:-1] + simplify_knots(knots[k:], tol)
+
+
+def offset_at(x, frame):
+    """Section offset (source frames) at a target frame, following drift knots."""
+    kn = x.get('knots')
+    if not kn:
+        return x['offset']
+    return float(np.interp(frame, [f for f, _ in kn], [o for _, o in kn]))
+
+
 class Timeline:
     """Result in target-video time (s) and SOURCE-PICTURE time (s, video-relative)."""
     def __init__(self, ratio, geometry, sections, diagnostics):
@@ -486,6 +627,15 @@ def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, rati
                      samples=n, strong=m['strong'] + s['strong'])
         else:
             merged.append(dict(s))
+    for s in merged:
+        if s['kind'] == 'match':
+            got = follow_drift(s, FT, FS, DT, r)
+            if got:
+                s['knots'], s['offset'] = got
+                moved = [f for f, o in s['knots'] if abs(o - s['offset']) > .5] or [s['first']]
+                progress(f"Picture timeline: following a picture drift of up to "
+                         f"{max(abs(o - s['offset']) for _, o in s['knots']) / FPS:.2f}s near "
+                         f"{min(moved) / FPS:.1f}-{max(moved) / FPS:.1f}s")
     return Timeline(r, geometry, merged,
                     dict(FT=FT, FS=FS, DT=DT, DS=DS, samples=samples, s_info=s_info, t_info=t_info,
                          target_frames=len(FT), source_frames=len(FS)))
@@ -540,7 +690,7 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
     cursor = 0.
     for k, m in enumerate(matches):
         if k == 0:
-            start = edge_frame(FT, FS, r, m['first'] - 2 * FPS, m['first'] + FPS, m['offset'], 'start') / FPS
+            start = edge_frame(FT, FS, r, m['first'] - 2 * FPS, m['first'] + FPS, offset_at(m, m['first']), 'start') / FPS
             if start <= 1.:
                 start = 0.
             elif start > 0:
@@ -549,7 +699,7 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
             continue
         p = matches[k - 1]
         gap_lo, gap_hi = p['last'], m['first']          # target frames
-        oa, ob = p['offset'], m['offset']
+        oa, ob = offset_at(p, gap_lo), offset_at(m, gap_hi)
         # Source-time accounting across the gap.
         sa_end = r * gap_lo + oa; sb_start = r * gap_hi + ob
         L = (gap_hi - gap_lo) / FPS
@@ -567,7 +717,7 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
             # Joins bounded by picture evidence within 3 s are located; wider spans
             # remain uncertain (and block when they skip source audio).
             conf = 'supported' if span <= 3. else 'uncertain'
-            pieces.append([cursor, t, 'audio', oa, {}])
+            pieces.append([cursor, t, 'audio', oa, {'sec': p}])
             skipped = (ob - oa) / FPS
             notes.append(dict(start=max(0, t - 1), end=t + 1, splice=t, confidence=conf,
                               reason=(f'Source-only section: skip {skipped:.3f}s; ' if skipped > .25 else 'Timing change; ') +
@@ -599,7 +749,7 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
                     if loud is not None:
                         x = int(tied[int(np.argmin(loud))]); how = 'held shot shown longer, placed at the quietest target audio'
             t1 = (lo + x) / FPS; t2 = t1 + n / FPS
-            pieces.append([cursor, t1, 'audio', oa, {}])
+            pieces.append([cursor, t1, 'audio', oa, {'sec': p}])
             pieces.append([t1, t2, 'insert', None, {}])
             notes.append(dict(start=t1, end=t2, splice=t1, confidence='supported',
                               reason=f'Picture-verified target-only footage ({t2-t1:.2f}s): {how}; target audio used; preview'))
@@ -607,10 +757,10 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
         if k == len(matches) - 1:
             pass
     last = matches[-1]
-    end = edge_frame(FT, FS, r, last['last'] - FPS, last['last'] + 2 * FPS, last['offset'], 'end') / FPS
+    end = edge_frame(FT, FS, r, last['last'] - FPS, last['last'] + 2 * FPS, offset_at(last, last['last']), 'end') / FPS
     if duration - end <= 1.:
         end = duration
-    pieces.append([cursor, end, 'audio', last['offset'], {}])
+    pieces.append([cursor, end, 'audio', last['offset'], {'sec': last}])
     if end < duration:
         pieces.append([end, duration, 'outer_end', None, {}])
     # A join a frame or two after another leaves a piece too short to carry
@@ -630,21 +780,38 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
         a2 = 0. if a <= 0 else min(duration, a + target_shift)
         b2 = duration if b >= duration - 1e-6 else min(duration, b + target_shift)
         if b2 - a2 > 1e-3:
-            out_pieces.append((a2, b2, kind, o, a2 - target_shift))
-    for a, b, kind, o, frame_a in out_pieces:
+            out_pieces.append((a2, b2, kind, o, info))
+    def pic(sec, t):
+        # Source picture seconds shown at target video time t.
+        f = t - target_shift
+        return r * f + offset_at(sec, f * FPS) / FPS
+    expanded = []
+    for a, b, kind, o, info in out_pieces:
+        sec = info.get('sec')
+        if kind != 'audio':
+            expanded.append((a, b, kind, None)); continue
+        # Drift knots split the piece into continuous pieces of constant speed.
+        cuts = [a] + sorted({f / FPS + target_shift for f, _ in (sec or {}).get('knots') or []
+                             if a + .05 < f / FPS + target_shift < b - .05}) + [b]
+        for u, v in zip(cuts, cuts[1:]):
+            if sec:
+                expanded.append((u, v, 'audio', (pic(sec, u), (pic(sec, v) - pic(sec, u)) / (v - u))))
+            else:
+                expanded.append((u, v, 'audio', (r * (u - target_shift) + o / FPS, r)))
+    for a, b, kind, m_ in expanded:
         if kind == 'audio':
-            pic = r * frame_a + o / FPS      # source frame seconds
-            ss = pic + audio_shift
+            ss, sp = m_
+            ss = ss + audio_shift
             if -.05 < ss < 0:
                 ss = 0.                      # rounding at the source's first sample
             if ss < 0:
-                stop = min(b, a - ss / r)
+                stop = min(b, a - ss / sp)
                 segments.append(dict(kind='reference', target_start=a, target_end=stop, reason='source starts late'))
                 notes.append(dict(start=a, end=stop, reason='source audio unavailable; reference fallback needed'))
                 a, ss = stop, 0.
-            supported_end = min(b, a + max(0., source_audio_length - ss) / r)
+            supported_end = min(b, a + max(0., source_audio_length - ss) / sp)
             if supported_end > a:
-                segments.append(dict(kind='audio', target_start=a, target_end=supported_end, source_start=ss, speed=r))
+                segments.append(dict(kind='audio', target_start=a, target_end=supported_end, source_start=ss, speed=sp))
             if b > supported_end:
                 segments.append(dict(kind='reference', target_start=supported_end, target_end=b, reason='source ends early'))
                 notes.append(dict(start=supported_end, end=b, reason='source audio unavailable; reference fallback needed'))

@@ -179,6 +179,85 @@ class HeldShot(unittest.TestCase):
         self.assertAlmostEqual(ref['target_start'], 60., delta=.3)
 
 
+def slow_frames(n, seed, width=60):
+    """Slow motion: a few frames' offset still scores ~0.9, as in real footage."""
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=(n + width, 384)).astype(np.float32)
+    c = np.cumsum(x, 0); x = c[width:] - c[:-width]
+    x -= x.mean(axis=1, keepdims=True)
+    return x / np.linalg.norm(x, axis=1, keepdims=True)
+
+
+def resample(S, pos):
+    a = np.floor(pos).astype(int); w = (pos - a)[:, None]
+    x = S[a] * (1 - w) + S[a + 1] * w
+    return x / np.linalg.norm(x, axis=1, keepdims=True)
+
+
+class Drift(unittest.TestCase):
+    """Case 5 (target 48.5-59 s): the picture runs 2-3 % slow for 7 s against
+    continuous sound (0.24 s at worst), inside one matched section. A constant
+    offset left 0.22-0.26 s of lip error there; the drift is now followed with
+    a continuous speed change. Case 7's 8 % ramp with a sudden snap-back cannot
+    be followed within the speed limit and must never produce a cut or repeat."""
+    @classmethod
+    def setUpClass(cls):
+        cls.S = slow_frames(200 * FPS, 31)
+        cls.t = np.arange(150 * FPS) / FPS
+        cls.DT = np.full(len(cls.t), 20.)
+
+    def section(self, T):
+        x = dict(kind='match', first=12, last=len(T) - 13, samples=0, strong=0)
+        x['offset'] = pt.refine_offset(T, self.S, self.DT, 1., list(range(12, len(T) - 13, 12)), 30 * FPS)
+        return x
+
+    def target(self, knots_t, knots_d):
+        d = np.interp(self.t, knots_t, knots_d)
+        return noisy(resample(self.S, (self.t + 30 + d) * FPS), .3), d
+
+    def segments(self, T, x):
+        tl = pt.Timeline(1., {}, [x], dict(FT=T, FS=self.S, DT=self.DT))
+        return pt.to_plan_segments(tl, len(T) / FPS, 200., 0.)[0]
+
+    def test_gradual_drift_is_followed(self):
+        T, d = self.target([0, 20, 27, 150], [-.24, -.24, 0, 0])
+        x = self.section(T)
+        got = pt.follow_drift(x, T, self.S, self.DT, 1.)
+        self.assertIsNotNone(got)
+        x['knots'], x['offset'] = got
+        segs = self.segments(T, x)
+        from continuity_guard import source_rewinds
+        self.assertEqual(source_rewinds(segs), [])
+        for a, b in zip(segs, segs[1:]):        # continuous source: no cut anywhere
+            self.assertAlmostEqual(a['source_start'] + (a['target_end'] - a['target_start']) * a['speed'],
+                                   b['source_start'], delta=1e-6)
+        self.assertTrue(all(abs(s['speed'] - 1) <= pt.DRIFT_SLOPE + 1e-9 for s in segs))
+        for tt in np.arange(2., 148., .5):
+            self.assertAlmostEqual(source_at(segs, tt), tt + 30 + np.interp(tt, self.t, d), delta=.07)
+
+    def test_steady_footage_has_no_drift(self):
+        T, _ = self.target([0, 150], [0, 0])
+        self.assertIsNone(pt.follow_drift(self.section(T), T, self.S, self.DT, 1.))
+
+    def test_snap_back_never_cuts_or_repeats(self):
+        T, d = self.target([0, 60, 63.5, 66.5, 67, 150], [0, 0, .28, .28, 0, 0])
+        x = self.section(T)
+        got = pt.follow_drift(x, T, self.S, self.DT, 1.)
+        if got:
+            x['knots'], x['offset'] = got
+        segs = self.segments(T, x)
+        from continuity_guard import source_rewinds
+        self.assertEqual(source_rewinds(segs), [])
+        self.assertTrue(all(abs(s['speed'] - 1) <= pt.DRIFT_SLOPE + 1e-9 for s in segs))
+        # Partly following may cost a little just after the snap-back, never much,
+        # and the worst error must not grow.
+        tt = np.arange(2., 148., .5)
+        want = tt + 30 + np.interp(tt, self.t, d)
+        err = np.abs([source_at(segs, x) for x in tt] - want); const = np.abs(tt + 30 - want)
+        self.assertLessEqual(err.max(), const.max() + .01)
+        self.assertLessEqual(float(np.max(err - const)), .06)
+
+
 class FrameOrigin(unittest.TestCase):
     """Decoded frame k sits at FILE origin + k/fps (ffmpeg pads the first picture
     back to the file start). Measured on the media matrix: assuming the video
