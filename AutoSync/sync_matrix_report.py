@@ -23,14 +23,15 @@ def native_profile(path):
     r = rows(path)
     if len(r) < 10:
         return None
-    a = np.array([[float(x['picture_src']), float(x['error'])] for x in r])
+    a = np.array([[float(x['picture_src']), float(x['error'])] for x in r if abs(float(x['error'])) <= 5])
     return a[np.argsort(a[:, 0])]
 
 
 def local_offset(profile, ps):
-    for width in (30, 120):
+    # Cross-language native samples include false locates: use enough of them.
+    for width in (60, 240):
         near = profile[np.abs(profile[:, 0] - ps) <= width, 1]
-        if len(near) >= 3:
+        if len(near) >= 5:
             return float(np.median(near))
     return float(np.median(profile[:, 1]))
 

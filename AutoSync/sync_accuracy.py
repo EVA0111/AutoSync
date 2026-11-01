@@ -274,7 +274,9 @@ def measure(video, audio, audio_stream, audio_offset, source, source_stream, vid
             row['status'] = 'audio_only'
         else:
             row['error'] = round((a_src - ps) / r, 4)
-            row['status'] = 'measured'
+            # Seconds apart is not a timing error: the delivered picture is
+            # footage reused from elsewhere (recap, preview, clip-built OP).
+            row['status'] = 'reused_picture' if abs(row['error']) > 5 else 'measured'
         rows.append(row)
     return summarize(rows, r, dur), rows
 
@@ -314,7 +316,8 @@ def summarize(rows, r, dur, step=2.):
              within_45ms=round(float(np.mean(e <= .045)), 4) if len(e) else None,
              within_100ms=round(float(np.mean(e <= .1)), 4) if len(e) else None,
              gross_spans=gross, replays=replays,
-             non_source_audio_s=counts.get('non_source_audio', 0) * step)
+             non_source_audio_s=counts.get('non_source_audio', 0) * step,
+             reused_picture_s=counts.get('reused_picture', 0) * step)
     audible = len(rows) - counts.get('silent', 0) - counts.get('outside_audio', 0)
     s['coverage'] = round(len(m) / max(1, audible), 4)
     s['verdict'] = verdict(s)

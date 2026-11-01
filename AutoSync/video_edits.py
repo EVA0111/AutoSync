@@ -8,6 +8,14 @@ from cut_detection import source_cuts
 
 
 
+def same_file(a, b):
+    """Compare paths as files: the engine resolves the reference path while the
+    target keeps the caller's spelling (slash style, relative paths)."""
+    if not a or not b:return False
+    try:return Path(a).resolve()==Path(b).resolve()
+    except (OSError,ValueError):return a==b
+
+
 def recover_shared_opening(plan, source_features, target_features, source_length):
     """Replace only a *verified* target-audio opening with matching source audio.
 
@@ -72,7 +80,7 @@ def protect_opening(plan, source_features, target_features, source_length):
         # The program must not delete music on the strength of a picture
         # difference alone. A target-outer interval renders existing target
         # audio with the video even when remove-unmatched-video is selected.
-        if p.get('reference')==p.get('target_video'):
+        if same_file(p.get('reference'),p.get('target_video')):
             segments[0]=dict(kind='target_outer',target_start=a,target_end=b,
                              reference_target_start=a,
                              reason='Opening audio inconclusive; preserve target music instead of cutting video')

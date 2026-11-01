@@ -91,7 +91,8 @@ def main():
     cache = a.cache or a.out / '.cache'
     rev = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=ROOT, stdout=subprocess.PIPE, text=True).stdout.strip()
     dirty = bool(subprocess.run(['git', 'status', '--porcelain', '--', '.'], cwd=ROOT, stdout=subprocess.PIPE, text=True).stdout.strip())
-    jobs = [(c, m, k) for k in a.methods.split(',') for c in cases for m in a.modes.split(',')]
+    # Case varies fastest: concurrent runs never compute the same AI embeddings.
+    jobs = [(c, m, k) for k in a.methods.split(',') for m in a.modes.split(',') for c in cases]
     with ThreadPoolExecutor(a.workers) as pool:
         futures = [pool.submit(run_one, c, m, k, a.out, cache, a.engine_arg) for c, m, k in jobs]
         results = []
