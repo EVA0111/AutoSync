@@ -55,7 +55,7 @@ def main():
         results.append(json.loads(f.read_text()))
     order = {'full': 0, 'main': 1, 'keep_op_ed': 2, 'remove_unmatched': 3}
     results.sort(key=lambda r: (r['case'], r['method'], order.get(r['mode'], 9)))
-    lines = ['| Case | Method | Mode | Status | Delivered median / p95 ms | ≤100 ms | Coverage | Engine-induced median / p95 ms | Engine ≤100 ms | Notes |',
+    lines = ['| Case | Method | Mode | Status | Delivered median / p95 ms | <=100 ms | Coverage | Engine-induced median / p95 ms | Engine <=100 ms | Notes |',
              '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |']
     for r in results:
         acc = r.get('accuracy') or {}
@@ -67,8 +67,8 @@ def main():
         if acc.get('gross_spans'): note += f" gross_spans={len(acc['gross_spans'])}"
         status = r['status'].split(':')[0]
         lines.append(f"| {r['case']} | {r['method']} | {r['mode']} | {status} | "
-                     f"{acc.get('median_abs_ms', '–')} / {acc.get('p95_abs_ms', '–')} | {acc.get('within_100ms', '–')} | {acc.get('coverage', '–')} | "
-                     f"{eng['median_ms'] if eng else '–'} / {eng['p95_ms'] if eng else '–'} | {eng['within_100'] if eng else '–'} | {note.strip()} |")
+                     f"{acc.get('median_abs_ms', '-')} / {acc.get('p95_abs_ms', '-')} | {acc.get('within_100ms', '-')} | {acc.get('coverage', '-')} | "
+                     f"{eng['median_ms'] if eng else '-'} / {eng['p95_ms'] if eng else '-'} | {eng['within_100'] if eng else '-'} | {note.strip()} |")
     text = '\n'.join(lines)
     print(text)
     if a.markdown:

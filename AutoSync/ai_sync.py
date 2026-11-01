@@ -40,6 +40,26 @@ def _dependencies():
     return torch, AutoFeatureExtractor, AutoImageProcessor, AutoModel, AutoModelForAudioClassification, Image
 
 
+def _device(torch, progress=None):
+    """CUDA only if kernels actually run on this GPU.
+
+    torch.cuda.is_available() is True even when the installed wheel has no
+    kernels for the GPU architecture (e.g. a new GPU with an older CUDA build);
+    the first model call then fails with 'no kernel image is available'.
+    """
+    if not torch.cuda.is_available():
+        return torch.device("cpu")
+    try:
+        x = torch.arange(16., device="cuda").reshape(4, 4)
+        float((x @ x).sum().item())
+        return torch.device("cuda")
+    except RuntimeError as exc:
+        if progress:
+            progress("GPU present but unusable by the installed PyTorch build "
+                     f"({str(exc).splitlines()[0][:120]}); using CPU, which is slower but equivalent.")
+        return torch.device("cpu")
+
+
 def _key(file, stream, model, kind):
     p = Path(file).resolve()
     st = p.stat()
@@ -183,7 +203,7 @@ def _audio_vectors(file, stream, progress):
         extractor = FeatureExtractor.from_pretrained(AUDIO_MODEL)
         model = AudioClassifier.from_pretrained(AUDIO_MODEL, use_safetensors=True)
         model.eval()
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = _device(torch, progress)
         model = model.to(device)
         vectors = []
         batch_size = 6 if device.type == "cuda" else 2
@@ -224,7 +244,7 @@ def _image_vectors(file, progress):
         frames = data[:count*224*224*3].reshape(count,224,224,3)
         processor = ImageProcessor.from_pretrained(VISION_MODEL)
         model = ImageModel.from_pretrained(VISION_MODEL, use_safetensors=True).eval()
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = _device(torch, progress)
         model.to(device)
         vectors = []
         batch_size = 12 if device.type == "cuda" else 4
