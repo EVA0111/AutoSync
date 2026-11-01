@@ -1,0 +1,51 @@
+name: AutoSync core regression tests
+
+on:
+  push:
+    paths:
+      - 'AutoSync/**'
+      - '.github/workflows/core-regressions.yml'
+  pull_request:
+    paths:
+      - 'AutoSync/**'
+      - '.github/workflows/core-regressions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: AutoSync/requirements.txt
+      - name: Install Python dependencies and FFmpeg
+        run: |
+          python -m pip install --disable-pip-version-check -r AutoSync/requirements.txt
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+      - name: Run all repository unit and synthetic regressions
+        working-directory: AutoSync
+        run: python -m unittest discover -s . -p 'test_*.py' -v
+
+  desktop-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run desktop tests
+        working-directory: AutoSync
+        run: npm run test:editor
+
+# Note: private six-case media and Zorro source/target files are NOT committed
+# to this repository. These CI checks are unit/synthetic tests, not full media
+# export or audio-quality verification.
