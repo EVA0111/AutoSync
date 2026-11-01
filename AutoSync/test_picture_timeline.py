@@ -195,67 +195,72 @@ def resample(S, pos):
 
 
 class Drift(unittest.TestCase):
-    """Case 5 (target 48.5-59 s): the picture runs 2-3 % slow for 7 s against
-    continuous sound (0.24 s at worst), inside one matched section. A constant
-    offset left 0.22-0.26 s of lip error there; the drift is now followed with
-    a continuous speed change. Case 7's 8 % ramp with a sudden snap-back cannot
-    be followed within the speed limit and must never produce a cut or repeat."""
+    """Gradual picture drift against continuous sound, inside one matched section.
+
+    Case 5 (target 48.5-59 s): the picture runs 2-3 % slow for 7 s (0.26 s at
+    worst) and steps back by 0.13 s at 55.6 s; a constant offset left
+    0.22-0.26 s of lip error. The drift is followed with a continuous speed
+    change and the forward step becomes a cut. The 25 fps grid only proposes
+    drifts; a FINE (50 fps) decode confirms them. Must NOT be followed: steady
+    footage (case 1 showed false 0.16 s proposals there), a shot displaced by a
+    backward step (case 1, 197.6-200 s) and a snap-back (case 7): both would
+    need repeated audio or a curve that departs early and returns late.
+    """
     @classmethod
     def setUpClass(cls):
-        cls.S = slow_frames(200 * FPS, 31)
-        cls.t = np.arange(150 * FPS) / FPS
-        cls.DT = np.full(len(cls.t), 20.)
+        cls.S50 = slow_frames(200 * pt.FINE, 31, width=120)
+        cls.S = cls.S50[::2]
+        cls.DT = np.full(150 * FPS, 20.)
 
-    def section(self, T):
-        x = dict(kind='match', first=12, last=len(T) - 13, samples=0, strong=0)
+    def make(self, knots_t, knots_d):
+        d = lambda t: np.interp(t, knots_t, knots_d)
+        t25 = np.arange(150 * FPS) / FPS; t50 = np.arange(150 * pt.FINE) / pt.FINE
+        T = noisy(resample(self.S50, (t25 + 30 + d(t25)) * pt.FINE), .3)
+        T50 = noisy(resample(self.S50, (t50 + 30 + d(t50)) * pt.FINE), .3, seed=10)
+        def verify(t0, t1, s0, s1):
+            return (T50[int(round(t0 * pt.FINE)):int(round(t1 * pt.FINE))],
+                    self.S50[int(round(s0 * pt.FINE)):int(round(s1 * pt.FINE))])
+        x = dict(kind='match', first=12, last=len(T) - 13, samples=len(T) // 12, strong=len(T) // 12)
         x['offset'] = pt.refine_offset(T, self.S, self.DT, 1., list(range(12, len(T) - 13, 12)), 30 * FPS)
-        return x
+        return T, d, verify, x
 
-    def target(self, knots_t, knots_d):
-        d = np.interp(self.t, knots_t, knots_d)
-        return noisy(resample(self.S, (self.t + 30 + d) * FPS), .3), d
-
-    def segments(self, T, x):
-        tl = pt.Timeline(1., {}, [x], dict(FT=T, FS=self.S, DT=self.DT))
+    def plan_for(self, T, sections):
+        tl = pt.Timeline(1., {}, sections, dict(FT=T, FS=self.S, DT=self.DT))
         return pt.to_plan_segments(tl, len(T) / FPS, 200., 0.)[0]
 
-    def test_gradual_drift_is_followed(self):
-        T, d = self.target([0, 20, 27, 150], [-.24, -.24, 0, 0])
-        x = self.section(T)
-        got = pt.follow_drift(x, T, self.S, self.DT, 1.)
-        self.assertIsNotNone(got)
-        x['knots'], x['offset'] = got
-        segs = self.segments(T, x)
+    def check_safe(self, segs):
         from continuity_guard import source_rewinds
         self.assertEqual(source_rewinds(segs), [])
-        for a, b in zip(segs, segs[1:]):        # continuous source: no cut anywhere
-            self.assertAlmostEqual(a['source_start'] + (a['target_end'] - a['target_start']) * a['speed'],
-                                   b['source_start'], delta=1e-6)
-        self.assertTrue(all(abs(s['speed'] - 1) <= pt.DRIFT_SLOPE + 1e-9 for s in segs))
+        self.assertTrue(all(abs(s['speed'] - 1) <= pt.DRIFT_SLOPE + 1e-9 for s in segs if s['kind'] == 'audio'))
+
+    def test_gradual_drift_with_a_forward_step_is_followed(self):
+        T, d, verify, x = self.make([0, 20, 26, 26.4, 150], [-.26, -.24, -.13, 0, 0])
+        got = pt.follow_drift(x, T, self.S, self.DT, 1., verify)
+        self.assertIsNotNone(got)
+        segs = self.plan_for(T, got)
+        self.check_safe(segs)
         for tt in np.arange(2., 148., .5):
-            self.assertAlmostEqual(source_at(segs, tt), tt + 30 + np.interp(tt, self.t, d), delta=.07)
+            if not 25.6 <= tt <= 27.:           # the cut is placed within the step
+                self.assertAlmostEqual(source_at(segs, tt), tt + 30 + d(tt), delta=.07, msg=tt)
+
+    def test_no_verifier_follows_nothing(self):
+        T, d, verify, x = self.make([0, 20, 27, 150], [-.24, -.24, 0, 0])
+        self.assertIsNone(pt.follow_drift(x, T, self.S, self.DT, 1.))
 
     def test_steady_footage_has_no_drift(self):
-        T, _ = self.target([0, 150], [0, 0])
-        self.assertIsNone(pt.follow_drift(self.section(T), T, self.S, self.DT, 1.))
+        T, d, verify, x = self.make([0, 150], [0, 0])
+        self.assertIsNone(pt.follow_drift(x, T, self.S, self.DT, 1., verify))
 
-    def test_snap_back_never_cuts_or_repeats(self):
-        T, d = self.target([0, 60, 63.5, 66.5, 67, 150], [0, 0, .28, .28, 0, 0])
-        x = self.section(T)
-        got = pt.follow_drift(x, T, self.S, self.DT, 1.)
-        if got:
-            x['knots'], x['offset'] = got
-        segs = self.segments(T, x)
-        from continuity_guard import source_rewinds
-        self.assertEqual(source_rewinds(segs), [])
-        self.assertTrue(all(abs(s['speed'] - 1) <= pt.DRIFT_SLOPE + 1e-9 for s in segs))
-        # Partly following may cost a little just after the snap-back, never much,
-        # and the worst error must not grow.
-        tt = np.arange(2., 148., .5)
-        want = tt + 30 + np.interp(tt, self.t, d)
-        err = np.abs([source_at(segs, x) for x in tt] - want); const = np.abs(tt + 30 - want)
-        self.assertLessEqual(err.max(), const.max() + .01)
-        self.assertLessEqual(float(np.max(err - const)), .06)
+    def test_displaced_shot_and_snap_back_are_not_followed(self):
+        for knots in (([0, 60, 60.05, 62.5, 62.55, 150], [0, 0, -.35, -.35, 0, 0]),     # case 1
+                      ([0, 60, 63.5, 66.5, 67, 150], [0, 0, .28, .28, 0, 0])):           # case 7
+            T, d, verify, x = self.make(*knots)
+            got = pt.follow_drift(x, T, self.S, self.DT, 1., verify)
+            segs = self.plan_for(T, got or [x])
+            self.check_safe(segs)
+            tt = np.arange(2., 148., .5)
+            err = np.abs([source_at(segs, v) - (v + 30 + d(v)) for v in tt]); const = np.abs([d(v) for v in tt])
+            self.assertLessEqual(float(np.max(err - const)), .06)
 
 
 class FrameOrigin(unittest.TestCase):

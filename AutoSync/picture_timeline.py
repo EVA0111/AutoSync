@@ -64,6 +64,14 @@ def decode(path, ffmpeg='ffmpeg'):
     return np.frombuffer(out, np.uint8).reshape(-1, H, W)
 
 
+def decode_span(path, start, duration, ffmpeg='ffmpeg'):
+    """uint8 (n, H, W) frames at FINE fps for [start, start + duration) file seconds."""
+    out = _run([ffmpeg, '-v', 'error', '-nostdin', '-ss', f'{max(0., start):.6f}', '-i', str(path),
+                '-t', f'{duration:.6f}', '-map', '0:v:0', '-an', '-sn',
+                '-vf', f'fps={FINE},scale={W}:{H}:flags=area,format=gray', '-f', 'rawvideo', '-pix_fmt', 'gray', '-'])
+    return np.frombuffer(out, np.uint8).reshape(-1, H, W)
+
+
 def active_rect(frames):
     """Fractional bounding box of non-black picture (letterbox/pillarbox removed)."""
     sample = frames[::max(1, len(frames) // 600)].astype(np.float32)
@@ -286,6 +294,9 @@ def place_cut(FT, FS, DT, r, lo, hi, oa, ob):
         return lo, lo, lo
     a = frame_scores(FT, FS, r, lo, hi, oa); b = frame_scores(FT, FS, r, lo, hi, ob)
     informative = (DT[lo:hi] > 6) & (np.abs(a - b) > .05)
+    if not informative.any():
+        # No frame tells the mappings apart: the gap's centre, whole span uncertain.
+        return (lo + hi) // 2, lo, hi
     diff = np.where(informative, a - b, 0.)
     obj = np.r_[0., np.cumsum(diff)]
     k = int(np.argmax(obj))
@@ -431,6 +442,7 @@ DRIFT_GRID = np.arange(-12, 12.01, .25)   # frames around the section offset
 DRIFT_SLOPE = .05        # largest audio speed change used to follow a drift (5 %)
 DRIFT_MIN = 3            # frames (0.12 s): smaller departures stay constant
 DRIFT_MOVE = .004        # cost per frame of offset change (prefers a constant offset)
+STEP_CUT = 2             # frames (80 ms): a forward step at least this large is cut, not ramped
 
 
 def drift_scores(FT, FS, DT, r, frames, base):
@@ -478,7 +490,7 @@ def drift_path(gain, informative):
     return np.array(path[::-1])
 
 
-def follow_drift(x, FT, FS, DT, r):
+def follow_drift(x, FT, FS, DT, r, verify=None):
     """Knots [(frame, offset)] where a section's picture drifts against its offset, else None.
 
     Some releases re-time a shot without a cut: the picture slides a few
@@ -488,7 +500,15 @@ def follow_drift(x, FT, FS, DT, r):
     only where the departure is at least DRIFT_MIN frames for 2 s, the
     pictures fit it better on nearly every sample, and the speed change stays
     within DRIFT_SLOPE.
+
+    The 25 fps 64x48 grid only PROPOSES drifts: on it, blur and re-encoding
+    make neighbouring offsets score alike (case 1 showed false 0.16 s drifts
+    over steady shots). Each proposal is confirmed by verify(t0, t1, s0, s1),
+    which returns (target, source) features decoded at FINE fps for those
+    frame-second spans; without a verifier no drift is followed.
     """
+    if verify is None:
+        return None
     frames = np.arange(x['first'], x['last'] + 1, int(FPS * STEP))
     if len(frames) < 8:
         return None
@@ -500,20 +520,60 @@ def follow_drift(x, FT, FS, DT, r):
     rest = [int(f) for f, d in zip(frames, keep) if not d]
     base = refine_offset(FT, FS, DT, r, rest, x['offset']) if len(rest) >= 4 else x['offset']
     keep, dev = drift_runs(frames, FT, FS, DT, r, base)
+    # The fine decode decides whether each run is real, and gives its curve.
+    fine = np.zeros(len(frames)); checks = []
+    for run in np.split(np.flatnonzero(keep), np.flatnonzero(np.diff(np.flatnonzero(keep)) > 1) + 1):
+        got = confirm_drift(frames, run, dev, base, x, r, verify) if len(run) else None
+        if got is None:
+            keep[run] = False
+        else:
+            fine[run] = got[0] * FPS; checks.append((run, got[1]))
+    # Only a gradual drift can be followed within the speed limit. A shot
+    # displaced by a step (case 1, 197.6-200 s: 0.35 s for 2.5 s) is an edit:
+    # a limited curve would depart early and return late. Keep a run only if
+    # the curve at least halves the error over it and makes no measured point
+    # in its window more than 60 ms worse than the constant offset.
+    limit = DRIFT_SLOPE * STEP * FPS
+    for run, (ts, vs) in checks:
+        offs = base + slope_limited(np.where(keep, fine, 0.), ~keep, limit)
+        curve = (np.interp(ts * FPS, frames, offs) - base) / FPS
+        inside = (ts >= frames[run[0]] / FPS) & (ts <= frames[run[-1]] / FPS)
+        follow, const = np.abs(curve - vs), np.abs(vs)
+        if (not inside.any() or follow[inside].mean() > .5 * const[inside].mean() or
+                np.max(follow - const) > .06):
+            keep[run] = False
     if not keep.any():
         return None
-    offs = np.where(keep, base + dev, base)
-    knots = [(int(frames[0]), float(offs[0]))]
-    for k in range(1, len(frames) - 1):
-        if keep[k] or keep[k - 1] != keep[k] or keep[k + 1] != keep[k]:
-            knots.append((int(frames[k]), float(offs[k])))
-    knots.append((int(frames[-1]), float(offs[-1])))
-    return simplify_knots(knots), base
+    offs = base + slope_limited(np.where(keep, fine, 0.), ~keep, limit)
+    d = np.diff(offs)
+    if np.any(d < -limit - 1e-6) or np.any((d > limit + 1e-6) & (d < STEP_CUT - 1e-6)):
+        return None                       # would repeat audio or jerk the speed: never
+    # Forward steps become cuts: split the section there.
+    pieces, start = [], 0
+    for k in list(np.flatnonzero(d >= STEP_CUT - 1e-6)) + [len(frames) - 1]:
+        idx = np.arange(start, k + 1)
+        pk = keep[idx]; po = offs[idx]; pf = frames[idx]
+        knots = [(int(pf[0]), float(po[0]))]
+        for m in range(1, len(idx) - 1):
+            if pk[m] or pk[m - 1] != pk[m] or pk[m + 1] != pk[m]:
+                knots.append((int(pf[m]), float(po[m])))
+        if len(idx) > 1:
+            knots.append((int(pf[-1]), float(po[-1])))
+        y = dict(x, first=int(pf[0]), last=int(pf[-1]), samples=len(idx), offset=base,
+                 strong=int(round(x['strong'] * len(idx) / len(frames))))
+        if any(abs(o - base) > 1e-6 for _, o in knots):
+            y['knots'] = simplify_knots(knots)
+        pieces.append(y); start = k + 1
+    return pieces
 
 
 def drift_runs(frames, FT, FS, DT, r, offset):
     """(keep mask, deviation in frames) of accepted drift runs around an offset."""
     sc, informative = drift_scores(FT, FS, DT, r, frames, offset)
+    # Within a clip half-width of the section edges the clips straddle the
+    # neighbouring cut and favour the next shot's timing: no drift evidence.
+    half = CLIP[-1]
+    informative &= (frames - frames[0] >= half) & (frames[-1] - frames >= half)
     zero = int(np.argmin(np.abs(DRIFT_GRID)))
     gain = sc - sc[:, [zero]]
     path = drift_path(gain, informative)
@@ -536,16 +596,111 @@ def drift_runs(frames, FT, FS, DT, r, offset):
                 a -= 1
             while b + 1 < len(frames) and abs(dev[b + 1]) > .5:
                 b += 1
-            # A drift that ends in a sudden snap-back cannot be followed within
-            # the speed limit: the curve would lag the pictures after the snap.
+            # The curve must not run ahead of (or lag) the evidence. Within the
+            # speed limit it cannot follow a sudden step: before a steep drift it
+            # departs early, after a snap-back it returns late. Either way the
+            # pictures prefer a timing nearer the section offset for 2 samples in
+            # a row, and the run is rejected rather than followed partly.
             span = np.arange(a, b + 1)
-            best = np.argmax(gain[span], axis=1)
-            lag = (informative[span] & (np.abs(DRIFT_GRID[best] - dev[span]) > 1.5) &
-                   (np.abs(dev[span]) > 1.5) & (gain[span, best] > gain[span, path[span]] + .003))
-            if not np.any(lag[1:] & lag[:-1]):          # sustained: two samples in a row
-                keep[a:b + 1] = True
+            best = DRIFT_GRID[np.argmax(gain[span], axis=1)]
+            d = dev[span]
+            off = informative[span] & (np.abs(d) > 1.5) & ((d * best <= 0) | (np.abs(d) > np.abs(best) + 1.5))
+            if not np.any(off[1:] & off[:-1]):
+                # Include the samples where the curve rejoins the offset, so the
+                # join itself stays within the speed limit.
+                keep[max(0, a - 1):min(len(frames), b + 2)] = True
         k = e + 1
     return keep, dev
+
+
+FINE = 50                # verification decode rate (fps)
+FINE_CLIP = np.arange(-25, 26, 5)     # +-0.5 s every 0.1 s, FINE frames
+
+
+def fine_profile(TF, SF, r, t0, s0, base_s, step=.25, search=.4):
+    """Per target position: (time, deviation s from the base mapping, confident).
+
+    TF/SF: features at FINE fps starting at target / source frame seconds t0 / s0;
+    base_s: source picture seconds = r * t + base_s.
+    """
+    out = []
+    lag = np.arange(-int(search * FINE), int(search * FINE) + 1)
+    for j in np.arange(FINE_CLIP[-1], len(TF) - FINE_CLIP[-1], int(step * FINE)):
+        t = t0 + j / FINE
+        ti = j + FINE_CLIP
+        centre = (r * (t0 + ti / FINE) + base_s - s0) * FINE
+        sc = np.full(len(lag), -1.)
+        for k, d in enumerate(lag):
+            si = np.round(centre + d).astype(int)
+            if si.min() >= 0 and si.max() < len(SF):
+                sc[k] = float(np.mean(np.sum(TF[ti] * SF[si], axis=1)))
+        k = int(np.argmax(sc))
+        sub = 0.
+        if 0 < k < len(sc) - 1:
+            a_, b_, c_ = sc[k - 1:k + 2]; den = a_ - 2 * b_ + c_
+            if den < 0:
+                sub = float(np.clip(.5 * (a_ - c_) / den, -.5, .5))
+        # Confident: a real match, peaked in time (not a static or flat span).
+        # A real match inside the search range, on moving pictures (a static
+        # clip cannot fix time). Slow motion peaks only slightly: the deviation
+        # test in confirm_drift, not peak sharpness, carries the decision.
+        motion = 1 - float(np.mean(TF[ti] @ TF[j]))
+        ok = sc[k] >= .7 and 0 < k < len(sc) - 1 and sc[k] - max(sc[0], sc[-1]) >= .002 and motion >= .02
+        out.append((t, (lag[k] + sub) / FINE, ok))
+    return out
+
+
+def confirm_drift(frames, run, dev, base, x, r, verify):
+    """Deviations (s) at the run's samples measured on a FINE decode, or None if not confirmed.
+
+    The decode spans the run plus up to 5 s of the same section either side;
+    that context fixes the reference, so seek and grid offsets cancel.
+    """
+    lo = max(x['first'], frames[run[0]] - 5 * FPS) / FPS
+    hi = min(x['last'], frames[run[-1]] + 5 * FPS) / FPS
+    base_s = base / FPS
+    s0 = max(0., r * lo + base_s - 1.)
+    try:
+        TF, SF = verify(lo, hi, s0, r * hi + base_s + 1.)
+    except (RuntimeError, OSError, ValueError):
+        return None
+    prof = fine_profile(TF, SF, r, lo, s0, base_s)
+    a, b = frames[run[0]] / FPS, frames[run[-1]] / FPS
+    ctx = [v for t, v, ok in prof if ok and not a <= t <= b]
+    if len(ctx) < 4:
+        return None
+    ref = float(np.median(ctx))
+    inside = [(t, v - ref, ok) for t, v, ok in prof if a <= t <= b]
+    good = [(t, v) for t, v, ok in inside if ok]
+    if len(good) < 4 or len(good) < .5 * len(inside):
+        return None
+    ts = np.array([t for t, _ in good])
+    vs = ndimage.median_filter(np.array([v for _, v in good]), 5, mode='nearest')
+    # Confirmed: at least 2 s departing >= 80 ms in the proposed direction.
+    sign = np.sign(np.median(dev[run]))
+    if np.sum(vs * sign >= .08) * .25 < 2.:
+        return None
+    every = [(t, v - ref) for t, v, ok in prof if ok]
+    return np.interp(frames[run] / FPS, ts, vs), (np.array([t for t, _ in every]), np.array([v for _, v in every]))
+
+
+def slope_limited(values, fixed, limit):
+    """Limit DEcreases between samples to `limit`, never moving fixed samples.
+
+    A decrease of the offset faster than the speed limit would repeat audio;
+    an increase is a forward step that becomes an ordinary source-only cut.
+    """
+    v = np.array(values, float)
+    def fit(d):
+        # Allowed change between samples: within the limit, or a cut-sized step up.
+        return d if -limit <= d <= limit or d >= STEP_CUT else (-limit if d < 0 else limit)
+    for i in range(1, len(v)):
+        if not fixed[i]:
+            v[i] = v[i - 1] + fit(v[i] - v[i - 1])
+    for i in range(len(v) - 2, -1, -1):
+        if not fixed[i]:
+            v[i] = v[i + 1] - fit(v[i + 1] - v[i])
+    return v
 
 
 def simplify_knots(knots, tol=.5):
@@ -585,10 +740,16 @@ def build(source_video, target_video, ffmpeg='ffmpeg', ffprobe='ffprobe', progre
         raise RuntimeError('Source and target pictures do not match under any tested framing.')
     FS, DS = features(S, geo[1]); FT, DT = features(T, geo[2]); del S, T
     progress(f'Picture timeline: framing score {geo[0]:.3f}; source crop {np.round(geo[1], 3).tolist()}, target crop {np.round(geo[2], 3).tolist()}')
-    return from_features(FS, DS, FT, DT, dict(score=geo[0], source=geo[1], target=geo[2]), s_info, t_info, progress)
+    def verify(t0, t1, s0, s1):
+        # Frame seconds are relative to each FILE origin (see stream_info).
+        TF = features(decode_span(target_video, t_info['origin'] + t0, t1 - t0, ffmpeg), geo[2])[0]
+        SF = features(decode_span(source_video, s_info['origin'] + s0, s1 - s0, ffmpeg), geo[1])[0]
+        return TF, SF
+    return from_features(FS, DS, FT, DT, dict(score=geo[0], source=geo[1], target=geo[2]), s_info, t_info, progress,
+                         verify=verify)
 
 
-def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, ratio=None):
+def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, ratio=None, verify=None):
     """Solve the timeline from unit-norm frame features (25 fps grids)."""
     r = ratio or estimate_ratio(FT, DT, FS, DS)
     progress(f'Picture timeline: source/target rate {r:.9f}')
@@ -627,15 +788,19 @@ def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, rati
                      samples=n, strong=m['strong'] + s['strong'])
         else:
             merged.append(dict(s))
+    drifted = []
     for s in merged:
-        if s['kind'] == 'match':
-            got = follow_drift(s, FT, FS, DT, r)
-            if got:
-                s['knots'], s['offset'] = got
-                moved = [f for f, o in s['knots'] if abs(o - s['offset']) > .5] or [s['first']]
-                progress(f"Picture timeline: following a picture drift of up to "
-                         f"{max(abs(o - s['offset']) for _, o in s['knots']) / FPS:.2f}s near "
-                         f"{min(moved) / FPS:.1f}-{max(moved) / FPS:.1f}s")
+        got = follow_drift(s, FT, FS, DT, r, verify) if s['kind'] == 'match' else None
+        if not got:
+            drifted.append(s); continue
+        drifted.extend(got)
+        kn = [(f, o) for y in got for f, o in y.get('knots') or []]
+        moved = [f for f, o in kn if abs(o - got[0]['offset']) > .5] or [s['first']]
+        progress(f"Picture timeline: following a picture drift of up to "
+                 f"{max([abs(o - got[0]['offset']) for _, o in kn] or [0]) / FPS:.2f}s near "
+                 f"{min(moved) / FPS:.1f}-{max(moved) / FPS:.1f}s" +
+                 (f" ({len(got) - 1} forward step(s) cut)" if len(got) > 1 else ''))
+    merged = drifted
     return Timeline(r, geometry, merged,
                     dict(FT=FT, FS=FS, DT=DT, DS=DS, samples=samples, s_info=s_info, t_info=t_info,
                          target_frames=len(FT), source_frames=len(FS)))
