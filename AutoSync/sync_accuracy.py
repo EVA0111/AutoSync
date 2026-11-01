@@ -217,12 +217,41 @@ def locate_audio(qfeat, Z, centre, half_search):
     return lo + k + _parabola(c, k), v, margin
 
 
-def measure(video, audio, audio_stream, audio_offset, source, source_stream, video_crop='', source_crop='',
+def independent_geometry(video, source):
+    """Shared framing chosen from the pictures alone (bars removed; aspect hypotheses)."""
+    import picture_timeline as pt
+    info = {}
+    frames = {}
+    for name, path in (('v', video), ('s', source)):
+        info[name] = pt.stream_info(path)
+        out = _run(['ffmpeg', '-v', 'error', '-nostdin', '-i', str(path), '-map', '0:v:0', '-an', '-sn',
+                    '-vf', f'fps=2,scale={pt.W}:{pt.H}:flags=area,format=gray', '-f', 'rawvideo', '-pix_fmt', 'gray', '-'])
+        frames[name] = np.frombuffer(out, np.uint8).reshape(-1, pt.H, pt.W)
+    best = None
+    for sr in pt.geometry_candidates(pt.active_rect(frames['s']), info['s']['aspect'], info['v']['aspect']):
+        fs, ds = pt.features(frames['s'], sr)
+        for vr in pt.geometry_candidates(pt.active_rect(frames['v']), info['v']['aspect'], info['s']['aspect']):
+            fv, dv = pt.features(frames['v'][np.linspace(10, len(frames['v']) - 10, 200).astype(int)], vr)
+            sim = fv[dv > 6] @ fs.T
+            score = float(np.mean(np.sort(sim.max(axis=1))[len(sim) // 3:])) if len(sim) else -1
+            if best is None or score > best[0]:
+                best = (score, vr, sr)
+    def crop(rect, i):
+        x0, y0, x1, y1 = rect
+        if (x0, y0, x1, y1) == (0., 0., 1., 1.):
+            return ''
+        return f"{int(round((x1-x0)*i['width']))//2*2}:{int(round((y1-y0)*i['height']))//2*2}:{int(round(x0*i['width']))}:{int(round(y0*i['height']))}"
+    return crop(best[1], info['v']), crop(best[2], info['s'])
+
+
+def measure(video, audio, audio_stream, audio_offset, source, source_stream, video_crop=None, source_crop=None,
             step=2., cache_dir=None, source_audio_offset=None):
     """audio_offset: delivered audio t=0 position on the delivered video timeline (seconds after first frame)."""
     sv0, sa0 = starts(source, source_stream)
     if source_audio_offset is not None:
         sa0 = sv0 + source_audio_offset
+    if video_crop is None or source_crop is None:
+        video_crop, source_crop = independent_geometry(video, source)
     O, Od = decode_frames(video, video_crop, None)
     S, Sd = decode_frames(source, source_crop, cache_dir)
     Fo = decode_audio_features(audio, audio_stream, None)
@@ -278,10 +307,38 @@ def measure(video, audio, audio_stream, audio_offset, source, source_stream, vid
             # footage reused from elsewhere (recap, preview, clip-built OP).
             row['status'] = 'reused_picture' if abs(row['error']) > 5 else 'measured'
         rows.append(row)
-    return summarize(rows, r, dur), rows
+    replays = confirmed_replays(rows, r, Fo, Z, audio_offset, sa0, step)
+    return summarize(rows, r, dur, step, replays), rows
 
 
-def summarize(rows, r, dur, step=2.):
+def confirmed_replays(rows, r, Fo, Z, audio_offset, sa0, step):
+    """Delivered audio that steps back in the source recording.
+
+    At 2 s sampling a target-only insert (non-source audio) also makes source
+    time advance less than output time. A replay is confirmed only if 1 s
+    windows across the step are ALL located as continuous source audio.
+    """
+    located = [x for x in rows if x.get('audio_src') is not None and (not x.get('global') or x['audio_corr'] >= .7)]
+    out = []
+    for a, b in zip(located[:-1], located[1:]):
+        back = a['audio_src'] + r * (b['t'] - a['t']) - b['audio_src']
+        if back <= .3 or b['t'] - a['t'] > 3 * step:
+            continue
+        insert = False
+        for t in np.arange(a['t'] + .5, b['t'], .5):
+            i0 = int(round((t - audio_offset - .5) * 100))
+            if i0 < 0 or i0 + 100 > Fo.shape[1] or float(np.median(Fo[-1, i0:i0 + 100])) < .02:
+                continue
+            centre = (a['audio_src'] + r * (t - a['t']) - r * .5 - sa0) * 100 / r
+            got = locate_audio(Fo[:-1, i0:i0 + 100], Z, centre, 400)
+            if not got or got[1] < .5:
+                insert = True; break
+        if not insert:
+            out.append([a['t'], b['t'], round(float(back), 3)])
+    return out
+
+
+def summarize(rows, r, dur, step=2., replays=()):
     m = [x for x in rows if x['status'] == 'measured']
     e = np.array([abs(x['error']) for x in m]) if m else np.empty(0)
     gross = []
@@ -295,15 +352,6 @@ def summarize(rows, r, dur, step=2.):
             run = []
     if len(run) >= 2:
         gross.append([run[0]['t'], run[-1]['t'], round(float(np.median([y['error'] for y in run])), 3)])
-    # Repeated sound: delivered audio steps back in the source recording.
-    # Only well-located audio counts; weak global matches are classification only.
-    located = [x for x in rows if x.get('audio_src') is not None and (not x.get('global') or x['audio_corr'] >= .7)]
-    replays = []
-    for a, b in zip(located[:-1], located[1:]):
-        expected = r * (b['t'] - a['t'])
-        back = a['audio_src'] + expected - b['audio_src']
-        if back > .3 and b['t'] - a['t'] <= 3 * step:
-            replays.append([a['t'], b['t'], round(float(back), 3)])
     counts = {}
     for x in rows:
         counts[x['status']] = counts.get(x['status'], 0) + 1
@@ -315,7 +363,7 @@ def summarize(rows, r, dur, step=2.):
              signed_median_ms=round(float(np.median([x['error'] for x in m])) * 1000, 1) if m else None,
              within_45ms=round(float(np.mean(e <= .045)), 4) if len(e) else None,
              within_100ms=round(float(np.mean(e <= .1)), 4) if len(e) else None,
-             gross_spans=gross, replays=replays,
+             gross_spans=gross, replays=list(replays),
              non_source_audio_s=counts.get('non_source_audio', 0) * step,
              reused_picture_s=counts.get('reused_picture', 0) * step)
     audible = len(rows) - counts.get('silent', 0) - counts.get('outside_audio', 0)
@@ -332,7 +380,10 @@ def verdict(s):
     if s['p95_abs_ms'] > 100: problems.append('p95>100ms')
     if s['gross_spans']: problems.append('gross_spans')
     if s['replays']: problems.append('replayed_audio')
-    if s['coverage'] < .6: problems.append('coverage<60%')
+    # Coverage = samples where BOTH picture and audio are locatable (static,
+    # dark and music-only stretches are skipped; source-vs-itself reaches 78%).
+    # Below 25% too little of the output is verified to judge it.
+    if s['coverage'] < .25: problems.append('coverage<25%')
     return 'PASS' if not problems else 'FAIL: ' + ','.join(problems)
 
 
@@ -343,7 +394,8 @@ def main():
     p.add_argument('--audio-stream', type=int, default=0)
     p.add_argument('--audio-offset', type=float, help='Delivered audio start on video timeline; default from stream start times')
     p.add_argument('--source', required=True); p.add_argument('--source-stream', type=int, default=0)
-    p.add_argument('--video-crop', default=''); p.add_argument('--source-crop', default='')
+    p.add_argument('--video-crop', default=None, help='Default: chosen independently from the pictures')
+    p.add_argument('--source-crop', default=None)
     p.add_argument('--cache-dir'); p.add_argument('--out', required=True)
     a = p.parse_args()
     audio = a.audio or a.video

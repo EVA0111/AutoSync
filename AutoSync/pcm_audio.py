@@ -7,9 +7,11 @@ class PCMCache:
     def __init__(self,directory,channels,rate=48000):
         self.directory=Path(directory);self.channels=channels;self.rate=rate;self.files={}
 
-    def cut(self,path,stream,start,duration,destination):
-        if not math.isfinite(start+duration) or start<0 or duration<=0:
-            raise RuntimeError('Invalid decoded-audio cut interval.')
+    def length(self,path,stream):
+        """Seconds of decoded audio available."""
+        return self._decoded(path,stream).stat().st_size//(4*self.channels)/self.rate
+
+    def _decoded(self,path,stream):
         key=(str(Path(path).resolve()),int(stream))
         if key not in self.files:
             decoded=self.directory/f'decoded_{len(self.files):03}.f32'
@@ -18,7 +20,12 @@ class PCMCache:
                     '-vn','-ac',str(self.channels),'-ar',str(self.rate),'-f','f32le',str(decoded)])
             if decoded.stat().st_size%(4*self.channels):raise RuntimeError('Incomplete PCM sample in decoded audio.')
             self.files[key]=decoded
-        decoded=self.files[key];frame_bytes=4*self.channels
+        return self.files[key]
+
+    def cut(self,path,stream,start,duration,destination):
+        if not math.isfinite(start+duration) or start<0 or duration<=0:
+            raise RuntimeError('Invalid decoded-audio cut interval.')
+        decoded=self._decoded(path,stream);frame_bytes=4*self.channels
         first=round(start*self.rate);last=round((start+duration)*self.rate)
         available=decoded.stat().st_size//frame_bytes
         if first>=available or min(last,available)-first < (duration-.10)*self.rate:

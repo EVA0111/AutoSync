@@ -301,13 +301,18 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
             if ss<0:raise RuntimeError('Reference fallback begins before available reference audio.')
             # Do not hide short decodes with apad. Inspect decoded length before retiming.
             raw=td/'chunk.f32'
-            pcm.cut(path,track,ss,dur*sp,raw)
+            pre=post=0.
+            if s['kind']=='audio' and abs(sp-1.)>=1e-10:
+                # Stretch with up to 0.5 s of real context on each side, then keep the
+                # exact middle: atempo's start/end latency falls outside the segment.
+                pre=min(ss,.5);post=max(0.,min(.5,pcm.length(path,track)-(ss+dur*sp)))
+            pcm.cut(path,track,ss-pre,dur*sp+pre+post,raw)
             if s['kind']=='verified_gap':
                 data=np.fromfile(raw,np.float32).reshape(-1,ch)
                 blocks=[np.mean(z*z) for z in np.array_split(data,max(1,len(data)//960))]
                 if np.mean(data*data)>4e-6 or max(blocks)>2e-5:raise RuntimeError('Target pause audio is no longer near-silent; refusing automatic replacement.')
             frames=raw.stat().st_size//(4*ch)
-            if frames/48000<dur*sp-.10:raise RuntimeError(f'Source decode too short near {start:.2f}s. No silent padding was added.')
+            if frames/48000<dur*sp+pre+post-.10:raise RuntimeError(f'Source decode too short near {start:.2f}s. No silent padding was added.')
             if s['kind']=='target_outer' and i==len(plan['segments'])-1 and 0<n-frames<=4800:
                 # Preserve target music timing when its audio ends a few ms before video.
                 # This is the target's existing empty tail, never a missing source section.
@@ -317,13 +322,18 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
             # atempo can return a few ms less: constrain duration with exact final resampling,
             # never with silent padding. Overall length adjustment is normally <0.1%.
             stretched=td/'stretch.f32'
-            if abs(sp-1.)<1e-10:shutil.copyfile(raw,stretched)
+            # Under 0.2 s with no context, atempo's latency dominates; plain resampling
+            # below is exact and its pitch change over such a clip is inaudible.
+            short=dur*sp+pre+post<.2
+            if abs(sp-1.)<1e-10 or short:shutil.copyfile(raw,stretched)
             else:
                 vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-f','f32le','-ar','48000','-ac',str(ch),'-i',str(raw),'-af',f'atempo={sp:.10f}','-f','f32le',str(stretched)])
             x=np.memmap(stretched,dtype=np.float32,mode='r').reshape(-1,ch)
             try:
+                if pre+post and not short:
+                    lead=round(pre/sp*48000);x=x[lead:lead+n]
                 # 2% relative, but at least 10 ms: atempo latency dominates very short clips.
-                if abs(len(x)-n)>max(.02*n,480):raise RuntimeError('Unexpected time-stretch length error.')
+                if not short and abs(len(x)-n)>max(.02*n,480):raise RuntimeError('Unexpected time-stretch length error.')
                 from fractions import Fraction
                 ratio=Fraction((n*100000 + len(x)-1)//len(x),100000)
                 fixed=np.array(x) if len(x)==n else signal.resample_poly(np.asarray(x),ratio.numerator,ratio.denominator,axis=0)[:n]
@@ -358,8 +368,7 @@ def should_verify_export(method, reference_features, plan):
     """
     return (reference_features is not None
             and not plan.get('video_edits')
-            and (method.startswith('audio matches')
-                 or method.startswith('AI-assisted: audio matches')))
+            and method.split('AI-assisted: ')[-1].startswith(('audio matches','picture timeline')))
 
 def verify_export(output,reference_features,anchors,out):
     say('Checking exported audio against matched reference windows...')
@@ -384,6 +393,44 @@ def verify_export(output,reference_features,anchors,out):
     else:message='Export check inconclusive: no sufficiently strong sampled correlations.'
     with (out/'report.txt').open('a',encoding='utf-8') as f:f.write('\n\n'+message+'\n')
     say(message)
+
+def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,sf,se,refshift,say):
+    """Plan from the dense picture timeline (see picture_timeline.py)."""
+    import picture_timeline as pt
+    tl=pt.build(source_video,target,vc.binary('ffmpeg'),vc.binary('ffprobe'),say)
+    si,ti=tl.diagnostics['s_info'],tl.diagnostics['t_info']
+    # Source audio time = source picture time (first-frame relative) + shift.
+    shift=-delay
+    if Path(audio).resolve()==Path(source_video).resolve():shift+=si['start']-si['audio_starts'][stream]
+    ref_t,energy_t=ref,energy
+    if ref is not None and abs(refshift)>.001:
+        k=round(refshift*50)
+        ref_t,energy_t=(np.pad(ref,((0,0),(k,0))),np.pad(energy,(k,0))) if k>=0 else (ref[:,-k:],energy[-k:])
+    def audio_cut(p,m,t,lo,hi):
+        # Join inside a static/dark span bounded by picture evidence: dense audio
+        # evidence first; otherwise the point where the least source sound is cut.
+        oa,ob=p['offset']/pt.FPS+shift,m['offset']/pt.FPS+shift
+        if ref_t is not None:
+            c=locate_cut(dict(speed=tl.ratio,offset=oa,last=lo+4),dict(speed=tl.ratio,offset=ob,first=hi-4),ref_t,energy_t,sf)
+            if c['confidence']=='supported' and lo<=c['time']<=hi:return c['time'],'audio-located join inside the picture-bounded span'
+        times=np.arange(lo,hi+1e-9,.02)
+        def level(src):
+            i=np.clip(np.round(src*50).astype(int),2,len(se)-3)
+            return np.max([se[i+d] for d in range(-2,3)],axis=0)
+        cost=level(tl.ratio*times+oa)+level(tl.ratio*times+ob)
+        return float(times[int(np.argmin(cost))]),'quietest source-audio point inside the picture-bounded span'
+    segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut)
+    rows=[[t,m['speed']*t+m['offset'],1.] for m in models for t in np.arange(m['first'],m['last']+1e-6,2.)]
+    anchors=np.asarray(rows,dtype=float).reshape(-1,3)
+    visual=anchors.copy();visual[:,1]-=shift+delay
+    def crop(rect,info):
+        x0,y0,x1,y1=rect
+        if (x0,y0,x1,y1)==(0.,0.,1.,1.):return ''
+        w,h=info['width'],info['height']
+        cw,ch=int(round((x1-x0)*w))//2*2,int(round((y1-y0)*h))//2*2
+        return f'{cw}:{ch}:{int(round(x0*w))}:{int(round(y0*h))}'
+    say(f'Picture timeline: {len(models)} timed sections; '+', '.join(f"{n['start']:.2f}s" for n in notes if 'splice' in n)[:600])
+    return segments,models,notes,anchors,visual,tl.ratio,crop(tl.geometry['source'],si),crop(tl.geometry['target'],ti),ref_t,energy_t
 
 def run_job(job,args):
     from input_trims import prepare
@@ -416,125 +463,137 @@ def _run_job(job,args):
     if target and reference and Path(reference)==Path(target).resolve():
         p=vc.probe(target);v=next(x for x in p['streams'] if x['codec_type']=='video');a=[x for x in p['streams'] if x['codec_type']=='audio'][rs]
         refshift+=float(a.get('start_time',0))-float(v.get('start_time',0))
-    source_crop=args.source_crop;target_crop=args.target_crop
-    if source_video and target and not args.audio_only:
-        try:
-            from video_geometry import detect_crop
-            if not source_crop:source_crop=detect_crop(source_video)
-            if not target_crop:target_crop=detect_crop(target)
-            say(f'Picture matching crops: source={source_crop or "full frame"}; target={target_crop or "full frame"}')
-        except (RuntimeError,ValueError,KeyError,OSError) as e:warnings.append('Automatic border detection unavailable: '+str(e))
-        try:
-            st,sv=vc.scenes(source_video,out,'source_video',args.scene_threshold,source_crop)
-            tt,tv=vc.scenes(target,out,'target_video',args.scene_threshold,target_crop)
-            visual=vc.matches(st,sv,tt,tv);visual[:,1]-=delay
-        except (RuntimeError,ValueError,KeyError,OSError) as e:warnings.append('Visual scan unavailable: '+str(e))
-    visual=manual_ranges.select(visual,source_bounds)
-    neural_visual=np.empty((0,3))
-    neural_audio=np.empty((0,3))
     ai_mode=getattr(args,'sync_method','standard')=='ai_assisted'
-    if ai_mode:
-        from ai_sync import _dependencies,learned_visual_anchors
-        _dependencies()  # Explicit failure with installation instructions; never silently fall back.
-        say('AI-assisted synchronization enabled (AST acoustic model + optional DINOv2 scene rescue).')
-        if len(visual)<8 and source_video and target and not args.audio_only:
-            # The visual model only assists if classic scene matching could not
-            # establish timing. Do not displace established visual evidence.
+    picture=None
+    # Both videos present: the source audio belongs to the source PICTURE, so map
+    # target pictures to source pictures. Audio anchors remain the fallback.
+    if (source_video and target and not args.audio_only and getattr(args,'timing','picture')=='picture' and
+            not args.cut_times.strip() and getattr(args,'source_main_start',None) is None and getattr(args,'source_main_end',None) is None):
+        try:picture=picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,sf,se,refshift,say)
+        except RuntimeError as e:
+            warnings.append('Picture timeline unavailable; using audio matching: '+str(e));say(warnings[-1])
+    if picture is not None:
+        segments,models,review,anchors,visual,speed,source_crop,target_crop,ref,energy=picture;method='picture timeline'
+        if ai_mode:warnings.append('Picture timeline established timing; AI models were not needed for this pair.')
+    else:
+        source_crop=args.source_crop;target_crop=args.target_crop
+        if source_video and target and not args.audio_only:
             try:
-                trial_speed=estimate_rate(visual,sf,ref)
-            except RuntimeError:
-                trial_speed=1.  # Scene model can still recover rate from candidate pairs.
-            neural_visual=learned_visual_anchors(source_video,target,trial_speed,delay,say)
-            neural_visual=manual_ranges.select(neural_visual,source_bounds)
-            if len(neural_visual)>=8:
-                visual=neural_visual
-                warnings.append('AI visual fallback used; review source/target frames at proposed joins.')
-    speed=estimate_rate(visual,sf,ref);say(f'Estimated source/target speed: {speed:.9f}')
-    aa=audio_anchors(sf,ref,speed) if ref is not None else np.empty((0,3))
-    if len(aa):aa[:,0]+=refshift
-    if source_video and target and not args.audio_only and not args.source_crop and not args.target_crop:
-        from video_geometry import shared_picture_crop
-        sc,tc,geometry=shared_picture_crop(source_video,target,aa,speed,source_crop,target_crop,delay)
-        if geometry is not None:
-            (out/'geometry_report.json').write_text(json.dumps(geometry,indent=2))
-        if (sc,tc)!=(source_crop,target_crop):
-            say(f'Verified edition framing crop: source={sc or "full frame"}; target={tc or "full frame"}')
-            if sc!=source_crop:st,sv=vc.scenes(source_video,out,'source_video',args.scene_threshold,sc)
-            if tc!=target_crop:tt,tv=vc.scenes(target,out,'target_video',args.scene_threshold,tc)
-            source_crop,target_crop=sc,tc
-            visual=vc.matches(st,sv,tt,tv);visual[:,1]-=delay
-    visual=manual_ranges.select(visual,source_bounds)
-    aa=manual_ranges.select(aa,source_bounds)
-    if ai_mode and ref is not None:
-        from ai_sync import learned_audio_anchors,combine_standard_and_learned
-        neural_audio=learned_audio_anchors(audio,stream,reference,rs,sf,rf,speed,refshift,say)
-        neural_audio=manual_ranges.select(neural_audio,source_bounds)
-        original_count=len(aa)
-        aa=combine_standard_and_learned(aa,neural_audio,speed)
-        say(f'AI-assisted anchors: {len(neural_audio)} verified, {len(aa)-original_count} additional accepted.')
-        warnings.append('AI model proposes matches only. Confirmed timing uses original audio correlation; review uncertain cuts.')
-    # Use strong audio evidence for dubbing-specific offsets; visuals establish rate and fallback.
-    if len(aa)>=8 and np.ptp(aa[:,0])>min(duration*.4,120):
-        anchors=remove_outliers(aa,speed);method='audio matches, with visual rate estimate' if len(visual) else 'audio matches'
-        if len(visual):
-            offsets=[]
-            for t,s,_ in anchors:
-                j=int(np.argmin(abs(visual[:,0]-t)))
-                if abs(visual[j,0]-t)<3:offsets.append(s-(visual[j,1]+speed*(t-visual[j,0])))
-            if offsets and abs(float(np.median(offsets)))>.15:warnings.append('Audio and video mappings differ; soundtrack-specific audio matches take priority. Source dub may have an internal offset.')
-    elif len(visual)>=8:
-        anchors=remove_outliers(visual,speed);method='visual fallback'
-        if len(aa)>=3:
-            differences=[]
-            for t,s,_ in aa:
-                j=int(np.argmin(abs(anchors[:,0]-t)))
-                if abs(anchors[j,0]-t)<10:differences.append(s-(anchors[j,1]+speed*(t-anchors[j,0])))
-            if len(differences)>=3:
-                anchors[:,1]+=float(np.median(differences));method+=' with audio offset calibration'
-        warnings.append('Few reliable audio matches; verify the original audio is aligned to its source video.')
-    else:raise RuntimeError('Not enough consistent audio or visual matches. No misleading output was produced. Check episode pairing, tracks, crops, and source alignment.')
-    # Feature windows use decoded-reference coordinates; boundaries need the same timeline.
-    if abs(refshift)>.001:
-        warnings.append(f'Reference stream starts {refshift:.3f}s relative to target video; timestamps compensated.')
-        # Feature padding/trimming to place reference on target timeline for splice detection only.
-        shift=round(refshift*50)
-        if shift>=0:ref=np.pad(ref,((0,0),(shift,0)));energy=np.pad(energy,(shift,0))
-        else:ref=ref[:,-shift:];energy=energy[-shift:]
-    manual_times=[float(x) for x in args.cut_times.split(',') if x.strip()]
-    if any(not np.isfinite(x) or not 0<x<duration for x in manual_times):raise ValueError('Cut times must be finite seconds inside target duration.')
-    used=set()
-    def refine_cut(left,right,cut):
-        lo=max(0,left['last']-4);hi=min(duration,right['first']+4)
-        choices=[(i,t) for i,t in enumerate(manual_times) if lo<=t<=hi]
-        if len(choices)>1:raise ValueError('Multiple manual cut times in one detected timing change.')
-        if choices:
-            i,t=choices[0]
-            if i in used:raise ValueError('Manual cut time falls into overlapping searches.')
-            used.add(i)
-            return dict(time=t,confidence='manual',method='user supplied target join',uncertainty_start=t,uncertainty_end=t)
-        if source_video and target and not args.audio_only and left['offset']-right['offset']>.3:
-            from visual_cuts import calibrated_models,locate_target_insert
+                from video_geometry import detect_crop
+                if not source_crop:source_crop=detect_crop(source_video)
+                if not target_crop:target_crop=detect_crop(target)
+                say(f'Picture matching crops: source={source_crop or "full frame"}; target={target_crop or "full frame"}')
+            except (RuntimeError,ValueError,KeyError,OSError) as e:warnings.append('Automatic border detection unavailable: '+str(e))
             try:
-                vl,vr=calibrated_models(left,right,visual)
-                inserted=locate_target_insert(vl,vr,source_video,target,se,delay,source_crop,target_crop,audio_models=(left,right))
-                if inserted is not None:return inserted
-            except (RuntimeError,ValueError,OSError) as e:
-                warnings.append('Eyecatch/title-card verification unavailable: '+str(e))
-        if cut['confidence']=='uncertain' and source_video and target and not args.audio_only:
-            say(f'Checking pictures around uncertain cut: target {lo:.2f}–{hi:.2f}s')
-            try:
-                from visual_cuts import locate_visual_cut,calibrated_models,quiet_black_cut
-                vl,vr=calibrated_models(left,right,visual)
-                visual_cut=locate_visual_cut(vl,vr,source_video,target,delay,source_crop,target_crop,target_energy=energy)
-                if visual_cut['confidence']=='uncertain':
-                    quiet=quiet_black_cut(visual_cut,left,right,se,energy)
-                    if quiet is not None:visual_cut=quiet
-                if visual_cut['confidence']=='supported':return visual_cut
-                warnings.append(f'Picture comparison also uncertain near {cut["time"]:.2f}s; cut requires review.')
-            except (RuntimeError,ValueError,OSError) as e:warnings.append('Local picture cut check failed: '+str(e))
-        return cut
-    segments,models,review=build_plan(anchors,speed,duration,sl,ref,energy,sf,refine_cut,visual if method.startswith('audio') else None)
-    if len(used)!=len(manual_times):raise ValueError('A supplied --cut-times value is outside detected cut search intervals. Check target seconds against the report.')
+                st,sv=vc.scenes(source_video,out,'source_video',args.scene_threshold,source_crop)
+                tt,tv=vc.scenes(target,out,'target_video',args.scene_threshold,target_crop)
+                visual=vc.matches(st,sv,tt,tv);visual[:,1]-=delay
+            except (RuntimeError,ValueError,KeyError,OSError) as e:warnings.append('Visual scan unavailable: '+str(e))
+        visual=manual_ranges.select(visual,source_bounds)
+        neural_visual=np.empty((0,3))
+        neural_audio=np.empty((0,3))
+        if ai_mode:
+            from ai_sync import _dependencies,learned_visual_anchors
+            _dependencies()  # Explicit failure with installation instructions; never silently fall back.
+            say('AI-assisted synchronization enabled (AST acoustic model + optional DINOv2 scene rescue).')
+            if len(visual)<8 and source_video and target and not args.audio_only:
+                # The visual model only assists if classic scene matching could not
+                # establish timing. Do not displace established visual evidence.
+                try:
+                    trial_speed=estimate_rate(visual,sf,ref)
+                except RuntimeError:
+                    trial_speed=1.  # Scene model can still recover rate from candidate pairs.
+                neural_visual=learned_visual_anchors(source_video,target,trial_speed,delay,say)
+                neural_visual=manual_ranges.select(neural_visual,source_bounds)
+                if len(neural_visual)>=8:
+                    visual=neural_visual
+                    warnings.append('AI visual fallback used; review source/target frames at proposed joins.')
+        speed=estimate_rate(visual,sf,ref);say(f'Estimated source/target speed: {speed:.9f}')
+        aa=audio_anchors(sf,ref,speed) if ref is not None else np.empty((0,3))
+        if len(aa):aa[:,0]+=refshift
+        if source_video and target and not args.audio_only and not args.source_crop and not args.target_crop:
+            from video_geometry import shared_picture_crop
+            sc,tc,geometry=shared_picture_crop(source_video,target,aa,speed,source_crop,target_crop,delay)
+            if geometry is not None:
+                (out/'geometry_report.json').write_text(json.dumps(geometry,indent=2))
+            if (sc,tc)!=(source_crop,target_crop):
+                say(f'Verified edition framing crop: source={sc or "full frame"}; target={tc or "full frame"}')
+                if sc!=source_crop:st,sv=vc.scenes(source_video,out,'source_video',args.scene_threshold,sc)
+                if tc!=target_crop:tt,tv=vc.scenes(target,out,'target_video',args.scene_threshold,tc)
+                source_crop,target_crop=sc,tc
+                visual=vc.matches(st,sv,tt,tv);visual[:,1]-=delay
+        visual=manual_ranges.select(visual,source_bounds)
+        aa=manual_ranges.select(aa,source_bounds)
+        if ai_mode and ref is not None:
+            from ai_sync import learned_audio_anchors,combine_standard_and_learned
+            neural_audio=learned_audio_anchors(audio,stream,reference,rs,sf,rf,speed,refshift,say)
+            neural_audio=manual_ranges.select(neural_audio,source_bounds)
+            original_count=len(aa)
+            aa=combine_standard_and_learned(aa,neural_audio,speed)
+            say(f'AI-assisted anchors: {len(neural_audio)} verified, {len(aa)-original_count} additional accepted.')
+            warnings.append('AI model proposes matches only. Confirmed timing uses original audio correlation; review uncertain cuts.')
+        # Use strong audio evidence for dubbing-specific offsets; visuals establish rate and fallback.
+        if len(aa)>=8 and np.ptp(aa[:,0])>min(duration*.4,120):
+            anchors=remove_outliers(aa,speed);method='audio matches, with visual rate estimate' if len(visual) else 'audio matches'
+            if len(visual):
+                offsets=[]
+                for t,s,_ in anchors:
+                    j=int(np.argmin(abs(visual[:,0]-t)))
+                    if abs(visual[j,0]-t)<3:offsets.append(s-(visual[j,1]+speed*(t-visual[j,0])))
+                if offsets and abs(float(np.median(offsets)))>.15:warnings.append('Audio and video mappings differ; soundtrack-specific audio matches take priority. Source dub may have an internal offset.')
+        elif len(visual)>=8:
+            anchors=remove_outliers(visual,speed);method='visual fallback'
+            if len(aa)>=3:
+                differences=[]
+                for t,s,_ in aa:
+                    j=int(np.argmin(abs(anchors[:,0]-t)))
+                    if abs(anchors[j,0]-t)<10:differences.append(s-(anchors[j,1]+speed*(t-anchors[j,0])))
+                if len(differences)>=3:
+                    anchors[:,1]+=float(np.median(differences));method+=' with audio offset calibration'
+            warnings.append('Few reliable audio matches; verify the original audio is aligned to its source video.')
+        else:raise RuntimeError('Not enough consistent audio or visual matches. No misleading output was produced. Check episode pairing, tracks, crops, and source alignment.')
+        # Feature windows use decoded-reference coordinates; boundaries need the same timeline.
+        if abs(refshift)>.001:
+            warnings.append(f'Reference stream starts {refshift:.3f}s relative to target video; timestamps compensated.')
+            # Feature padding/trimming to place reference on target timeline for splice detection only.
+            shift=round(refshift*50)
+            if shift>=0:ref=np.pad(ref,((0,0),(shift,0)));energy=np.pad(energy,(shift,0))
+            else:ref=ref[:,-shift:];energy=energy[-shift:]
+        manual_times=[float(x) for x in args.cut_times.split(',') if x.strip()]
+        if any(not np.isfinite(x) or not 0<x<duration for x in manual_times):raise ValueError('Cut times must be finite seconds inside target duration.')
+        used=set()
+        def refine_cut(left,right,cut):
+            lo=max(0,left['last']-4);hi=min(duration,right['first']+4)
+            choices=[(i,t) for i,t in enumerate(manual_times) if lo<=t<=hi]
+            if len(choices)>1:raise ValueError('Multiple manual cut times in one detected timing change.')
+            if choices:
+                i,t=choices[0]
+                if i in used:raise ValueError('Manual cut time falls into overlapping searches.')
+                used.add(i)
+                return dict(time=t,confidence='manual',method='user supplied target join',uncertainty_start=t,uncertainty_end=t)
+            if source_video and target and not args.audio_only and left['offset']-right['offset']>.3:
+                from visual_cuts import calibrated_models,locate_target_insert
+                try:
+                    vl,vr=calibrated_models(left,right,visual)
+                    inserted=locate_target_insert(vl,vr,source_video,target,se,delay,source_crop,target_crop,audio_models=(left,right))
+                    if inserted is not None:return inserted
+                except (RuntimeError,ValueError,OSError) as e:
+                    warnings.append('Eyecatch/title-card verification unavailable: '+str(e))
+            if cut['confidence']=='uncertain' and source_video and target and not args.audio_only:
+                say(f'Checking pictures around uncertain cut: target {lo:.2f}–{hi:.2f}s')
+                try:
+                    from visual_cuts import locate_visual_cut,calibrated_models,quiet_black_cut
+                    vl,vr=calibrated_models(left,right,visual)
+                    visual_cut=locate_visual_cut(vl,vr,source_video,target,delay,source_crop,target_crop,target_energy=energy)
+                    if visual_cut['confidence']=='uncertain':
+                        quiet=quiet_black_cut(visual_cut,left,right,se,energy)
+                        if quiet is not None:visual_cut=quiet
+                    if visual_cut['confidence']=='supported':return visual_cut
+                    warnings.append(f'Picture comparison also uncertain near {cut["time"]:.2f}s; cut requires review.')
+                except (RuntimeError,ValueError,OSError) as e:warnings.append('Local picture cut check failed: '+str(e))
+            return cut
+        segments,models,review=build_plan(anchors,speed,duration,sl,ref,energy,sf,refine_cut,visual if method.startswith('audio') else None)
+        if len(used)!=len(manual_times):raise ValueError('A supplied --cut-times value is outside detected cut search intervals. Check target seconds against the report.')
     if ai_mode:method='AI-assisted: '+method
     plan=dict(source_crop=source_crop,target_crop=target_crop,source_cuts=source_cuts(segments),audio=audio,audio_stream=stream,reference=reference,reference_stream=rs,reference_shift=refshift,source_video=source_video,target_video=target,duration=duration,method=method,sync_method='ai_assisted' if ai_mode else 'standard',segments=segments,models=models,review=review,warnings=warnings)
     np.savez_compressed(out/'matching_diagnostics.npz',visual=visual,anchors=anchors)
@@ -666,6 +725,7 @@ def main():
     p.add_argument('--source-crop',default='');p.add_argument('--target-crop',default='')
     p.add_argument('--scene-threshold',type=float,default=.15)
     p.add_argument('--audio-only',action='store_true');p.add_argument('--analyze-only',action='store_true')
+    p.add_argument('--timing',choices=['picture','audio'],default='picture',help='picture: map target pictures to source pictures (default when both videos are given); audio: legacy cross-soundtrack anchors')
     p.add_argument('--sync-method',choices=['standard','ai_assisted'],default='standard',help='Optional pretrained AST audio features and DINOv2 visual rescue; install AI Sync in Settings first')
     p.add_argument('--remove-unmatched-video',action='store_true',help='Remove target sections with no source audio and export edited video + FLAC')
     p.add_argument('--reference-fallback',action='store_true',help='Use target soundtrack only for missing source bounds; may switch languages')

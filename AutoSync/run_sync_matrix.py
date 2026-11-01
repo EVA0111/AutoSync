@@ -62,7 +62,6 @@ def run_one(case, mode, method, out_root, cache, extra):
             video, audio_args = Path(case['target']), ['--audio', str(eng / 'synced.flac'), '--audio-offset', '0']
         ev = [sys.executable, str(ROOT / 'sync_accuracy.py'), '--video', str(video), *audio_args,
               '--source', audio, '--source-stream', str(case.get('audio_stream', 0)),
-              '--video-crop', plan.get('target_crop') or '', '--source-crop', plan.get('source_crop') or '',
               '--cache-dir', str(cache), '--out', str(out / 'accuracy')]
         q = subprocess.run(ev, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if q.returncode:
