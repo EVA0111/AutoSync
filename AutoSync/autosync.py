@@ -289,6 +289,17 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
         shutil.move(temp,output)
     return output
 
+def should_verify_export(method, reference_features, plan):
+    """Audio-evidence plans get the same sampled output check in both modes.
+
+    AI-assisted output prepends a method label without changing the need to
+    verify decoded audio against the independent target reference.
+    """
+    return (reference_features is not None
+            and not plan.get('video_edits')
+            and (method.startswith('audio matches')
+                 or method.startswith('AI-assisted: audio matches')))
+
 def verify_export(output,reference_features,anchors,out):
     say('Checking exported audio against matched reference windows...')
     feat,_,_=wav_features(output,0,out,'export_check')
@@ -523,7 +534,7 @@ def _run_job(job,args):
     (out/'report.txt').write_text('\n'.join(lines),encoding='utf-8');say('\n'.join(lines))
     if not args.analyze_only:
         output=render(plan,out,args.reference_fallback,args.allow_uncertain_cuts)
-        if not plan.get('video_edits') and ref is not None and method.startswith('audio matches'):verify_export(output,ref,anchors,out)
+        if should_verify_export(method,ref,plan):verify_export(output,ref,anchors,out)
         if plan.get('video_edits'):
             from video_edits import export_video
             video=export_video(plan,output,out,args.video_codec,args.video_preset);say(f'Saved {video}. Use the synced FLAC with this edited video.')
