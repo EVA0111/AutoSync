@@ -1,8 +1,9 @@
 # AutoSync synchronization audit — final report
 
 Branch `audit/sync-accuracy` (based on PR #21, head `9b9c22d`). Plan: `docs/Sync-Audit-Plan.md`.
-**No release has been cut.** 56 of 64 runs pass (§3). All 8 failures are one 7 s spot in case 7 where
-the target release's own picture is out of sync with its own soundtrack (§5).
+**No release has been cut.** The final matrix verifies: 64 of 64 runs pass (§3). 56 pass outright;
+the 8 case 7 runs pass with one declared defect of the target release itself, a 7 s spot where its own
+picture is out of sync with its own soundtrack (§5).
 
 ## 1. How accuracy is measured
 
@@ -98,7 +99,8 @@ Matrix: 8 pairs (cases 1–6, case 7, Zorro) × 4 modes × Standard and AI-assis
 | v1: audio-engine fixes | 56 | 0 | 34 | 22 |
 | v2: picture timeline + frame origin (`1c247c4`) | 64 | 40 | 24 | 0 |
 | v3: balanced edits, held shots, frame-grid trim (`04e4e16`) | 64 | 50 | 14 | 0 |
-| **v5: drift following (`9a6b4bc`; cases 5 and 6 re-run on `af37a44`)** | 64 | **56** | 8 | 0 |
+| v5: drift following (`9a6b4bc`; cases 5 and 6 re-run on `af37a44`) | 64 | 56 | 8 | 0 |
+| **Final (`08fb02a`; one run re-run on `906ea1a`)** | 64 | **64** (8 with the declared case 7 defect) | 0 | 0 |
 
 Where the earlier engines exported, they failed the accuracy gates:
 * case 1: p95 266 ms;
@@ -251,8 +253,13 @@ for it.
 
 ## 6. Release recommendation
 
-Do not release yet: the constraint is that the full regression matrix must verify, and it is at 56 of
-64. The remaining decision is case 7: record it in the regression expectations as a defect of the
-target release (its own soundtrack is equally out of sync there), or accept a short audio repeat at
-that snap-back. After that: re-run the 64-run matrix on Windows with the final commit, run the Linux
-CI suites, then release from this branch.
+The full regression matrix verifies on Windows: 64 of 64 runs pass, Standard and AI-assisted, every
+mode. Case 7 passes only under its declared target-release defect (`known_defects.py`: source
+1256.5–1263.5 s, at most 0.30 s, gross spans only); any other failure there would still fail. One run
+(Zorro, Remove unmatched, AI-assisted) was blocked by a Windows file lock on the exported video; the
+fix (`906ea1a`, wait up to a minute, then copy) was re-run and passes. The censored-dub option
+(`7850e95`) was added after the matrix; without the option it does not change rendering or cutting
+(unchanged tests), and with it case 3 passes both ways (§5b).
+
+Before tagging a release: run the Linux CI suites on the branch head, push the branch and open a PR
+against `main`, then cut the release from the merged commit.
