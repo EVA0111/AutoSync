@@ -4,15 +4,20 @@
 Cases come from a local JSON file (private media is never committed):
   {"cases": [{"name": "1", "source": "...", "target": "...",
               "audio": "<optional, defaults to source>",
-              "audio_stream": 0, "reference_stream": 0}]}
+              "audio_stream": 0, "reference_stream": 0,
+              "known_target_defects": [<optional, see known_defects.py>]}]}
 
 Each run: autosync.py -> exit status/log -> sync_accuracy.py on the delivered
 file (target + synced.flac at 0 ms for Full target; the exported .mkv for the
-other modes). A run that refuses to export is BLOCKED, never a pass.
+other modes). A run that refuses to export is BLOCKED, never a pass. A case
+may declare spots where the TARGET RELEASE is itself out of sync; see
+known_defects.py for the strict rule that applies them.
 """
 import argparse, json, os, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+from known_defects import explain, read_rows
 
 ROOT = Path(__file__).resolve().parent
 MODES = {
@@ -29,11 +34,22 @@ def last_error(log):
     return lines[-1][:600] if lines else log.strip().splitlines()[-1][:600] if log.strip() else ''
 
 
+def with_expectations(result, case):
+    """Apply the case's declared target-release defects (status only; the verdict is kept)."""
+    acc = result.get('accuracy')
+    if acc:
+        status, explained = explain(acc, read_rows(Path(result['out']) / 'accuracy' / 'accuracy.csv'),
+                                    case.get('known_target_defects', []))
+        result.update(status=status, known_target_defects=explained)
+    return result
+
+
 def run_one(case, mode, method, out_root, cache, extra):
     out = out_root / f"{case['name']}_{mode}_{method}"
     result = dict(case=case['name'], mode=mode, method=method, out=str(out))
     if (out / 'result.json').exists():
-        return json.loads((out / 'result.json').read_text())
+        # Finished runs are re-scored against the current expectations.
+        return with_expectations(json.loads((out / 'result.json').read_text()), case)
     out.mkdir(parents=True, exist_ok=True)
     audio = case.get('audio') or case['source']
     cmd = [sys.executable, str(ROOT / 'autosync.py'), '--source', case['source'], '--audio', audio,
@@ -70,7 +86,7 @@ def run_one(case, mode, method, out_root, cache, extra):
             acc = json.loads((out / 'accuracy' / 'accuracy.json').read_text())
             result.update(status=acc['verdict'], delivered=str(video), accuracy=acc)
     (out / 'result.json').write_text(json.dumps(result, indent=2))
-    return result
+    return with_expectations(result, case)
 
 
 def main():
