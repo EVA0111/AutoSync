@@ -1,8 +1,8 @@
 # AutoSync synchronization audit — final report
 
 Branch `audit/sync-accuracy` (based on PR #21, head `9b9c22d`). Plan: `docs/Sync-Audit-Plan.md`.
-**No release has been cut.** The full regression matrix is not yet green: 50 of 64 runs pass (§3), and
-the remaining 14 trace to two spots where the target releases themselves are out of sync (§5).
+**No release has been cut.** 56 of 64 runs pass (§3). All 8 failures are one 7 s spot in case 7 where
+the target release's own picture is out of sync with its own soundtrack (§5).
 
 ## 1. How accuracy is measured
 
@@ -97,7 +97,8 @@ Matrix: 8 pairs (cases 1–6, case 7, Zorro) × 4 modes × Standard and AI-assis
 | Baseline (PR #21) | 56 | 0 | 12 | 44 |
 | v1: audio-engine fixes | 56 | 0 | 34 | 22 |
 | v2: picture timeline + frame origin (`1c247c4`) | 64 | 40 | 24 | 0 |
-| **v3: current (`04e4e16`)** | 64 | **50** | 14 | 0 |
+| v3: balanced edits, held shots, frame-grid trim (`04e4e16`) | 64 | 50 | 14 | 0 |
+| **v5: drift following (`9a6b4bc`; cases 5 and 6 re-run on `af37a44`)** | 64 | **56** | 8 | 0 |
 
 Where the earlier engines exported, they failed the accuracy gates:
 * case 1: p95 266 ms;
@@ -107,7 +108,7 @@ Where the earlier engines exported, they failed the accuracy gates:
 * Zorro: p95 168 ms;
 * case 5: gross spans.
 
-### v3, Standard
+### v5, Standard
 
 AI-assisted results are identical (§6). Each cell gives the median and p95 absolute error in ms, then
 the share of samples within 100 ms.
@@ -118,14 +119,13 @@ the share of samples within 100 ms.
 | 2 | PASS 11.2 / 49.3, 100 % | PASS 11.5 / 51.7, 99.5 % | PASS 11.2 / 49.3, 100 % | PASS 11.4 / 53.0, 99.6 % |
 | 3 | PASS 15.3 / 78.6, 97.6 % | PASS 16.5 / 85.2, 95.1 % | PASS 15.5 / 78.6, 97.2 % | PASS 16.1 / 84.8, 95.9 % |
 | 4 | PASS 12.1 / 68.8, 97.7 % | PASS 9.3 / 58.0, 97.8 % | PASS 12.1 / 68.8, 97.7 % | PASS 9.3 / 58.0, 97.8 % |
-| 5 | PASS 14.8 / 74.9, 98.0 % | FAIL gross span, 15.1 / 69.5 | FAIL gross span, 15.0 / 74.9 | FAIL gross span, 14.5 / 56.0 |
-| 6 | PASS 11.5 / 52.3, 100 % | PASS 11.5 / 52.3, 100 % | PASS 11.5 / 52.3, 100 % | PASS 11.7 / 53.7, 99.4 % |
+| 5 | PASS 15.4 / 55.0, 99.5 % | PASS 15.1 / 59.1, 97.9 % | PASS 15.4 / 55.0, 99.5 % | PASS 14.7 / 42.7, 98.5 % |
+| 6 | PASS 11.6 / 52.3, 100 % | PASS 11.6 / 52.3, 100 % | PASS 11.6 / 52.3, 100 % | PASS 11.6 / 50.4, 100 % |
 | 7 | FAIL gross span, 13.4 / 80.6 | FAIL gross span, 11.8 / 73.7 | FAIL gross span, 13.4 / 80.6 | FAIL gross span, 12.8 / 64.8 |
 | Zorro | PASS 11.2 / 52.1, 100 % | PASS 11.2 / 52.0, 100 % | PASS 11.2 / 52.1, 100 % | PASS 11.2 / 52.0, 100 % |
 
-Coverage is 29–52 % per run, above the 25 % gate everywhere. Case 5 Full passes only because its 2 s
-sampling falls between the samples that catch the spot described in §5. That spot is the same in
-every case 5 mode.
+Coverage is 29–52 % per run, above the 25 % gate everywhere. Cases 1–4 and Zorro are identical to v3
+(within 3 ms); drift following changed only cases 5 and 6.
 
 Contact sheets in `contact/case_*.png` (local, not committed) confirm the matched frames by eye.
 They also exposed two errors the numbers had hidden: case 3's earlier crop/repeated-music lock, and
@@ -149,6 +149,8 @@ on the media.
 | 7 | Case 3 Remove unmatched: WinError 32. | A just-written partial file stayed briefly locked on Windows, and cleanup could mask the original error. | Retrying rename; cleanup never masks the error. | `test_frame_snap.py` |
 | 8 | Renders failed on very short pieces (time-stretch length error). | `atempo` on pieces of a few frames. | Context stretch (0.5 s either side, keep the exact middle); pieces under 0.2 s resampled; audio pieces under 0.1 s merged. | `test_trim_slivers.py` |
 | 9 | Zero-length reference at the outer edge; outer edges imprecise. | The edge was taken from 0.5 s samples. | `edge_frame` gives frame-accurate edges, with a clamp at the first sample. | `test_picture_timeline.py` |
+| 10a | Case 5, target 48.5–59 s: 0.22–0.26 s off for 7 s in every mode. | The target's picture runs 2–3 % slow inside one shot, then steps 0.13 s forward; one constant offset per section averages it away. | Drift following: the 25 fps grid proposes; a 50 fps decode of the span plus 5 s of context confirms it and supplies the curve; audio follows with a continuous speed change of at most 5 %; forward steps of 2+ frames become ordinary cuts; backward movement is never faster than the limit (no repeated audio); a run is kept only if it at least halves the measured error and makes no point more than 60 ms worse; never within 3 s of a cut to another matched section. | `Drift` (5 tests) |
+| 10b | A join with no picture evidence was placed at the left edge of its window. | `place_cut` returned the window start when no frame told the mappings apart. | Default to the gap centre (audio still decides inside the span). | `Drift` |
 
 ### Legacy audio-anchor engine (now the fallback) and shared code
 
@@ -167,48 +169,59 @@ on the media.
 
 No safety check was disabled or loosened, and no timing offsets or per-episode constants were
 introduced. All thresholds are similarity or score levels, or bounds derived from the evidence (gap
-length, frame grid). The unit suite has 179 tests, all passing on Windows.
+length, frame grid). The Python suite has 184 tests and the desktop suite 40, all passing on Windows.
 
-## 5. Unresolved: two spots where the target release is out of sync
+## 5. Unresolved
 
-All 14 remaining failures come from one spot in case 5 and one in case 7. In both, the target's own
-soundtrack runs continuously while its picture is re-timed against it. AutoSync's output keeps the
-target's own audio continuity there.
+### Case 7, target 1289.5–1296.5 s (all 8 failing runs)
 
-| | Case 5, target 48.5–55 s (start of main episode) | Case 7, target 1289.5–1296.5 s |
-| --- | --- | --- |
-| Picture | Runs 2–3 % slow for 7 s: offset 47.36 → 47.60 s, a gradual drift with no cut. | Drifts 0.28 s ahead over 3.5 s, holds, then snaps back within 0.5 s at a cut. Dark, low-detail shot. |
-| Target's own audio | Continuous at 47.56 s throughout (corr 0.5–0.86). | Continuous at 19.81 s throughout (corr 0.6–0.84). |
-| Delivered error | +0.22 to +0.26 s for about 6 s | −0.25 s for about 6 s |
-| Following the picture would need | About 3 % time-warp of 7 s of audio (feasible, see below). | Repeating 0.28 s of audio, which the rewind guard correctly blocks, or a 50 % slowdown for 0.5 s. |
+The target's picture drifts 0.28 s ahead over 3.5 s in a dark shot, holds, then snaps back within
+0.5 s. Its own Japanese soundtrack stays continuous throughout (constant offset, corr 0.6–0.84), so
+the target release itself is up to 0.28 s out of sync there. Following the picture would need 0.28 s
+of repeated audio (blocked by the rewind guard, correctly) or a 50 % slowdown for 0.5 s. Drift
+following rejects it: the snap-back cannot be followed within the speed limit, and a partial curve
+would lag the picture after the snap. AutoSync keeps the target soundtrack's continuity there.
+Delivered verdict: FAIL (gross span, −0.25 s for about 6 s).
 
-The engine represents timing as constant-offset sections joined by cuts, so a gradual drift inside a
-shot is averaged into the section offset. Possible general extension, not implemented: piecewise-linear
-"drift" sections. A drift section would be accepted only when the frame evidence shows a sustained
-monotone drift (≥ 0.12 s, slope ≤ 5 %, score gain over the constant offset). This would fix case 5.
-Case 7 would still need either an audible repeat or a strong warp, and keeping the target's own
-continuity there is arguably the right output. This is a product decision, so I have not changed it
-silently.
+### Evaluator limits
+
+* **Time-stretched audio.** The evaluator matches 4 s windows at the nominal speed ratio, so audio
+  played up to 5 % slower or faster is not recognised. Case 6 now follows a picture drift at
+  1026–1033 s that was confirmed on a 50 fps decode; one sample there reads "non-source audio"
+  instead of a timing value, so that span is not independently verified.
+* **Sampling.** At 2 s steps a short defect can fall between samples (in v2, case 2 Full missed a
+  replay that Main caught). Coverage is 29–52 %.
 
 ### Other limitations
 
 * **AI-assisted matching has no effect when both videos are present.** The picture timeline does not
-  use the AI models, which only help the legacy fallback. Standard and AI-assisted v3 results are
+  use the AI models, which only help the legacy fallback; Standard and AI-assisted results are
   identical run for run.
 * **The legacy fallback was not re-validated after v1.** With no target video, or with `--timing
   audio`, accuracy is the v1 level shown in §3, still tied to the target dub's own offset.
-* **Evaluator sampling.** At 2 s steps, a short defect can fall between samples. In v2, case 2 Full
-  missed the replay that Main caught, and case 5 Full misses its spot. Coverage is 29–52 %.
+* **Short displaced shots.** Case 1 has a 2.5 s shot at 197.6 s displaced by 0.35 s with sharp steps
+  on both sides. It is an edit, not a drift, so drift following correctly leaves it, but the global
+  solver does not split it either, and the evaluator's samples miss it. Not fixed.
 * **Case 7 roles.** Case 7 is a multi-audio target, so its reference stream is fixed to stream 0
   (Japanese).
 * **Runtime.** A complete Full target run takes 40–138 s per episode on this machine, timeline
-  included, with 4 runs in parallel.
+  included, with 4 runs in parallel; drift verification adds a few seconds where a candidate exists.
+
+## 5a. Desktop app
+
+* **Preview & Edit** (`dbf7abc`): a one-screen review workspace with a review list of every join and
+  flagged point (filters, checked marks, notes); side-by-side, overlay, difference and wipe picture
+  comparison; frame-accurate steps and nudges at the real frame rate; slow playback; play across a
+  join; an overview strip; Ctrl+scroll zoom; waveforms that draw as each track loads; autosave with a
+  restore prompt; and a shortcuts sheet. All editing operations and export are unchanged.
+* **Main window** (`2edbc0a`): one top bar, a files column and a job-settings column, "turned off"
+  cards instead of empty tabs, cleaned-up Jobs and Settings, and one run bar. One stylesheet replaces
+  seven layers of overrides. Job logic is unchanged.
 
 ## 6. Release recommendation
 
-Do not release yet. The constraint is that the full regression matrix must verify, and it is at 50 of
-64. To finish:
-1. Decide how to handle target picture drift (§5): implement drift sections (fixes case 5), or accept
-   both spots as target-release defects and record them in the regression expectations.
-2. Re-run the 64-run matrix on Windows with the final commit, plus the Linux CI unit suite.
-3. Then release from this branch.
+Do not release yet: the constraint is that the full regression matrix must verify, and it is at 56 of
+64. The remaining decision is case 7: record it in the regression expectations as a defect of the
+target release (its own soundtrack is equally out of sync there), or accept a short audio repeat at
+that snap-back. After that: re-run the 64-run matrix on Windows with the final commit, run the Linux
+CI suites, then release from this branch.
