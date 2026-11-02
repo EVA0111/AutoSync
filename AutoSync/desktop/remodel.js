@@ -79,3 +79,75 @@ window.autosync.onEvent(({type,data})=>{
 });
 const previousReset=resetProgress;resetProgress=function(){previousReset();$('job-rows').replaceChildren();$('jobs-empty').classList.remove('hidden');};
 applyRemodel();
+
+// ---------- Final layout ----------
+// One top bar; Audio/Subtitles share a files column and a job-settings column;
+// Jobs and Settings are full width; one run bar. Elements keep their ids, so
+// the logic in renderer/workspace/preferences/readiness/progress is unchanged.
+const jobsTab=nav.querySelector('[data-tab=jobs]');
+brand.after(nav);
+const jobsBadge=document.createElement('span');jobsBadge.id='jobs-badge';jobsBadge.className='tab-badge hidden';jobsTab.append(jobsBadge);
+const workGrid=document.createElement('div');workGrid.className='work-grid';
+const workMain=document.createElement('div');workMain.className='work-main';
+const workSide=document.createElement('aside');workSide.className='work-side';workSide.setAttribute('aria-label','Job settings');
+audioSection.before(workGrid);workGrid.append(workMain,workSide);workMain.append(audioSection,subSection,$('saved'));
+function sideCard(id,title,note){const c=document.createElement('section');c.className='card';c.id=id;const h=document.createElement('h3');h.textContent=title;c.append(h);if(note){const p=document.createElement('p');p.className='card-note';p.textContent=note;c.append(p);}workSide.append(c);return c;}
+const modeCard=sideCard('mode-card','Output');
+modeCard.append($('mode-section'));$('mode-section').querySelector('.modes').classList.remove('hidden');modeBar.classList.add('hidden');
+const methodCard=sideCard('method-card','Matching');methodCard.append(methodBox);methodBox.querySelector('label').textContent='Method';
+const outputCard=sideCard('output-card','Save to');outputCard.append($('destination-panel'));
+const tracksCard=sideCard('tracks-card','Audio tracks','Each file row has its own track menu; open this to edit the selected pair in detail.');
+tracksCard.append($('audio-tracks'));trackDetails.querySelector('summary').textContent='Tracks for the selected pair';
+$('destination-panel').querySelector('h2').remove();$('destination-panel').querySelector('p').remove();
+const advancedCard=sideCard('advanced-card','Advanced');
+const footNote=document.querySelector('.foot');workSide.append(footNote);
+// Pairing tools stay visible under the two lists.
+const pairBar=document.createElement('div');pairBar.className='pair-bar';
+pairBar.append($('pair-episodes'),$('clear-batch'),$('pair-status'));
+$('batch-panel').querySelector('.batch-columns').after(pairBar);
+pairDetails.querySelector('summary').textContent='Reorder rows';
+// "Turned off" cards instead of empty pages.
+function offCard(section,checkbox,what){
+ const c=document.createElement('div');c.className='off-card hidden';
+ const p=document.createElement('p');p.textContent=what+' syncing is turned off for this run.';
+ const b=document.createElement('button');b.className='primary';b.textContent='Turn on '+what.toLowerCase()+' syncing';
+ b.onclick=()=>{if(!running){$(checkbox).checked=true;$(checkbox).dispatchEvent(new Event('change'));}};
+ c.append(p,b);section.querySelector('.section-heading').after(c);return c;
+}
+const audioOff=offCard(audioSection,'enable-audio','Audio'),subOff=offCard(subSection,'enable-subtitles','Subtitle');
+// Settings: grouped cards; engine setup is always visible.
+const settings=$('settings-panel');
+function settingsGroup(title,note){const g=document.createElement('section');g.className='settings-group';const h=document.createElement('h3');h.textContent=title;g.append(h);if(note){const p=document.createElement('p');p.className='card-note';p.textContent=note;g.append(p);}settings.append(g);return g;}
+const featureGroup=settingsGroup('Features','Optional tools. Turned-off advanced options use their defaults.');
+featureGroup.append(...settings.querySelectorAll('.preference-row'));
+const folderGroup=settingsGroup('Folders');folderGroup.append($('report-fields'),$('temp-fields'));
+const setupDetails=$('setup-engine').closest('details');setupDetails.open=true;
+const engineGroup=settingsGroup('Engine & AI models',setupDetails.querySelector('p').textContent);
+engineGroup.append($('setup-engine').parentElement);setupDetails.remove();
+settings.querySelector('h2').textContent='Settings';settings.querySelector(':scope>p').remove();
+// Run bar: progress and next step on the left, actions on the right.
+const run=document.querySelector('.run');
+const runInfo=document.createElement('div');runInfo.className='run-info';
+const runActions=document.createElement('div');runActions.className='run-actions';
+runInfo.append($('job-progress'),setupCheck,$('status'));
+runActions.append($('analyze-label'),$('stop'),$('alignment-editor-open'),$('start'));
+run.replaceChildren(runInfo,runActions);
+setupCheck.classList.remove('panel');
+let jobResults=0,jobReviews=0;
+function showJobsBadge(){jobsBadge.textContent=jobReviews?jobReviews+' to review':String(jobResults);jobsBadge.classList.toggle('hidden',!jobResults);jobsBadge.classList.toggle('warn',!!jobReviews);}
+window.autosync.onEvent(({type,data})=>{if(type==='result'){jobResults++;if(data.status==='review')jobReviews++;showJobsBadge();}});
+// Progress and run status appear once a run has started; until then the next step is shown.
+const resetBeforeLayout=resetProgress;resetProgress=function(){resetBeforeLayout();jobResults=0;jobReviews=0;showJobsBadge();run.classList.add('has-run');};
+function applyLayout(){
+ const sync=workspace==='Sync jobs',saved=workspace==='Saved plan',audioTab=sync&&activeTab==='audio';
+ workGrid.classList.toggle('hidden',!(saved||(sync&&activeTab!=='jobs')));
+ for(const c of [modeCard,methodCard,tracksCard])c.classList.toggle('hidden',!audioTab||!$('enable-audio').checked);
+ // workspace.js re-homes the advanced panel for saved plans; keep it in its card otherwise.
+ if(!saved&&$('audio-advanced').parentElement!==advancedCard)advancedCard.append($('audio-advanced'));
+ advancedCard.classList.toggle('hidden',saved||!audioTab||$('audio-advanced').classList.contains('hidden'));
+ audioOff.classList.toggle('hidden',!audioTab||$('enable-audio').checked);
+ subOff.classList.toggle('hidden',!(sync&&activeTab==='subtitles')||$('enable-subtitles').checked);
+ document.body.dataset.view=saved?'plan':workspace==='Settings'?'settings':activeTab;
+}
+const applyRemodelBeforeLayout=applyRemodel;applyRemodel=function(){applyRemodelBeforeLayout();applyLayout();};
+applyRemodel();
