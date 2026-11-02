@@ -103,5 +103,12 @@ def build_command(values, job_type):
     if v['audio_only'] and mode:raise ValueError('Automatic main-episode detection requires picture matching. Disable Audio-only matching.')
     for key in ('analyze_only','audio_only','reference_fallback','remove_unmatched_video','allow_uncertain_cuts'):
         if v.get(key):cmd.append('--'+key.replace('_','-'))
+    censored=str(v.get('censored_dub','')).strip();subtitles=str(v.get('restored_subtitles','')).strip()
+    if censored:
+        if censored not in ('restore','cut'):raise ValueError('Unknown censored-dub choice.')
+        if v.get('remove_unmatched_video'):raise ValueError('Censored-dub "cut" already removes the scenes the dub removed; turn off Remove target sections with no source audio.')
+        cmd+=['--censored-dub',censored]
+        if subtitles:cmd+=['--restored-subtitles',check_file(subtitles,'Subtitles for restored scenes')]
+    elif subtitles:raise ValueError('Subtitles for restored scenes need the censored-dub option.')
     cmd+=['--video-codec',v['video_codec'],'--video-preset',v['video_preset']]
     return cmd,out

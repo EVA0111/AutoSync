@@ -55,7 +55,7 @@ function applyRemodel(){
  if(running)syncRemodelBusy();
 }
 function syncRemodelBusy(){
- for(const el of document.querySelectorAll('#settings-panel input,#settings-panel select,#settings-panel button,#mode-select,#mode-details,#pair-editor button,.inline-track'))el.disabled=running;
+ for(const el of document.querySelectorAll('#settings-panel input,#settings-panel select,#settings-panel button,#mode-select,#mode-details,#pair-editor button,.inline-track,#censored_dub,#censor-fields input,#censor-fields button'))el.disabled=running;
 }
 async function addInlineTrack(row,side,file){
  const select=document.createElement('select');select.className='inline-track';select.setAttribute('aria-label',side==='source'?'Source audio track':'Target reference audio');select.add(new Option('Detecting tracks…','0'));select.disabled=true;row.append(select);select.onclick=e=>e.stopPropagation();select.onkeydown=e=>e.stopPropagation();
@@ -95,6 +95,25 @@ function sideCard(id,title,note){const c=document.createElement('section');c.cla
 const modeCard=sideCard('mode-card','Output');
 modeCard.append($('mode-section'));$('mode-section').querySelector('.modes').classList.remove('hidden');modeBar.classList.add('hidden');
 const methodCard=sideCard('method-card','Matching');methodCard.append(methodBox);methodBox.querySelector('label').textContent='Method';
+// Censored or re-edited dubs (e.g. an old Arabic dub of a Japanese original).
+const censorCard=sideCard('censor-card','Censored or edited dub');
+censorCard.insertAdjacentHTML('beforeend','<label class="field-stack" for="censored_dub">When the dub removed scenes<select id="censored_dub">'+
+ '<option value="">Off (the source is complete)</option>'+
+ '<option value="restore">Restore with the original audio</option>'+
+ '<option value="cut">Cut from the video</option></select></label>'+
+ '<p class="card-note" id="censor-help">Lists every scene the dub removed or re-cut in the report and in Preview &amp; Edit, where you can change each one.</p>'+
+ '<div id="censor-fields" class="hidden"></div>');
+fileField('censor-fields',['restored_subtitles','Subtitles for restored scenes (optional)','subtitle','Original-version subtitles: lines inside restored scenes are saved separately']);
+$('censored_dub').onchange=()=>{
+ const v=$('censored_dub').value;$('censor-fields').classList.toggle('hidden',v!=='restore');
+ if(v!=='restore')$('restored_subtitles').value='';
+ $('censor-help').textContent=v==='restore'?'Removed scenes keep the original picture and play the original audio, matched in loudness to the dub. Re-cut spots are listed for review.':
+  v==='cut'?'Removed scenes are cut from the exported video, as in the dub. Change any scene in Preview & Edit.':
+  'Lists every scene the dub removed or re-cut in the report and in Preview & Edit, where you can change each one.';
+ if(v&&$('remove_unmatched_video').checked){$('remove_unmatched_video').checked=false;}
+ refreshReadiness();
+};
+$('remove_unmatched_video').addEventListener('change',()=>{if($('remove_unmatched_video').checked&&$('censored_dub').value){$('censored_dub').value='';$('censored_dub').onchange();}});
 const outputCard=sideCard('output-card','Save to');outputCard.append($('destination-panel'));
 const tracksCard=sideCard('tracks-card','Audio tracks','Each file row has its own track menu; open this to edit the selected pair in detail.');
 tracksCard.append($('audio-tracks'));trackDetails.querySelector('summary').textContent='Tracks for the selected pair';
@@ -141,7 +160,7 @@ const resetBeforeLayout=resetProgress;resetProgress=function(){resetBeforeLayout
 function applyLayout(){
  const sync=workspace==='Sync jobs',saved=workspace==='Saved plan',audioTab=sync&&activeTab==='audio';
  workGrid.classList.toggle('hidden',!(saved||(sync&&activeTab!=='jobs')));
- for(const c of [modeCard,methodCard,tracksCard])c.classList.toggle('hidden',!audioTab||!$('enable-audio').checked);
+ for(const c of [modeCard,methodCard,censorCard,tracksCard])c.classList.toggle('hidden',!audioTab||!$('enable-audio').checked);
  // workspace.js re-homes the advanced panel for saved plans; keep it in its card otherwise.
  if(!saved&&$('audio-advanced').parentElement!==advancedCard)advancedCard.append($('audio-advanced'));
  advancedCard.classList.toggle('hidden',saved||!audioTab||$('audio-advanced').classList.contains('hidden'));

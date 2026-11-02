@@ -207,6 +207,15 @@ function draw(){
    ctx.fillStyle='#21506f';ctx.fillRect(xFor(0)+1,y+2,Math.max(1,xFor(plan.duration)-xFor(0)-2),inner);
    ctx.strokeStyle='#5fa9d8';ctx.strokeRect(xFor(0)+1,y+2,Math.max(1,xFor(plan.duration)-xFor(0)-2),inner);
    ctx.fillStyle='#d6eafd';ctx.font='12px Segoe UI';ctx.fillText('Target picture (locked · audio edits never move it)',Math.max(left+6,xFor(0)+6),y+16);
+   // Censored scenes marked "cut" leave the exported video.
+   for(const s of segments){
+    if(s.censored_action!=='cut')continue;
+    const a=xFor(s.target_start),b=xFor(s.target_end);
+    ctx.fillStyle='rgba(240,120,110,.35)';ctx.fillRect(a,y+2,b-a,inner);
+    ctx.strokeStyle='rgba(255,170,160,.6)';ctx.lineWidth=1;
+    for(let x=a-inner;x<b;x+=8){const lo=Math.max(0,a-x),hi=Math.min(inner,b-x);if(hi<=lo)continue;ctx.beginPath();ctx.moveTo(x+lo,y+2+lo);ctx.lineTo(x+hi,y+2+hi);ctx.stroke();}
+    if(b-a>60){ctx.fillStyle='#ffd6d0';ctx.font='11px Segoe UI';ctx.fillText('cut on export',a+5,y+inner-6);}
+   }
    for(const k of plan.video_edits?.kept||[]){ctx.strokeStyle='#9ccce8';ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(xFor(k.output_start),y+20);ctx.lineTo(xFor(k.output_start),y+rowH-2);ctx.stroke();ctx.setLineDash([]);}
    ctx.restore();continue;
   }
@@ -707,11 +716,26 @@ const issueKey=t=>(Math.round(t*100)/100).toFixed(2);
 function buildIssues(){
  if(!plan)return;
  const items=[];
+ if(plan.censorship){
+  // Censored / re-edited dub: scenes the dub removed (each restore or cut) and dub-only material.
+  segments.forEach((s,i)=>{
+   if(!['restore','cut'].includes(s.censored_action)||s.censored_outer)return;
+   const len=s.target_end-s.target_start;
+   items.push({t:s.target_start,end:s.target_end,segment:i,kind:'censor',label:s.censored_action==='cut'?'Removed · cut':'Removed · restored',
+    reason:'The dub removed this '+len.toFixed(1)+' s scene. '+(s.censored_action==='cut'?'It is cut from the exported video.':'It keeps the original picture and audio.'),confidence:''});
+  });
+  segments.forEach((s,i)=>{
+   const n=segments[i+1];if(s.kind!=='audio'||n?.kind!=='audio')return;
+   const skip=n.source_start-(s.source_start+(s.target_end-s.target_start)*s.speed);
+   if(skip>.25)items.push({t:s.target_end,kind:'dubonly',label:'Dub-only material',reason:'The dub has '+skip.toFixed(1)+' s of footage the original lacks (re-cut or extended scene); its audio is skipped here.',confidence:''});
+  });
+ }
  for(const r of plan.review||[]){
   const t=Number(r.splice??((Number(r.start)+Number(r.end))/2));
   if(!Number.isFinite(t)||t<0||t>plan.duration)continue;
   const flagged=r.confidence!=='supported'&&r.confidence!=='manual'||/uncertain|review|fallback|rewind/i.test(r.reason||'');
   const insert=/target-only|insert|target audio used/i.test(r.reason||'');
+  if(plan.censorship&&items.some(x=>x.kind==='censor'&&Math.abs(x.t-t)<.06))continue;
   items.push({t,kind:flagged?'flag':insert?'insert':'join',label:flagged?'Needs review':insert?'Target footage':'Join',reason:r.reason||'',confidence:r.confidence||''});
  }
  for(const s of segments.slice(1)){
@@ -724,7 +748,7 @@ function buildIssues(){
  renderIssues();
 }
 function visibleIssues(){
- return issueItems.filter(x=>issueFilter==='all'||(issueFilter==='flagged'?x.kind==='flag':!reviewed.has(x.key)));
+ return issueItems.filter(x=>issueFilter==='all'||(issueFilter==='flagged'?x.kind==='flag':issueFilter==='censor'?['censor','dubonly'].includes(x.kind):!reviewed.has(x.key)));
 }
 function renderIssues(){
  const list=$('issue-list');list.textContent='';
@@ -750,13 +774,17 @@ function renderIssues(){
  chip.className='chip '+(openFlags?'warn':'ok');
  chip.textContent=openFlags?openFlags+' flagged to check':flagged.length?'All flagged points checked':issueItems.length+' joins';
 }
-function updateCurrentIssue(){
+function updateCurrentIssue(force=false){
+ const inside=issueItems.find(x=>x.kind==='censor'&&playhead>=x.t-1e-3&&playhead<x.end);
  const near=issueItems.reduce((best,x)=>Math.abs(x.t-playhead)<Math.abs((best?.t??1e9)-playhead)?x:best,null);
- const now=near&&Math.abs(near.t-playhead)<=Math.max(.25,2*frame)?near:null;
- if(now?.key===currentIssue?.key)return;
+ const now=inside||(near&&Math.abs(near.t-playhead)<=Math.max(.25,2*frame)?near:null);
+ if(!force&&now?.key===currentIssue?.key&&now?.label===currentIssue?.label)return;
  currentIssue=now;
  document.querySelectorAll('#issue-list li').forEach(li=>li.classList.toggle('current',li.dataset.key===now?.key));
  const note=$('issue-note');
+  const scene=now?.kind==='censor'?segments[now.segment]:null;
+ $('censor-actions').hidden=!scene;
+ if(scene){$('censor-restore').classList.toggle('on',scene.censored_action==='restore');$('censor-cut').classList.toggle('on',scene.censored_action==='cut');}
  if(!now){$('issue-detail').textContent='No review point at the playhead. Use J / L or click the list.';note.value='';note.disabled=true;return;}
  $('issue-detail').textContent=now.label+' at '+trimTime(now.t)+(now.confidence?' ('+now.confidence+')':'')+'. '+now.reason;
  note.disabled=false;note.value=notes[now.key]||'';
@@ -791,6 +819,15 @@ document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
 });
 $('issue-note').oninput=()=>{if(!currentIssue)return;const v=$('issue-note').value.trim();if(v)notes[currentIssue.key]=v;else delete notes[currentIssue.key];autosave();};
 $('issue-note').onchange=renderIssues;
+// Restore or cut the censored scene at the playhead (undoable; saved into the plan).
+function censorAction(action){
+ const item=currentIssue;if(item?.kind!=='censor')return;
+ const s=segments[item.segment];if(!s||s.censored_action===action)return;
+ saveHistory();s.censored_action=action;
+ setTimeout(()=>updateCurrentIssue(true),0);
+ report(action==='cut'?'This scene will be cut from the exported video, as in the dub.':'This scene keeps the original picture and audio.');
+}
+$('censor-restore').onclick=()=>censorAction('restore');$('censor-cut').onclick=()=>censorAction('cut');
 $('previous-issue').onclick=()=>jumpReview(-1);
 $('next-issue').onclick=()=>jumpReview(1);
 $('mark-reviewed').onclick=markReviewed;
@@ -1041,6 +1078,7 @@ window.addEventListener('resize',draw);
     $('restore-no').onclick=()=>{$('restore-banner').hidden=true;store.set(autosaveKey(),{segments:null,reviewed:[...reviewed],notes,at:Date.now()});report('Discarded the earlier unsaved edits.');};
    }
   }
+  document.querySelector('[data-filter=censor]').hidden=!plan.censorship;
   buildIssues();
   setupVideos(data.media);
   refreshMarkLabels();

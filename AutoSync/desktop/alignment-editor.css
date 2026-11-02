@@ -173,3 +173,9 @@ dialog .small-note{margin-top:12px}
 
 @media (max-width:1280px){#workspace{--left:230px;--right:270px}.legend{display:none}}
 @media (max-width:1050px){#workspace{--left:200px;--right:250px}}
+
+.censor-actions{display:flex;flex-direction:column;gap:5px;padding:8px 10px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.censor-actions .segmented button.on{background:#5a2d2a;color:#fff}
+.censor-actions .segmented button#censor-restore.on{background:#1f4d47}
+#issue-list li.censor .dot{background:#f0786e}
+#issue-list li.dubonly .dot{background:#e8c07a}

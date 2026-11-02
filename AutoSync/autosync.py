@@ -248,6 +248,60 @@ def requires_explicit_reference_fallback(segments):
     return any(s['kind']=='reference' and not s.get('verified_insert',False) for s in segments)
 
 
+def censored_render_plan(plan,out):
+    """The plan to render: scenes a censored dub removed and marked "cut" are removed."""
+    import censorship
+    if not plan.get('censorship') or plan.get('video_edits') or not censorship.needs_cut(plan):return plan
+    from video_edits import remove_missing
+    edited=remove_missing(plan)
+    (Path(out)/'edited_plan.json').write_text(json.dumps(edited,indent=2),encoding='utf-8')
+    (Path(out)/'video_edits.json').write_text(json.dumps(edited['video_edits'],indent=2),encoding='utf-8')
+    return edited
+
+def restored_subtitle_file(subtitles,rendered,out):
+    """restored_scenes.srt for the scenes restored with the original audio."""
+    import censorship
+    shift=rendered.get('main_trim',{}).get('target_start',0.)+rendered.get('input_trims',{}).get('target',{}).get('start',0.)
+    path,count=censorship.restored_subtitles(subtitles,rendered,out,shift)
+    say(f'Saved {path}: {count} subtitle line(s) inside restored scenes.')
+
+def language_switch(segments,j):
+    """The join before segment j switches between source (dub) and target audio."""
+    return (segments[j-1]['kind']=='audio')!=(segments[j]['kind']=='audio')
+
+def switch_gains(plan,pcm,audio,stream,ref,refstream,td,context=3.):
+    """Gain for each restored censored scene: dub loudness / target loudness nearby.
+
+    Both are measured on the same output seconds just before and after the
+    scene (up to 3 s each side), so the comparison is the two soundtracks of
+    the same surrounding picture (case 3: the Japanese original is ~17 dB
+    quieter than the Arabic dub). Clamped to +-20 dB; silence gives no gain.
+    """
+    segs=plan['segments'];gains={}
+    def energy(path,track,start,dur):
+        if dur<=.05 or start<0:return 0.,0
+        tmp=td/'level.f32'
+        try:pcm.cut(path,track,start,dur,tmp)
+        except RuntimeError:return 0.,0
+        x=np.fromfile(tmp,np.float32);tmp.unlink()
+        return float(np.sum(x.astype(np.float64)**2)),len(x)
+    for i,s in enumerate(segs):
+        if s['kind']!='reference' or s.get('censored_action')!='restore' or s.get('censored_outer'):continue
+        dub=[0.,0];orig=[0.,0]
+        for j,side in ((i-1,'before'),(i+1,'after')):
+            if not 0<=j<len(segs) or segs[j]['kind']!='audio':continue
+            n=segs[j];a=max(n['target_start'],n['target_end']-context) if side=='before' else n['target_start']
+            b=n['target_end'] if side=='before' else min(n['target_end'],n['target_start']+context)
+            # Target time of this window, through any cut-video timeline (as render does).
+            target_at=n.get('reference_target_start',n['target_start'])+(a-n['target_start'])-plan.get('reference_shift',0)
+            for acc,args in ((dub,(audio,stream,n['source_start']+(a-n['target_start'])*n['speed'],(b-a)*n['speed'])),
+                             (orig,(ref,refstream,target_at,b-a))):
+                e,c=energy(*args);acc[0]+=e;acc[1]+=c
+        if dub[1] and orig[1] and orig[0]>1e-9*orig[1] and dub[0]>1e-9*dub[1]:
+            g=float(np.sqrt((dub[0]/dub[1])/(orig[0]/orig[1])))
+            gains[i]=float(np.clip(g,.1,10.))
+    return gains
+
 def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
     rewinds=source_rewinds(plan.get('segments',[]))
     if rewinds and not allow_uncertain_cuts:
@@ -292,6 +346,12 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
         td=Path(td);parts=[]
         from pcm_audio import PCMCache
         pcm=PCMCache(td,ch)
+        # Censored dubs switch language at restored scenes: match the restored
+        # target audio's loudness to the dub around it and soften the switch.
+        smooth=bool(plan.get('censorship',{}).get('smooth'))
+        gains=switch_gains(plan,pcm,audio,stream,ref,refstream,td) if smooth else {}
+        for i,g in gains.items():
+            say(f"Restored scene {plan['segments'][i]['target_start']:.2f}s: original audio {20*np.log10(g):+.1f} dB to match the dub")
         for i,s in enumerate(plan['segments']):
             start,end=s['target_start'],s['target_end'];dur=end-start
             if dur<=0:raise RuntimeError('Invalid segment duration.')
@@ -342,10 +402,16 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
                 # open map would replace the real error with a cleanup failure.
                 del x
             if len(fixed)!=n:raise RuntimeError('Exact duration correction failed.')
-            # Five-millisecond fades only at actual segment joins.
-            fade=min(240,n//2)
-            if i>0:fixed[:fade]*=np.linspace(0,1,fade,dtype=np.float32)[:,None]
-            if i<len(plan['segments'])-1:fixed[-fade:]*=np.linspace(1,0,fade,dtype=np.float32)[:,None]
+            if i in gains:
+                fixed*=np.float32(gains[i])
+                peak=float(np.max(np.abs(fixed))) if len(fixed) else 0.
+                if peak>.98:fixed*=np.float32(.98/peak)   # never clip a boosted scene
+            # Five-millisecond fades at segment joins; 25 ms where a censored dub
+            # switches between dub and original audio.
+            segs=plan['segments']
+            def fade_at(j):return min((1200 if smooth and language_switch(segs,j) else 240),n//2)
+            if i>0:f=fade_at(i);fixed[:f]*=np.linspace(0,1,f,dtype=np.float32)[:,None]
+            if i<len(segs)-1:f=fade_at(i+1);fixed[-f:]*=np.linspace(1,0,f,dtype=np.float32)[:,None]
             fixed.astype(np.float32).tofile(dst);del fixed
             raw.unlink();stretched.unlink();say(f'Rendered {i+1}/{len(plan["segments"])} sections')
         joined=td/'joined.f32'
@@ -645,6 +711,9 @@ def _run_job(job,args):
         if args.main_only:original_anchors[:,0]+=a
         plan=manual_ranges.apply(plan,source_bounds,original_anchors)
         segments=plan['segments'];review=plan['review']
+    if getattr(args,'censored_dub',None):
+        import censorship
+        plan=censorship.annotate(plan,args.censored_dub);segments=plan['segments'];review=plan['review']
     if getattr(args,'remove_unmatched_video',False):
         from video_edits import remove_missing,map_anchors,protect_opening
         plan=protect_opening(plan,sf,ref,sl)
@@ -669,13 +738,23 @@ def _run_job(job,args):
     for item in review:lines.append(f"{item['start']:.2f}–{item['end']:.2f}s: {item['reason']}")
     if unresolved_cuts(plan):lines.append('DEFAULT EXPORT BLOCKED: unresolved source-only cut(s). Picture/audio evidence did not locate the join reliably.')
     if source_rewinds(segments):lines.append('DEFAULT EXPORT BLOCKED: backwards source-audio joins would repeat earlier audio. Open Preview & Edit to correct or explicitly override.')
+    if plan.get('censorship'):
+        import censorship
+        lines=censorship.report(plan)+lines;censorship.write_report(plan,out)
     (out/'report.txt').write_text('\n'.join(lines),encoding='utf-8');say('\n'.join(lines))
     if not args.analyze_only:
-        output=render(plan,out,args.reference_fallback,args.allow_uncertain_cuts)
-        if should_verify_export(method,ref,plan):verify_export(output,ref,anchors,out)
-        if plan.get('video_edits'):
+        # plan.json keeps the full timeline (Preview & Edit can change any scene);
+        # scenes marked "cut" are removed from a rendered copy.
+        rendered,checks=censored_render_plan(plan,out),anchors
+        if rendered is not plan:
+            from video_edits import map_anchors
+            checks=map_anchors(anchors,rendered)
+        output=render(rendered,out,args.reference_fallback,args.allow_uncertain_cuts)
+        if should_verify_export(method,ref,rendered):verify_export(output,ref,checks,out)
+        if plan.get('censorship') and args.restored_subtitles:restored_subtitle_file(args.restored_subtitles,rendered,out)
+        if rendered.get('video_edits'):
             from video_edits import export_video
-            video=export_video(plan,output,out,args.video_codec,args.video_preset);say(f'Saved {video}. Use the synced FLAC with this edited video.')
+            video=export_video(rendered,output,out,args.video_codec,args.video_preset);say(f'Saved {video}. Use the synced FLAC with this edited video.')
         elif args.main_only:
             from main_episode import export_video
             video=export_video(plan,output,out,args.video_codec,args.video_preset);say(f'Saved {video}. Synced FLAC matches this trimmed video, not the original target.')
@@ -746,6 +825,8 @@ def main():
     p.add_argument('--timing',choices=['picture','audio'],default='picture',help='picture: map target pictures to source pictures (default when both videos are given); audio: legacy cross-soundtrack anchors')
     p.add_argument('--sync-method',choices=['standard','ai_assisted'],default='standard',help='Optional pretrained AST audio features and DINOv2 visual rescue; install AI Sync in Settings first')
     p.add_argument('--remove-unmatched-video',action='store_true',help='Remove target sections with no source audio and export edited video + FLAC')
+    p.add_argument('--censored-dub',choices=('restore','cut'),help='Source is a censored or re-edited dub: report every scene it removed and either restore it with the original audio or cut it from the video (per scene in Preview & Edit)')
+    p.add_argument('--restored-subtitles',help='Subtitles for the original (target) version: write restored_scenes.srt with the lines inside restored scenes')
     p.add_argument('--reference-fallback',action='store_true',help='Use target soundtrack only for missing source bounds; may switch languages')
     p.add_argument('--cut-times',default='',help='Known target join times in seconds, comma separated; applies to detected cuts')
     p.add_argument('--allow-uncertain-cuts',action='store_true',help='Explicitly permit export with guessed source-only cut positions')
@@ -753,6 +834,8 @@ def main():
     p.add_argument('--batch-picker',action='store_true');p.add_argument('--render-plan')
     args=p.parse_args()
     if args.reference_fallback and args.remove_unmatched_video:p.error('Choose reference fallback or remove unmatched video, not both.')
+    if args.censored_dub and args.remove_unmatched_video:p.error('Censored-dub "cut" already removes the scenes the dub removed; do not combine it with remove unmatched video.')
+    if args.restored_subtitles and not args.censored_dub and not args.render_plan:p.error('--restored-subtitles needs --censored-dub.')
     if (args.main_start is not None or args.main_end is not None) and not (args.main_only or args.keep_target_op_ed):p.error('--main-start/--main-end require --main-only or --keep-target-op-ed')
     vc.binary('ffmpeg');vc.binary('ffprobe')
     if args.render_plan:
@@ -761,7 +844,9 @@ def main():
             from video_edits import remove_missing
             plan=remove_missing(plan)
             (path.parent/'edited_plan.json').write_text(json.dumps(plan,indent=2),encoding='utf-8')
+        plan=censored_render_plan(plan,path.parent)
         audio=render(plan,path.parent,args.reference_fallback,args.allow_uncertain_cuts)
+        if plan.get('censorship') and args.restored_subtitles:restored_subtitle_file(args.restored_subtitles,plan,path.parent)
         if plan.get('video_edits'):
             from video_edits import export_video
             export_video(plan,audio,path.parent,args.video_codec,args.video_preset)

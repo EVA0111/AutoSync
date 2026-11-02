@@ -23,9 +23,11 @@
    <button data-filter="all" class="on" role="radio" aria-checked="true">All</button>
    <button data-filter="flagged" role="radio" aria-checked="false" title="Only points the analysis marked as uncertain or worth a look">Flagged</button>
    <button data-filter="open" role="radio" aria-checked="false" title="Only points not yet marked as checked">Not checked</button>
+   <button data-filter="censor" role="radio" aria-checked="false" title="Scenes a censored or re-edited dub removed or re-cut" hidden>Censorship</button>
   </div>
   <div class="progress"><div id="review-bar"><span></span></div><span id="review-count" role="status"></span></div>
   <ol id="issue-list" aria-label="Review points"></ol>
+  <div id="censor-actions" class="censor-actions" hidden><span>This scene:</span><div class="segmented wide"><button id="censor-restore" title="Keep this scene with the original audio">Restore (original audio)</button><button id="censor-cut" title="Remove this scene from the exported video, as the dub did">Cut from video</button></div></div>
   <div class="panel-foot"><button id="previous-issue" title="Previous review point · J">◀ Prev</button><button id="mark-reviewed" title="Mark the current point as checked · R">✓ Checked</button><button id="next-issue" title="Next review point · L">Next ▶</button></div>
  </aside>
  <button id="show-issues" class="edge-tab left" title="Show the review list" hidden>Review ⟩</button>

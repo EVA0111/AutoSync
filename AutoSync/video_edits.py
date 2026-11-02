@@ -105,10 +105,11 @@ def remove_missing(plan):
     shift=p.get('main_trim',{}).get('target_start',0.)+p.get('input_trims',{}).get('target',{}).get('start',0.)
     for section in p['segments']:
         a,b=section['target_start'],section['target_end']
-        if section['kind'] in ('reference','verified_gap'):
+        # Censored-dub scenes marked "restore" keep their picture with target audio.
+        if section['kind'] in ('reference','verified_gap') and section.get('censored_action')!='restore':
             removed.append(dict(start=a,end=b,reason=section.get('reason','No corresponding source audio')))
             continue
-        if section['kind'] not in ('audio','target_outer'):raise ValueError('Unknown segment kind.')
+        if section['kind'] not in ('audio','target_outer','reference','verified_gap'):raise ValueError('Unknown segment kind.')
         kept.append(dict(start=a,end=b,output_start=cursor,original_start=a+shift,original_end=b+shift))
         segments.append(dict(section,target_start=cursor,target_end=cursor+b-a,reference_target_start=a))
         cursor+=b-a
