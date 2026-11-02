@@ -48,8 +48,19 @@ class PartialExport(unittest.TestCase):
                     raise PermissionError(32, 'in use')
                 return real(self, target)
             with mock.patch.object(Path, 'replace', flaky):
-                vc.finish_partial(tmp, dest, wait=0)
+                vc.finish_partial(tmp, dest, sleep=lambda s: None)
             self.assertTrue(dest.exists()); self.assertEqual(len(calls), 3)
+
+    def test_long_lock_falls_back_to_copying(self):
+        # Zorro remove-unmatched: the rename was refused for more than 5 s.
+        with tempfile.TemporaryDirectory() as d:
+            tmp, dest = Path(d) / 'a.partial.mkv', Path(d) / 'a.mkv'
+            tmp.write_bytes(b'video')
+            def locked(self, target):
+                raise PermissionError(32, 'in use')
+            with mock.patch.object(Path, 'replace', locked):
+                vc.finish_partial(tmp, dest, sleep=lambda s: None)
+            self.assertEqual(dest.read_bytes(), b'video')
 
     def test_cleanup_never_masks_the_original_error(self):
         with mock.patch.object(Path, 'unlink', side_effect=PermissionError(32, 'in use')):
