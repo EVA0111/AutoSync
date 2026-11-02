@@ -1061,7 +1061,7 @@ window.addEventListener('resize',draw);
   const data=await window.alignment.getPlan();
   plan=data.plan;planFile=data.file;segments=clone(plan.segments);frame=1/(Number(data.fps)||25);videoDims=data.videos||{};
   $('project-path').textContent=data.file;$('project-path').title=data.file;
-  document.title='AutoSync v1.2.5 · Preview & Edit · '+String(data.file).split(/[\\/]/).slice(-2).join('/');
+  document.title='AutoSync v1.3.0 · Preview & Edit · '+String(data.file).split(/[\\/]/).slice(-2).join('/');
   if(!segments.length)throw Error('No editable clips in the selected plan.');
   const prefs={view:store.get('autosync-editor-view'),left:store.get('autosync-editor-left'),right:store.get('autosync-editor-right'),h:store.get('autosync-editor-timeline')};
   if(prefs.view)setView(prefs.view);

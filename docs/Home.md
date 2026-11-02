@@ -1,45 +1,50 @@
-# AutoSync Wiki — v1.2.5
+# AutoSync Wiki — v1.3.0
 
-Welcome! This is the beginner-friendly documentation for **AutoSync**, a Windows program that helps line up audio (and, separately, subtitles) between two versions of a video.
+**AutoSync** is a Windows program that takes the audio from one version of a video and fits it to the picture of another version, even when the two releases are edited differently. It can also sync subtitles.
 
-**No coding is required** if you download the Windows portable release. Start with **Standard** matching, not the optional AI mode.
+No coding is needed: download the Windows portable release, unzip it and run **AutoSync.exe**.
 
-## Start here
+## Pages
 
-- **[Getting started: your first audio sync](Getting-Started.md)** — download, unzip, add videos, choose audio tracks, start a sync, and find the result.
-- **[AI-assisted matching (optional)](AI-Assisted-Matching.md)** — install the additional models, switch matching methods, and understand the limitations.
-- [Subtitle syncing documentation](../AutoSync/README_SUBTITLES.md) — a separate workflow for subtitles.
-- [Download AutoSync v1.2.5](https://github.com/EVA0111/AutoSync/releases/tag/v1.2.5)
+| Page | Read it when |
+| --- | --- |
+| **[Getting started](Getting-Started.md)** | You are new: download, add two videos, choose tracks, sync, find the result. |
+| **[Preview & Edit](Preview-and-Edit.md)** | You want to check a result, listen across joins and fix anything by hand. |
+| **[Censored and edited dubs](Censored-and-Edited-Dubs.md)** | Your source is an old dub that removed or re-cut scenes. |
+| **[How syncing works](How-Syncing-Works.md)** | You want to know what AutoSync does, how accurate it is and where it can go wrong. |
+| **[AI-assisted matching](AI-Assisted-Matching.md)** | Optional extra models. Not needed for normal use. |
+| **[Troubleshooting](Troubleshooting.md)** | Something did not work. |
+| [Subtitle syncing](../AutoSync/README_SUBTITLES.md) | A separate workflow for subtitles. |
+
+- [Download AutoSync v1.3.0](https://github.com/EVA0111/AutoSync/releases/tag/v1.3.0)
 - [Ask a question / report a problem](https://github.com/EVA0111/AutoSync/issues)
 
-## What do “Source” and “Target” mean?
+## Source and target
 
 | Term | Meaning |
 | --- | --- |
-| **Source** | The video containing the **audio you want to use**. |
-| **Target** | The video whose **picture/timing you want to match**. |
-| **Output** | A new synchronized audio file (and, in certain modes, an edited video). Your original files are not changed. |
+| **Source** | The video with the **audio you want** (for example an old DVD with your language). |
+| **Target** | The video whose **picture you want to keep** (for example a newer Blu-ray). |
+| **Output** | A new synced audio file (FLAC), and in some modes an edited video. Your original files are never changed. |
 
-For example, if you want audio from DVD version A to fit Blu-ray version B, add DVD A under **Source** and Blu-ray B under **Target**. Choose the correct language/audio track for each.
+Keep your videos wherever you like; you do not need special folders.
 
-**You do not need to make special “source” or “target” folders inside AutoSync.** Keep your media wherever you like and select them from the program.
+## What's new in v1.3.0
 
-## Improvements in v1.2.5
+- **Much more accurate.** AutoSync now matches the source audio to the target's *picture*. Earlier versions followed the target's own dub track, which is often 90–250 ms off its own picture. Checked on 8 real episode pairs in every mode: typical error 9–17 ms, 64 of 64 runs pass. See [How syncing works](How-Syncing-Works.md).
+- **Handles messy edits:** re-cut and reordered shots, added or removed scenes, frozen shots held longer, slow picture drift, different playback speeds.
+- **Censored or edited dubs:** restore or cut every scene a dub removed, scene by scene. See [Censored and edited dubs](Censored-and-Edited-Dubs.md).
+- **Redesigned Preview & Edit:** everything on one screen with a review list of every join. See [Preview & Edit](Preview-and-Edit.md).
+- **Cleaner main window:** your files on the left, the job settings on the right, one bar at the bottom that tells you the next step.
 
-- **More reliable handling of different openings and endings.** Full-target synchronization can recover verified shared source opening music, using either Standard or AI-assisted matching.
-- **Safer handling of eyecatches and title cards.** Target-only material and suspicious backward jumps in source audio are checked conservatively; uncertain edits may be flagged for review.
-- **Custom temporary folder.** By default, temporary processing files go into `AutoSync Temp` beside the target video. Choose another temporary location in **Settings → Temporary work folder (optional)** if needed. Per-run scratch files are normally cleaned up after a successful or failed job.
-- **AI checks and review warnings.** AI cache timestamps are validated, and rewind-related review warnings remain stable after plan edits.
+## Which output mode?
 
-These improvements do not guarantee a correct sync for every pair. Listen across edits and review flagged sections.
-
-## Which sync mode should I use?
-
-| Sync mode | When to use it |
+| Output | Use it when |
 | --- | --- |
-| **Full target audio** | Best for a first attempt. Sync audio to the entire target video and export a FLAC audio file. |
-| **Main episode only** | Remove differing opening and ending material; export a video plus matching FLAC. Reliable boundaries may be required. |
-| **Keep opening & ending** | Preserve the target opening/ending sound while synchronizing the main part. Useful for editions with different intros/outros. |
+| **Full target audio** | Best first try. Syncs audio to the whole target; exports FLAC. |
+| **Main episode only** | The releases have different openings/endings and you want only the episode; exports video + FLAC. |
+| **Keep opening & ending** | Keep the target's own opening/ending audio and sync the episode in between. |
 
-**Matching method** is a separate choice. **Standard (default)** requires no optional AI installation. **AI-assisted (experimental)** requires extra downloads.
+**Matching method** is a separate choice. **Standard** is the default and needs nothing extra; **AI-assisted** is optional (see its page).
 
+**Always listen across flagged joins before using a result.** AutoSync marks anything it is unsure about.

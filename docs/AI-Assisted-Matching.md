@@ -1,56 +1,27 @@
-# AI-assisted matching — optional (v1.2.5)
+# AI-assisted matching — optional (v1.3.0)
 
-**For a first sync, use Standard instead.** AI-assisted matching is experimental, takes additional installation space and time, and does not guarantee better alignment.
+**You do not need AI matching.** In v1.3.0, when both videos are present AutoSync matches by picture, and that engine gives the same result with **Standard** or **AI-assisted** selected (measured on all 64 test runs). AI-assisted matching only helps the older audio-matching engine, which is used when a video is missing.
 
-AI-assisted matching is **not an output mode**. You still choose **Full target audio**, **Main episode only**, or **Keep opening & ending** separately.
+AI-assisted is a **matching method**, not an output mode: you still choose **Full target audio**, **Main episode only** or **Keep opening & ending** separately.
 
 ## Install the AI models
 
-1. Extract and open **AutoSync.exe** from the [Windows v1.2.5 release](https://github.com/EVA0111/AutoSync/releases/tag/v1.2.5) as explained in [Getting started](Getting-Started.md).
-2. Open **Settings** (the gear button).
-3. Expand **Setup**.
-4. Click **Install AI Sync models**.
-5. Follow the installation progress / any instructions. This step installs optional PyTorch/Transformers-related dependencies and can require a substantial download.
-6. Keep internet access available. The pretrained model weights download when AI matching runs for the first time, then are cached for later runs.
+1. Open **Settings** (top right).
+2. Under **Engine & AI models**, click **Install AI Sync models**. This downloads optional PyTorch/Transformers packages and can be large.
+3. Keep internet access: the model weights download on the first AI run and are cached afterwards.
 
-**Important distinction:** **Install subtitle AI** is a different option for subtitle workflows. It is **not** the button for AI-assisted **audio** matching. Standard audio synchronization does not need either installation.
+**Install subtitle AI** is a different button, for subtitle workflows only.
 
-No separate manual Python installation is needed for the official Windows portable package. The project notes that compatible PyTorch CUDA may use a GPU; otherwise AI may run on CPU. Exact machine requirements and download size are not documented.
+If your graphics card cannot run the installed GPU build (for example some RTX 50-series cards with older CUDA builds), AutoSync detects it and uses the CPU instead of failing.
 
-## Start an AI-assisted sync
+## Use it
 
-1. Open **Audio** and check **Include audio jobs**.
-2. Add the source video containing the desired audio under **Source**.
-3. Add the video to match under **Target**.
-4. Select the correct **Source audio** and **Target reference audio** tracks.
-5. Choose the **Sync mode** appropriate for your output.
-6. Under **Matching method**, change **Standard (default)** to **AI-assisted (experimental)**.
-7. In **Save output**, leave the default destination or choose a folder.
-8. Wait until the readiness message says **Ready to sync the selected jobs**, then click **Start selected jobs**.
-9. Check the **Jobs** result and review difficult sections in **Preview & Edit**.
+In the **Audio** tab, under **Matching → Method**, choose **AI-assisted (experimental)**, then start as usual.
 
-If the installation or AI run fails, check the activity information, return to **Standard**, and try the basic workflow. AI-assisted matching should never be your only copy of a project or a substitute for checking output.
+## What it does
 
-## Changes in v1.2.5
-
-- Full-target AI-assisted matching can recover **verified shared source opening music** when different versions have different openings, rather than always treating the opening as unmatched.
-- Cached AI features receive **timestamp validation**, helping avoid stale cached matches after input changes.
-- Revised checks for target-only eyecatches/title cards and backward audio joins reduce the risk of unsupported edits; review warnings for source-audio rewinds are kept after plan edits.
-- The default temporary work directory is `AutoSync Temp` next to the target video. You can change it under **Settings → Temporary work folder (optional)** if disk space is limited.
-
-These safeguards also affect ordinary Standard matching where applicable. They do **not** make AI-assisted matching automatically more accurate in all cases.
-
-## What does AI mode do?
-
-- It uses a pretrained **Audio Spectrogram Transformer (AST)** to propose audio correspondence points.
-- It may use **DINOv2-small** scene matches as a fallback where conventional picture matching is weak.
-- AutoSync still checks proposed audio points against original sound and applies the normal cut-safety rules.
-- It may be slower on the first run because the models need to download and warm up.
-
-Reused music, different-language dubs, altered sound effects, silent footage and edited scene order can still be hard to match. **AI does not make every sync correct**; verify suspicious timing and never automatically trust flagged cuts.
-
-## Open questions
-
-The repository does not yet give a definitive beginner-friendly table of exact AI download sizes, disk-space needs, expected performance on CPU/GPU, or a demonstrated comparison showing where AI outperforms Standard for real videos. These should be documented after practical validation.
+- An **Audio Spectrogram Transformer (AST)** proposes matching points between the two soundtracks.
+- **DINOv2-small** scene matching can help where conventional scene matching is weak.
+- AutoSync checks every proposed point against the original sound and applies the usual safety rules.
 
 [← Wiki home](Home.md) · [Getting started](Getting-Started.md)

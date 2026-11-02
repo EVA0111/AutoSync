@@ -1,8 +1,13 @@
-# AutoSync v1.2.5
+# AutoSync v1.3.0
 
 An Electron + Python/FFmpeg tool for matching audio and subtitles between
 different video editions, including different playback speeds, openings,
-scene edits and missing footage.
+scene edits, censored scenes and missing footage.
+
+**New in v1.3.0:** a picture-based sync engine (typical error 9–17 ms; 64 of
+64 regression runs pass, measured independently), a censored / edited dub
+option, a redesigned Preview & Edit and a cleaner main window. See the
+[release notes](AutoSync/RELEASE_NOTES.md) and the [wiki](docs/Home.md).
 
 ## Build the portable app
 
@@ -13,7 +18,7 @@ build\windows\build-portable.cmd
 ```
 
 The builder installs dependencies in a private build environment and produces
-`dist/AutoSync-v1.2.5-Windows-Portable.zip`. Unzip the result and run
+`dist/AutoSync-v1.3.0-Windows-Portable.zip`. Unzip the result and run
 `AutoSync.exe`; the finished portable application includes Electron,
 Python 3.12, NumPy, SciPy, FFmpeg and FFprobe.
 
@@ -23,7 +28,9 @@ patchers or merges involved.
 
 ## Optional AI-assisted syncing (experimental)
 
-In **Sync jobs**, choose **Matching method → AI-assisted (experimental)** to
+When both videos are present, v1.3.0 matches by picture and AI-assisted gives
+the same result as Standard; AI only helps the audio-matching fallback.
+In the **Audio** tab, choose **Matching → Method → AI-assisted (experimental)** to
 use pretrained AST sound embeddings and a DINOv2 scene-model fallback. The
 three existing **output modes** remain separate, and **Standard** is still
 the default.
@@ -40,22 +47,29 @@ the original scene matcher has insufficient evidence. Inspect uncertain
 sections in Preview & Edit. There is no automatic guarantee of better sync
 for different dubs or editions.
 
-## Beginner guide (v1.2.5)
+## Wiki (v1.3.0)
 
-New to AutoSync? Start with the **[Beginner Wiki](docs/Home.md)**, then follow **[Getting Started](docs/Getting-Started.md)** for a click-by-click first sync. The **[AI-assisted matching guide](docs/AI-Assisted-Matching.md)** covers optional model installation separately. No coding or media folders inside the app are required for the Windows portable release.
+New to AutoSync? Start with the **[Wiki](docs/Home.md)**:
+[Getting started](docs/Getting-Started.md) ·
+[Preview & Edit](docs/Preview-and-Edit.md) ·
+[Censored and edited dubs](docs/Censored-and-Edited-Dubs.md) ·
+[How syncing works](docs/How-Syncing-Works.md) ·
+[AI-assisted matching](docs/AI-Assisted-Matching.md) ·
+[Troubleshooting](docs/Troubleshooting.md).
+No coding or media folders inside the app are required for the Windows portable release.
 
 ## Use
 
 1. Select source and target videos (single pair or batch). Choose audio tracks.
 2. **Save output** is optional: it defaults beside the target video in
    `AutoSync Outputs`. Browse or enter any other drive/folder instead.
-3. Click **Preview & Edit** to automatically analyze the selected pair, inspect
-   the V1/A1/A2/MIX clip timeline, and listen across joins; no plan.json is required.
-   A saved plan can also be opened explicitly.
-4. Review flagged joins, drag/split/nudge regions, compare source, target and
-   edited output audio, drag clips, trim by their edges, razor-cut, snap to joins, copy/paste audio,
-   mark In/Out and slip source offsets without shifting video timing, and choose **Save As…** to write a corrected project
-   and exported audio in a separate location.
+3. Click **Preview & Edit** to analyze the selected pair and review it on one
+   screen: a review list of every join and flagged point, side-by-side /
+   overlay / difference / wipe pictures, frame-accurate nudges, slow playback
+   and the V1/A1/A2/MIX timeline. A saved plan can also be opened explicitly.
+4. Fix anything by hand (move, trim, split, slip, copy/paste audio without
+   shifting video timing; restore or cut censored scenes) and choose
+   **Save As…** to write a corrected project and exported audio.
 5. Click Start to run a normal job. The sync plan is always saved with the
    output. When reports are enabled, AutoSync creates an `AutoSync Reports`
    folder beside the application by default, with a separate folder for
@@ -67,12 +81,15 @@ use its matching synced audio with the exported video.
 ## Safeguards and limits
 
 - Destructive unmatched-video decisions use audio evidence as a safeguard. Ambiguous material is preserved for review rather than removed without reliable support.
-- The algorithm still has limits for different language tracks, repeated OP
-  themes, mixed timing, silence and source-specific edits. Review warnings.
+- Joins that would repeat source audio are refused; uncertain joins are flagged.
+- Limits: frozen or very dark shots, very short re-timed shots, targets whose
+  own picture is out of sync with their soundtrack, and audio-only jobs (older
+  engine). See [How syncing works](docs/How-Syncing-Works.md).
 
 ## Source organization
 
-- `AutoSync/*.py` — sync algorithms, output management, regression tests.
+- `AutoSync/*.py` — sync algorithms (`picture_timeline.py` is the main engine), output management, regression tests.
+- `AutoSync/sync_accuracy.py`, `run_sync_matrix.py` — independent accuracy evaluator and regression-matrix runner (media stays local).
 - `AutoSync/desktop/` — Electron app, waveform/editor interaction and tests.
 - `AutoSync/sushi/` — Sushi support and bundled notices.
 - `build/windows/` — reproducible source-to-portable builder.
