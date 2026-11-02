@@ -34,7 +34,7 @@ function reusablePreviewPlan(plan,values){
  // Full-timeline plans can be reused, but not plans previously trimmed or
  // constructed using keep-target-outer / destructive video-edit operations.
  if((plan.sync_method||'standard')!==(values.sync_method||'standard'))return false;
- if(plan.main_trim||plan.keep_target_op_ed||plan.video_edits||plan.input_trims?.target)
+ if(plan.main_trim||plan.keep_target_op_ed||plan.video_edits)
   return false;
  // Track selection must also match, or the previously produced mapping
  // can silently refer to a different dub or target soundtrack.
@@ -43,6 +43,16 @@ function reusablePreviewPlan(plan,values){
   return false;
  if(stream(plan.audio_stream)!==stream(values.audio_stream)||
     stream(plan.reference_stream)!==stream(values.reference_stream))return false;
+ // The censored-dub option changes what the plan labels and keeps.
+ if((plan.censorship?.default_action||'')!==(values.censored_dub||''))return false;
+ // Marked ranges change the timeline: they must be the same on both sides.
+ for(const side of ['source','target']){
+  const trim=plan.input_trims?.[side];
+  const start=values[side+'_trim_start'],end=values[side+'_trim_end'];
+  const wanted=start!==undefined&&start!==''&&end!==undefined&&end!=='';
+  if(!trim&&!wanted)continue;
+  if(!trim||!wanted||Math.abs(Number(trim.start)-Number(start))>.001||Math.abs(Number(trim.end)-Number(end))>.001)return false;
+ }
  return sameFile(plan.source_video,values.source)&&
   sameFile(plan.target_video,values.target)&&
   sameFile(plan.audio,values.audio||values.source)&&

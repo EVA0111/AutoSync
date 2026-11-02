@@ -44,3 +44,31 @@ test('reject reusing a trimmed or altered plan in full-timeline Preview & Edit',
  assert.equal(reusablePreviewPlan({...plan,reference_stream:1},values),false);
  assert.equal(reusablePreviewPlan({...plan,audio_stream:2},{...values,audio_stream:'2'}),true);
 });
+
+test('reuse an earlier analysis only with the same censored-dub setting and marked ranges',()=>{
+ const values={source:'C:\m\src.mkv',target:'C:\m\tgt.mkv',audio:'C:\m\src.mkv',reference:'C:\m\tgt.mkv'};
+ const plan={duration:1200,source_video:values.source,target_video:values.target,
+  audio:values.audio,reference:values.reference,
+  segments:[{kind:'audio',target_start:0,target_end:1200,source_start:0,speed:1}]};
+ // Censored dub: the plan's labels depend on the option.
+ const censored={...plan,censorship:{default_action:'cut',smooth:true}};
+ assert.equal(reusablePreviewPlan(censored,values),false);
+ assert.equal(reusablePreviewPlan(plan,{...values,censored_dub:'restore'}),false);
+ assert.equal(reusablePreviewPlan(censored,{...values,censored_dub:'restore'}),false);
+ assert.equal(reusablePreviewPlan(censored,{...values,censored_dub:'cut'}),true);
+ // Marked ranges (file-row preview): same ranges reuse, any difference re-analyses.
+ const trimmed={...plan,input_trims:{source:{start:12,end:900}}};
+ const same={...values,source_trim_start:'12',source_trim_end:'900'};
+ assert.equal(reusablePreviewPlan(trimmed,same),true);
+ assert.equal(reusablePreviewPlan(trimmed,{...same,source_trim_end:'901'}),false);
+ assert.equal(reusablePreviewPlan(trimmed,values),false);
+ assert.equal(reusablePreviewPlan(plan,same),false);
+ assert.equal(reusablePreviewPlan({...plan,input_trims:{target:{start:5,end:60}}},
+  {...values,target_trim_start:'5',target_trim_end:'60'}),true);
+});
+
+test('preview keeps marked ranges in its analysis request',()=>{
+ const p=preparePreviewValues({mode:'Main episode only',source:'C:\a.mkv',target:'C:\b.mkv',
+  source_trim_start:'12',source_trim_end:'900',target_trim_start:'5',target_trim_end:'60'});
+ assert.equal(p.source_trim_start,'12');assert.equal(p.target_trim_end,'60');
+});

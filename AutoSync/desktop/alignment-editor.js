@@ -4,7 +4,7 @@ const clone=value=>JSON.parse(JSON.stringify(value));
 let plan=null,planFile='',segments=[],waves={source:null,target:null},selected=0,playhead=0,scroll=0,view=60;
 let undo=[],redo=[],playing=false,playToken=0,frameToken=0,drag=null,saved=false,exporting=false,loop=false;
 let wavesFine={source:null,target:null},waveGeneration=0,waveTimer=null,waveLoading={source:true,target:true};
-let clipboard=null,inMark=null,outMark=null,frame=.04,rate=1,edited=false;
+let clipboard=null,inMark=null,outMark=null,frame=.04,rate=1,edited=false,stopAt=null;
 let reviewed=new Set(),notes={},issueFilter='all',issueItems=[],currentIssue=null;
 const canvas=$('timeline'),ctx=canvas.getContext('2d'),audio=$('audio-player');
 const overview=$('overview'),octx=overview.getContext('2d');
@@ -36,8 +36,11 @@ function mapTarget(t){
   if(t>=Number(k.output_start)-.001&&t<=Number(k.output_start)+len+.001)
    return Number(k.original_start)+t-Number(k.output_start);
  }
- if(plan.main_trim)return t+Number(plan.main_trim.target_start||0);
- return t;
+ // A target trim (range marked before syncing) keeps output times zero-based
+ // while the plan points at the original target file.
+ const trimmed=Number(plan.input_trims?.target?.start||0);
+ if(plan.main_trim)return t+Number(plan.main_trim.target_start||0)+trimmed;
+ return t+trimmed;
 }
 
 // ---------- history, state and autosave ----------
@@ -398,14 +401,14 @@ function step(frames){pause();movePlayhead(playhead+frames*frame);}
 
 // ---------- playback ----------
 function pause(){
- playing=false;playToken++;nextAudioChunk=null;audio.pause();audio.removeAttribute('src');$('play').textContent='▶ Play';
+ playing=false;playToken++;nextAudioChunk=null;stopAt=null;audio.pause();audio.removeAttribute('src');$('play').textContent='▶ Play';
  for(const v of Object.values(videos))v.pause();
 }
 async function play(){
  if(playing){pause();return;}
  playing=true;$('play').textContent='❚❚ Pause';await playChunk();
 }
-let nextAudioChunk=null,stopAt=null;
+let nextAudioChunk=null;
 function chunkAt(t){
  const i=locate(t),s=segments[Math.max(0,i)];
  if(!s||t>=plan.duration-.001)return null;
