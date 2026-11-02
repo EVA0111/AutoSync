@@ -795,11 +795,17 @@ def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, rati
                      samples=n, strong=m['strong'] + s['strong'])
         else:
             merged.append(dict(s))
+    def cut_near(i, step):
+        # A cut: another matched section within 2 s (a short unmatched gap
+        # between them is the join's own transition).
+        j, gap = i + step, 0
+        while 0 <= j < len(merged) and merged[j]['kind'] == 'none' and gap <= 2 * FPS:
+            gap += merged[j]['last'] - merged[j]['first'] + int(FPS * STEP); j += step
+        return 0 <= j < len(merged) and merged[j]['kind'] == 'match' and gap <= 2 * FPS
     drifted = []
     for i, s in enumerate(merged):
-        got = follow_drift(s, FT, FS, DT, r, verify,
-                           cut_before=i > 0 and merged[i - 1]['kind'] == 'match',
-                           cut_after=i + 1 < len(merged) and merged[i + 1]['kind'] == 'match') if s['kind'] == 'match' else None
+        got = follow_drift(s, FT, FS, DT, r, verify, cut_before=cut_near(i, -1),
+                           cut_after=cut_near(i, 1)) if s['kind'] == 'match' else None
         if not got:
             drifted.append(s); continue
         drifted.extend(got)
