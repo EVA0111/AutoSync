@@ -243,6 +243,12 @@ class Drift(unittest.TestCase):
             if not 25.6 <= tt <= 27.:           # the cut is placed within the step
                 self.assertAlmostEqual(source_at(segs, tt), tt + 30 + d(tt), delta=.07, msg=tt)
 
+    def test_no_drift_next_to_a_cut(self):
+        # Case 6: a ramp in the last seconds before a cut to another matched
+        # section is the cut's transition; the join placement handles it.
+        T, d, verify, x = self.make([0, 140, 146, 150], [0, 0, -.2, -.2])
+        self.assertIsNone(pt.follow_drift(x, T, self.S, self.DT, 1., verify, cut_after=True))
+
     def test_no_verifier_follows_nothing(self):
         T, d, verify, x = self.make([0, 20, 27, 150], [-.24, -.24, 0, 0])
         self.assertIsNone(pt.follow_drift(x, T, self.S, self.DT, 1.))

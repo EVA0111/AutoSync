@@ -490,7 +490,7 @@ def drift_path(gain, informative):
     return np.array(path[::-1])
 
 
-def follow_drift(x, FT, FS, DT, r, verify=None):
+def follow_drift(x, FT, FS, DT, r, verify=None, cut_before=False, cut_after=False):
     """Knots [(frame, offset)] where a section's picture drifts against its offset, else None.
 
     Some releases re-time a shot without a cut: the picture slides a few
@@ -506,6 +506,11 @@ def follow_drift(x, FT, FS, DT, r, verify=None):
     over steady shots). Each proposal is confirmed by verify(t0, t1, s0, s1),
     which returns (target, source) features decoded at FINE fps for those
     frame-second spans; without a verifier no drift is followed.
+
+    cut_before / cut_after: the section borders another matched section there.
+    Near such a cut the picture's transition looks like drift (case 6,
+    1026-1032 s: a +-5 % ramp before an ordinary 0.4 s cut), and the join
+    placement already handles it, so no drift run may lie within 3 s of it.
     """
     if verify is None:
         return None
@@ -523,7 +528,9 @@ def follow_drift(x, FT, FS, DT, r, verify=None):
     # The fine decode decides whether each run is real, and gives its curve.
     fine = np.zeros(len(frames)); checks = []
     for run in np.split(np.flatnonzero(keep), np.flatnonzero(np.diff(np.flatnonzero(keep)) > 1) + 1):
-        got = confirm_drift(frames, run, dev, base, x, r, verify) if len(run) else None
+        near_cut = len(run) and ((cut_before and frames[run[0]] - x['first'] < 3 * FPS) or
+                                 (cut_after and x['last'] - frames[run[-1]] < 3 * FPS))
+        got = confirm_drift(frames, run, dev, base, x, r, verify) if len(run) and not near_cut else None
         if got is None:
             keep[run] = False
         else:
@@ -789,8 +796,10 @@ def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, rati
         else:
             merged.append(dict(s))
     drifted = []
-    for s in merged:
-        got = follow_drift(s, FT, FS, DT, r, verify) if s['kind'] == 'match' else None
+    for i, s in enumerate(merged):
+        got = follow_drift(s, FT, FS, DT, r, verify,
+                           cut_before=i > 0 and merged[i - 1]['kind'] == 'match',
+                           cut_after=i + 1 < len(merged) and merged[i + 1]['kind'] == 'match') if s['kind'] == 'match' else None
         if not got:
             drifted.append(s); continue
         drifted.extend(got)
