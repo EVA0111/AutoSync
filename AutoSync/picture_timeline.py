@@ -990,6 +990,11 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
                 notes.append(dict(start=a, end=stop, reason='source audio unavailable; reference fallback needed'))
                 a, ss = stop, 0.
             supported_end = min(b, a + max(0., source_audio_length - ss) / sp)
+            if b - supported_end < .05:
+                # A join placed a frame later can run a few ms past the source's
+                # end; that is not missing audio (render tolerates 0.1 s), so no
+                # target-audio sliver is created for it.
+                supported_end = b
             if supported_end > a:
                 segments.append(dict(kind='audio', target_start=a, target_end=supported_end, source_start=ss, speed=sp))
             if b > supported_end:

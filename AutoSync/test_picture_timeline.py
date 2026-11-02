@@ -269,6 +269,28 @@ class Drift(unittest.TestCase):
             self.assertLessEqual(float(np.max(err - const)), .06)
 
 
+class SourceEnd(unittest.TestCase):
+    """A frame-sized overrun past the source's last sample is not a fallback section.
+
+    Seen on CI (HeldShot, other numpy build): the last join landed one frame
+    later, the final audio section ran 20 ms past the source's end, and a 20 ms
+    "source ends early" target-audio sliver was added at the very end.
+    """
+    def test_small_overrun_extends_the_last_section(self):
+        S = unique_frames(120 * FPS, 5)
+        tl = solve(S, S[:120 * FPS])
+        segs = pt.to_plan_segments(tl, 120., 119.98, 0.)[0]
+        self.assertEqual([s['kind'] for s in segs], ['audio'])
+        self.assertAlmostEqual(segs[-1]['target_end'], 120.)
+
+    def test_real_shortfall_still_uses_the_fallback(self):
+        S = unique_frames(120 * FPS, 5)
+        tl = solve(S, S[:120 * FPS])
+        segs = pt.to_plan_segments(tl, 120., 118., 0.)[0]
+        self.assertEqual(segs[-1]['kind'], 'reference')
+        self.assertAlmostEqual(segs[-1]['target_start'], 118., delta=.05)
+
+
 class FrameOrigin(unittest.TestCase):
     """Decoded frame k sits at FILE origin + k/fps (ffmpeg pads the first picture
     back to the file start). Measured on the media matrix: assuming the video
