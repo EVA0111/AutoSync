@@ -169,7 +169,7 @@ on the media.
 
 No safety check was disabled or loosened, and no timing offsets or per-episode constants were
 introduced. All thresholds are similarity or score levels, or bounds derived from the evidence (gap
-length, frame grid). The Python suite has 184 tests and the desktop suite 40, all passing on Windows.
+length, frame grid). The Python suite has 199 tests and the desktop suite 40, all passing on Windows.
 
 ## 5. Unresolved
 
@@ -206,6 +206,37 @@ Delivered verdict: FAIL (gross span, −0.25 s for about 6 s).
   (Japanese).
 * **Runtime.** A complete Full target run takes 40–138 s per episode on this machine, timeline
   included, with 4 runs in parallel; drift verification adds a few seconds where a candidate exists.
+
+## 5b. Censored and re-edited dubs
+
+Older dubs often removed scenes or re-cut them from other footage. Case 3 is one: the source is an
+Arabic dub, the target the Japanese original. With the dub as source and the original as target, the
+picture timeline already proves both kinds of change:
+
+* **Removed scenes**: original footage with no dub picture. Case 3 has 6 inside the episode
+  (10.4, 13.7, 1.4, 8.0, 4.9 and 5.7 s; 44.3 s in total), several where the dub shows 2–5 s of
+  other footage instead.
+* **Dub-only material**: dub footage the original lacks (re-created or extended scenes). Case 3 has
+  11 spots of 1–5 s (36.1 s in total).
+
+`--censored-dub restore|cut` (main window: "Censored or edited dub") labels each removed scene with
+an action on its segment, writes `censorship_report.txt` and `censorship.json`, and:
+
+* **restore** keeps the uncensored picture and plays the original audio, matched in loudness to the
+  dub on the same surrounding output seconds (case 3's original is ~17 dB quieter: +14 to +17 dB per
+  scene; limit ±20 dB, never clipped), with 25 ms fades at each language switch;
+* **cut** removes the scene from the exported video, as the dub did.
+
+`plan.json` keeps the full timeline and cuts are applied only when rendering, so Preview & Edit can
+change any scene (Censorship filter; Restore / Cut, undoable; cut scenes hatched on the picture
+track) and its export honours the choice. `--restored-subtitles` writes `restored_scenes.srt` with
+only the original-version lines inside restored scenes.
+
+Measured on case 3 (Full target): restore PASS (median 15.3 ms, p95 78.6 ms, 97.6 % ≤100 ms); cut
+PASS (14.0 / 79.9 ms, 97.2 %), video exactly 44.3 s shorter; restoring one scene in an edited plan
+adds back exactly its 10.44 s. Without the option, rendering and cutting are unchanged. Tests:
+`test_censorship.py` (9). Dub-only material is reported, not used: the original has no picture
+for it.
 
 ## 5a. Desktop app
 
