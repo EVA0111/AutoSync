@@ -42,3 +42,14 @@ test('Target reference region has no mapped source time',()=>{
  assert.equal(sourceTime(rows,1),4);
  assert.equal(findRegion(rows,2).index,1);
 });
+
+test('Target trims: editor target time maps back to the original target file',()=>{
+ // A range marked on the target (input trim) keeps output times zero-based.
+ assert.equal(originalTargetTime({input_trims:{target:{start:30,end:900}}},10),40);
+ // With a main-episode trim inside the trimmed target, both offsets apply.
+ assert.equal(originalTargetTime({input_trims:{target:{start:30,end:900}},main_trim:{target_start:90}},10),130);
+ // Video edits already carry original times (trim included by the engine).
+ const edited={input_trims:{target:{start:30}},video_edits:{kept:[{start:0,end:50,output_start:0,original_start:30}]}};
+ assert.equal(originalTargetTime(edited,10),40);
+ assert.equal(originalTargetTime({},10),10);
+});

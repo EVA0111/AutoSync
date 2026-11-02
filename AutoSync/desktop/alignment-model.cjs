@@ -43,12 +43,15 @@ function sourceTime(segments,time){
  return r.source_start+(time-r.target_start)*r.speed;
 }
 function originalTargetTime(plan,time){
+ // Video edits already carry original times (input trims included); main-episode
+ // trims and input trims (a marked range on the target) are offsets.
  for(const k of plan.video_edits?.kept||[]){
   const end=Number(k.output_start)+Number(k.end)-Number(k.start);
   if(time>=Number(k.output_start)-.001&&time<=end+.001)
    return Number(k.original_start)+time-Number(k.output_start);
  }
- if(plan.main_trim)return time+Number(plan.main_trim.target_start||0);
- return time;
+ const trimmed=Number(plan.input_trims?.target?.start||0);
+ if(plan.main_trim)return time+Number(plan.main_trim.target_start||0)+trimmed;
+ return time+trimmed;
 }
 module.exports={validateSegments,findRegion,sourceTime,originalTargetTime};
