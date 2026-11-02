@@ -134,9 +134,26 @@ function createAlignmentEditor(root,python){
   notify('Alignment saved to '+file+'\n');
   return open(parent,file);
  }
- ipcMain.handle('align-get-plan',e=>{
+ // Frame rate of the target picture, so frame-step and nudge controls move by
+ // exactly one frame (23.976, 25, 29.97 ...). Falls back to 25 fps.
+ // Native size (for the plan's crop rectangles) and frame rate of a video.
+ async function videoInfo(video){
+  if(!video||!fs.existsSync(video))return null;
+  try{
+   const out=(await run('ffprobe',['-v','error','-select_streams','v:0','-show_entries','stream=width,height,r_frame_rate,avg_frame_rate','-of','json',video],1024*1024)).toString();
+   const s=JSON.parse(out).streams?.[0]||{};
+   let fps=null;
+   for(const key of ['r_frame_rate','avg_frame_rate']){
+    const [a,b]=String(s[key]||'').split('/').map(Number);
+    if(!fps&&a>0&&b>0&&a/b>5&&a/b<121)fps=a/b;
+   }
+   return {width:Number(s.width)||null,height:Number(s.height)||null,fps};
+  }catch{return null;}
+ }
+ ipcMain.handle('align-get-plan',async e=>{
   trusted(e);
-  return {file:project.file,plan:project.plan,media:mediaInfo()};
+  const [source,target]=await Promise.all([videoInfo(project.plan.source_video),videoInfo(project.plan.target_video)]);
+  return {file:project.file,plan:project.plan,media:mediaInfo(),fps:target?.fps||25,videos:{source,target}};
  });
  ipcMain.handle('align-waveform',async(e,track)=>{
   trusted(e);

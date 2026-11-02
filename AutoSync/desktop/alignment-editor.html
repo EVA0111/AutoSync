@@ -2,31 +2,138 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' file: data:;">
 <title>AutoSync v1.2.5 · Preview & Edit</title><link rel="stylesheet" href="alignment-editor.css"></head>
-<body><header><div><h1>Preview & Edit</h1><p id="project-path">Opening an alignment plan…</p></div><div class="right"><button id="undo" title="Ctrl+Z">Undo</button><button id="redo" title="Ctrl+Y">Redo</button><button id="save" title="Choose any folder or drive for the corrected output">Save As…</button><button id="export" class="primary">Export corrected audio</button></div></header>
-<main>
-<section class="pictures"><article><div class="heading"><strong>Source video</strong><span id="source-time"></span></div><div class="picture"><video id="source-video" muted playsinline preload="metadata" hidden aria-label="Source video playback"></video><img id="source-frame" alt="Source frame"><span id="source-wait">Loading source video…</span></div></article><article><div class="heading"><strong>Target video</strong><span id="target-time"></span></div><div class="picture"><video id="target-video" muted playsinline preload="metadata" hidden aria-label="Target video playback"></video><img id="target-frame" alt="Target frame"><span id="target-wait">Loading target video…</span></div></article></section>
-<section class="transport"><button id="back" title="Back one frame">◀|</button><button id="play" class="primary" title="Space">▶ Play</button><button id="forward" title="Forward one frame">|▶</button><label for="audition">Listen to</label><select id="audition"><option value="output">Edited output</option><option value="source">Source audio</option><option value="target">Target audio</option></select><output id="clock">00:00:00.000</output><span class="grow"></span><button id="loop">Loop selected region: Off</button><label for="zoom">Zoom</label><input id="zoom" type="range" min="0" max="100" value="35"><span id="zoom-label"></span></section>
-<section class="review-toolbar" aria-label="Quick alignment review">
-  <button id="jump-opening" title="Return to the start of the episode">Opening</button>
-  <button id="previous-issue" title="Jump to previous uncertain join · shortcut J">◀ Previous issue</button>
-  <button id="next-issue" title="Jump to the next uncertain join · shortcut L">Next issue ▶</button>
-  <button id="play-join" title="Listen across the selected join">▶ Listen across join</button>
-  <button id="zoom-region" title="Center the current region on the timeline">Fit selected region</button>
-  <button id="ab-audio" title="Compare target audio against edited output · shortcut A">A/B: Edited output</button>
-  <span id="review-count" role="status"></span>
-</section>
-<section class="timeline-section"><div class="timeline-label"><strong>Timeline</strong><small>Choose Select or Razor · drag clips to move or copy · drag edge handles to trim · Shift-drag or toggle Snapping to control snapping</small></div>
-<div class="nle-toolbar" role="toolbar" aria-label="Timeline editing tools">
-<button class="tool active" data-tool="select" title="Selection · V">↖ Select <kbd>V</kbd></button>
-<button class="tool" data-tool="razor" title="Razor cut · C">✂ Razor <kbd>C</kbd></button>
-<button class="tool" data-tool="slip" title="Slip source audio inside the clip · Y">↔ Slip <kbd>Y</kbd></button>
-<span class="tool-divider"></span>
-<button id="snap-toggle" aria-pressed="true" title="Magnet snapping · N">◈ Snap: On <kbd>N</kbd></button>
-<span class="tool-info">V1 target video · A1 source audio · A2 target fallback · MIX edited result</span>
-</div>
-<canvas id="timeline" height="425" tabindex="0" aria-label="Film-style video and audio timeline: target video, source audio, target audio, and edited mix"></canvas><div class="scroll"><label for="scroll">Navigate</label><input id="scroll" type="range" min="0" max="0" value="0" step=".1"></div>
-<div class="key"><span class="source-dot">● Source audio</span><span class="target-dot">● Target audio</span><span class="output-dot">● Edited output</span><span class="warning-dot">● Uncertain region</span></div></section>
-<section class="inspector"><div><h2>Selected region</h2><p id="selection-summary">Select a region in the timeline.</p><div class="fields"><label>Output start <input id="region-start" type="number" step=".04" min="0"></label><label>Output end <input id="region-end" type="number" step=".04" min="0"></label><label>Source starts at <input id="region-source" type="number" step=".04" min="0"></label><label>Speed <input id="region-speed" type="number" step=".0001" min=".5" max="2"></label></div><div class="controls"><button id="mark-in" title="Mark audio In at the playhead (I)">Set In (I)</button><button id="mark-out" title="Mark audio Out at the playhead (O)">Set Out (O)</button><button id="clear-range">Clear In/Out</button><span id="clip-range" role="status">Full selected clip</span><span id="clipboard-status" role="status">Clipboard empty</span></div><div class="controls"><button id="apply">Apply values</button><button id="nudge-left">Audio −40 ms</button><button id="nudge-right">Audio +40 ms</button><button id="split" title="Split current region at playhead (S)">Split (S)</button><button id="join">Join with previous</button><button id="copy-clip" title="Copy selected audio clip (Ctrl+C)">Copy clip</button><button id="paste-clip" title="Overwrite audio at playhead using copied clip (Ctrl+V)">Paste at playhead</button><button id="cut-clip" title="Copy and replace region with target audio (Ctrl+X)">Cut clip</button><button id="trim-left" title="Trim start to playhead, fill with target audio (Q)">Trim start (Q)</button><button id="trim-right" title="Trim end to playhead, fill with target audio (W)">Trim end (W)</button><button id="source-mode">Use source audio</button><button id="target-mode">Use target audio</button></div></div>
-<div class="review"><h2>Review & playback</h2><p>Click an issue to inspect the splice, press J/L for the previous/next flagged point, A to switch output/target audio, and Space to play or pause. Editing is non-destructive until export. Copy/paste overwrites audio without shifting video. Unsupported video formats can create a one-time low-resolution proxy for smooth playback.</p><p id="editor-status" role="status">Ready.</p><div class="controls"><button id="open-folder">Open edited output folder</button></div><pre id="export-log" aria-live="polite"></pre></div></section></main>
+<body>
+<header class="topbar">
+ <div class="title"><h1>Preview &amp; Edit</h1><p id="project-path" title="">Opening an alignment plan…</p></div>
+ <div class="chips"><span id="issues-chip" class="chip">— to review</span><span id="state-chip" class="chip">No changes</span></div>
+ <div class="actions">
+  <button id="undo" title="Undo · Ctrl+Z">↶ Undo</button><button id="redo" title="Redo · Ctrl+Y">↷ Redo</button>
+  <span class="sep"></span>
+  <button id="save" title="Save the edited plan to any folder · Ctrl+S">Save As…</button>
+  <button id="export" class="primary" title="Export corrected audio (save first)">Export corrected audio</button>
+  <button id="help" class="icon" title="Keyboard shortcuts · ?">?</button>
+ </div>
+</header>
+<div id="restore-banner" class="banner" hidden><span id="restore-text">Unsaved edits from a previous session were found.</span><button id="restore-yes" class="primary">Restore edits</button><button id="restore-no">Discard</button></div>
+
+<main id="workspace">
+ <aside id="issues-panel" class="panel" aria-label="Joins and review points">
+  <div class="panel-head"><h2>Review list</h2><button id="collapse-issues" class="icon small" title="Hide the review list">⟨</button></div>
+  <div class="segmented" role="radiogroup" aria-label="Filter review list">
+   <button data-filter="all" class="on" role="radio" aria-checked="true">All</button>
+   <button data-filter="flagged" role="radio" aria-checked="false" title="Only points the analysis marked as uncertain or worth a look">Flagged</button>
+   <button data-filter="open" role="radio" aria-checked="false" title="Only points not yet marked as checked">Not checked</button>
+  </div>
+  <div class="progress"><div id="review-bar"><span></span></div><span id="review-count" role="status"></span></div>
+  <ol id="issue-list" aria-label="Review points"></ol>
+  <div class="panel-foot"><button id="previous-issue" title="Previous review point · J">◀ Prev</button><button id="mark-reviewed" title="Mark the current point as checked · R">✓ Checked</button><button id="next-issue" title="Next review point · L">Next ▶</button></div>
+ </aside>
+ <button id="show-issues" class="edge-tab left" title="Show the review list" hidden>Review ⟩</button>
+
+ <section id="stage" aria-label="Video comparison">
+  <div class="stage-bar">
+   <div class="segmented" role="radiogroup" aria-label="Comparison view">
+    <button data-view="side" class="on" role="radio" aria-checked="true" title="Source and target side by side">Side by side</button>
+    <button data-view="overlay" role="radio" aria-checked="false" title="Source over target at 50 %">Overlay</button>
+    <button data-view="difference" role="radio" aria-checked="false" title="Bright where the pictures differ; dark and still means in sync">Difference</button>
+    <button data-view="wipe" role="radio" aria-checked="false" title="Drag the slider to wipe between source and target">Wipe</button>
+   </div>
+   <input id="wipe" type="range" min="0" max="100" value="50" aria-label="Wipe position" hidden>
+   <span class="grow"></span>
+   <span class="hint" id="view-hint">Source left · target right</span>
+  </div>
+  <div id="pictures" class="pictures side">
+   <article class="viewer" data-track="source"><div class="heading"><strong>Source</strong><span id="source-time"></span></div>
+    <div class="picture"><video id="source-video" muted playsinline preload="metadata" hidden aria-label="Source video playback"></video><img id="source-frame" alt="Source frame" hidden><span id="source-wait" class="wait">Loading source video…</span></div></article>
+   <article class="viewer" data-track="target"><div class="heading"><strong>Target</strong><span id="target-time"></span></div>
+    <div class="picture"><video id="target-video" muted playsinline preload="metadata" hidden aria-label="Target video playback"></video><img id="target-frame" alt="Target frame" hidden><span id="target-wait" class="wait">Loading target video…</span></div></article>
+  </div>
+  <div class="transport" role="toolbar" aria-label="Playback">
+   <button id="back10" class="icon" title="Back 10 frames · Shift+←">⏪</button>
+   <button id="back" class="icon" title="Back one frame · ←">◀|</button>
+   <button id="play" class="primary play" title="Play / pause · Space">▶ Play</button>
+   <button id="forward" class="icon" title="Forward one frame · →">|▶</button>
+   <button id="forward10" class="icon" title="Forward 10 frames · Shift+→">⏩</button>
+   <output id="clock" title="Output time">00:00:00.000</output>
+   <span class="sep"></span>
+   <div class="segmented" role="radiogroup" aria-label="Listen to" id="audition-group">
+    <button data-listen="output" class="on" role="radio" aria-checked="true" title="The edited output">Output</button>
+    <button data-listen="source" role="radio" aria-checked="false" title="The original source audio">Source</button>
+    <button data-listen="target" role="radio" aria-checked="false" title="The target's own audio">Target</button>
+   </div>
+   <select id="audition" hidden aria-hidden="true" tabindex="-1"><option value="output">Edited output</option><option value="source">Source audio</option><option value="target">Target audio</option></select>
+   <button id="ab-audio" title="Swap between output and target audio · A">A/B</button>
+   <span class="sep"></span>
+   <button id="play-join" title="Play from 2 s before to 2 s after the selected join · P">▶ Across join</button>
+   <button id="loop" title="Loop the selected clip" aria-pressed="false">⟳ Loop</button>
+   <label class="rate">Speed <select id="rate" title="Playback speed"><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select></label>
+  </div>
+ </section>
+
+ <aside id="inspector" class="panel" aria-label="Selected clip">
+  <div class="panel-head"><h2>Selected clip</h2><button id="collapse-inspector" class="icon small" title="Hide this panel">⟩</button></div>
+  <p id="selection-summary" class="summary">Select a clip in the timeline.</p>
+  <fieldset><legend>Timing</legend>
+   <div class="fields"><label>Output start<input id="region-start" type="number" step=".04" min="0"></label><label>Output end<input id="region-end" type="number" step=".04" min="0"></label><label>Source starts at<input id="region-source" type="number" step=".04" min="0"></label><label>Speed<input id="region-speed" type="number" step=".0001" min=".5" max="2"></label></div>
+   <button id="apply" class="wide" title="Apply the values typed above (Enter)">Apply typed values</button>
+   <div class="nudge" role="group" aria-label="Move this clip's audio"><span>Move audio</span>
+    <button id="nudge-frame-left" title="One frame earlier · ,">−1 fr</button><button id="nudge-left" title="10 ms earlier · Alt+,">−10 ms</button><button id="nudge-right" title="10 ms later · Alt+.">+10 ms</button><button id="nudge-frame-right" title="One frame later · .">+1 fr</button></div>
+   <p class="small-note" id="offset-note"></p>
+  </fieldset>
+  <fieldset><legend>Edit</legend>
+   <div class="grid2"><button id="split" title="Split the clip at the playhead · S">✂ Split (S)</button><button id="join" title="Merge with the clip before; it continues the earlier timing">⇤ Join previous</button><button id="trim-left" title="Trim the start to the playhead; the gap uses target audio · Q">Trim start (Q)</button><button id="trim-right" title="Trim the end to the playhead; the gap uses target audio · W">Trim end (W)</button></div>
+  </fieldset>
+  <fieldset><legend>Audio for this clip</legend>
+   <div class="segmented wide"><button id="source-mode" title="Use the source audio here">Source audio</button><button id="target-mode" title="Use the target's own audio here">Target audio</button></div>
+  </fieldset>
+  <fieldset><legend>Clipboard</legend>
+   <div class="grid3"><button id="mark-in" title="Mark In at the playhead · I">In (I)</button><button id="mark-out" title="Mark Out at the playhead · O">Out (O)</button><button id="clear-range" title="Use the whole clip">Clear</button><button id="copy-clip" title="Copy the audio · Ctrl+C">Copy</button><button id="cut-clip" title="Cut; the gap uses target audio · Ctrl+X">Cut</button><button id="paste-clip" title="Overwrite audio at the playhead; the picture does not move · Ctrl+V">Paste</button></div>
+   <div class="status-row"><span id="clip-range" role="status">In — · Out —</span><span id="clipboard-status" role="status">Clipboard empty</span></div>
+  </fieldset>
+  <fieldset><legend>Review point</legend>
+   <p id="issue-detail" class="small-note">No review point near the playhead.</p>
+   <textarea id="issue-note" rows="2" placeholder="Note for this point (kept with your edits)" disabled></textarea>
+  </fieldset>
+ </aside>
+ <button id="show-inspector" class="edge-tab right" title="Show the clip panel" hidden>⟨ Clip</button>
+
+ <div id="splitter" role="separator" aria-orientation="horizontal" aria-label="Resize timeline" tabindex="0" title="Drag to resize the timeline (↑/↓ when focused)"></div>
+
+ <section id="timeline-area" aria-label="Timeline">
+  <div class="nle-toolbar" role="toolbar" aria-label="Timeline tools">
+   <button class="tool active" data-tool="select" title="Select: drag clips, drag edges to trim · V">↖ Select <kbd>V</kbd></button>
+   <button class="tool" data-tool="razor" title="Razor: click a clip to cut it · C">✂ Razor <kbd>C</kbd></button>
+   <button class="tool" data-tool="slip" title="Slip: drag to move audio inside its clip · Y">↔ Slip <kbd>Y</kbd></button>
+   <button id="snap-toggle" aria-pressed="true" title="Snapping · N (hold Shift while dragging to override)">◈ Snap: On <kbd>N</kbd></button>
+   <span class="sep"></span>
+   <button id="jump-opening" title="Go to the start · Home">⇤ Start</button>
+   <button id="zoom-region" title="Zoom to the selected clip · F">Fit clip</button>
+   <button id="zoom-all" title="Show the whole episode · Shift+F">Fit all</button>
+   <label class="zoom">Zoom <input id="zoom" type="range" min="0" max="100" value="35" title="Ctrl+scroll on the timeline also zooms"></label><span id="zoom-label"></span>
+  </div>
+  <canvas id="overview" aria-label="Whole episode overview: click or drag to navigate"></canvas>
+  <div id="timeline-wrap"><canvas id="timeline" tabindex="0" aria-label="Timeline: target video, source audio, target audio and edited output"></canvas></div>
+ </section>
+</main>
+
+<footer class="statusbar">
+ <span id="editor-status" role="status">Ready.</span>
+ <span class="grow"></span>
+ <span class="legend"><i class="sw source"></i>Source<i class="sw target"></i>Target<i class="sw output"></i>Output<i class="sw warn"></i>Needs review</span>
+ <button id="toggle-log" class="small" aria-expanded="false">Export log ▴</button>
+ <button id="open-folder" class="small">Open output folder</button>
+</footer>
+<section id="log-drawer" hidden><div class="drawer-head"><strong>Export log</strong><button id="close-log" class="icon small" title="Close">✕</button></div><pre id="export-log" aria-live="polite"></pre></section>
+
+<dialog id="shortcuts" aria-label="Keyboard shortcuts">
+ <h2>Keyboard shortcuts</h2>
+ <div class="keys">
+  <section><h3>Playback</h3><dl><dt>Space</dt><dd>Play / pause</dd><dt>← →</dt><dd>One frame</dd><dt>Shift+← →</dt><dd>Ten frames</dd><dt>Home / End</dt><dd>Start / end</dd><dt>P</dt><dd>Play across the selected join</dd><dt>A</dt><dd>Swap output ↔ target audio</dd><dt>Esc</dt><dd>Stop, or cancel a drag</dd></dl></section>
+  <section><h3>Review</h3><dl><dt>J / L</dt><dd>Previous / next review point</dd><dt>R</dt><dd>Mark the point as checked</dd><dt>F</dt><dd>Zoom to the clip</dd><dt>Shift+F</dt><dd>Show everything</dd><dt>Ctrl+scroll</dt><dd>Zoom the timeline</dd><dt>+ / −</dt><dd>Zoom in / out</dd></dl></section>
+  <section><h3>Editing</h3><dl><dt>V / C / Y</dt><dd>Select / Razor / Slip</dd><dt>N</dt><dd>Snapping on / off</dd><dt>S</dt><dd>Split at the playhead</dd><dt>Q / W</dt><dd>Trim start / end to the playhead</dd><dt>, / .</dt><dd>Audio 1 frame earlier / later</dd><dt>Alt+, / Alt+.</dt><dd>Audio 10 ms earlier / later</dd><dt>I / O</dt><dd>Mark In / Out</dd><dt>Ctrl+C / X / V</dt><dd>Copy / cut / paste audio</dd><dt>Ctrl+Z / Y</dt><dd>Undo / redo</dd><dt>Ctrl+S</dt><dd>Save As…</dd></dl></section>
+ </div>
+ <p class="small-note">The picture never changes: every edit only re-times audio. Edits are kept automatically until you save.</p>
+ <form method="dialog"><button class="primary">Close</button></form>
+</dialog>
 <audio id="audio-player" preload="auto"></audio>
 <script src="alignment-editor.js"></script></body></html>
