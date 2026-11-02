@@ -6,10 +6,16 @@ const os=require('node:os');
 const path=require('node:path');
 const {temporaryRoot,prepareTemporaryRoot}=require('./temp-directory.cjs');
 
-test('default temporary folder lives beside the target, not on the system drive',()=>{
- const target=path.join('D:','anime','episode.mkv');
+test('default temporary folder lives beside the target on the current platform',()=>{
+ // Never pass a Windows-only D: path to posix path.isAbsolute() in Linux CI.
+ const target=path.join(os.tmpdir(),'anime','episode.mkv');
  assert.equal(temporaryRoot({jobs:[{task:'Single episode',values:{target}}]}),
               path.join(path.dirname(path.resolve(target)),'AutoSync Temp'));
+});
+test('Windows drive-letter paths remain supported on Windows',{skip:process.platform!=='win32'},()=>{
+ const target='D:\\anime\\episode.mkv';
+ assert.equal(temporaryRoot({jobs:[{task:'Single episode',values:{target}}]}),
+              'D:\\anime\\AutoSync Temp');
 });
 test('custom directory overrides target-local default',()=>{
  const chosen=path.join(os.tmpdir(),'custom-autosync-temp');

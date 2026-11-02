@@ -11,10 +11,10 @@ class SubtitleTests(unittest.TestCase):
  def mapping(self,scale=1,offset=2,evidence='visual'):return TimingMap([Section(0,1000,scale,offset,[])],evidence)
  def test_srt_multiple_cues_preserve_arabic_and_markup(self):
   src=self.file('in.srt','1\n00:00:01,000 --> 00:00:02,000\n<b>مرحبا</b>\n\n2\n00:00:04,000 --> 00:00:06,000\nSecond line\n')
-  d=Document(src);self.assertEqual(len(d.cues),2);out=self.root/'out.srt';d.write(out,self.mapping());s=out.read_text();self.assertIn('00:00:03,000 --> 00:00:04,000',s);self.assertIn('<b>مرحبا</b>',s);self.assertIn('00:00:06,000 --> 00:00:08,000',s)
+  d=Document(src);self.assertEqual(len(d.cues),2);out=self.root/'out.srt';d.write(out,self.mapping());s=out.read_text(encoding='utf-8');self.assertIn('00:00:03,000 --> 00:00:04,000',s);self.assertIn('<b>مرحبا</b>',s);self.assertIn('00:00:06,000 --> 00:00:08,000',s)
  def test_ass_preserves_headers_styles_drawings_fonts_and_scales_animation(self):
   s='[Script Info]\nPlayResX: 640\n[V4+ Styles]\nStyle: Sign,Arial,30\n[Fonts]\nfontname: test\nABCxyz\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 3,0:00:01.00,0:00:05.00,Sign,,0,0,0,,{\\move(1,2,3,4,0,1000)\\t(0,1000,2,\\clip(1,2,3,4))\\fad(100,200)\\k20}Text\n'
-  src=self.file('in.ass',s);out=self.root/'out.ass';d=Document(src);report=d.write(out,self.mapping(2));text=out.read_text();self.assertIn('0:00:04.00,0:00:12.00',text);self.assertIn(r'\move(1,2,3,4,0,2000)',text);self.assertIn(r'\t(0,2000,2,\clip(1,2,3,4))',text);self.assertIn(r'\fad(200,400)\k40',text);self.assertEqual(s.split('[Events]')[0],text.split('[Events]')[0]);self.assertEqual(report[0]['status'],'mapped')
+  src=self.file('in.ass',s);out=self.root/'out.ass';d=Document(src);report=d.write(out,self.mapping(2));text=out.read_text(encoding='utf-8');self.assertIn('0:00:04.00,0:00:12.00',text);self.assertIn(r'\move(1,2,3,4,0,2000)',text);self.assertIn(r'\t(0,2000,2,\clip(1,2,3,4))',text);self.assertIn(r'\fad(200,400)\k40',text);self.assertEqual(s.split('[Events]')[0],text.split('[Events]')[0]);self.assertEqual(report[0]['status'],'mapped')
  def test_ass_fade_karaoke_and_implicit_transforms(self):
   s=r'{\fade(255,0,255,0,100,200,300)\kt30\ko10\t(2,\fscx120)\pos(50,60)}'
   out=scale_ass(s,2);self.assertIn(r'\fade(255,0,255,0,200,400,600)',out);self.assertIn(r'\kt60\ko20',out);self.assertIn(r'\t(2,\fscx120)',out);self.assertIn(r'\pos(50,60)',out)
@@ -27,14 +27,14 @@ class SubtitleTests(unittest.TestCase):
  def test_unmapped_cut_cue_keeps_original_and_is_reported(self):
   src=self.file('in.srt','1\n00:00:09,000 --> 00:00:12,000\nCrosses cut\n');d=Document(src);m=TimingMap([Section(0,10,1,0,[]),Section(11,30,1,1,[])]);out=self.root/'o.srt';report=d.write(out,m);self.assertEqual(report[0]['status'],'unmapped');self.assertEqual(src.read_bytes(),out.read_bytes())
  def test_vtt_styles_settings_and_inline_timestamps_preserved(self):
-  s='WEBVTT\n\nSTYLE\n::cue { color: lime; }\n\ncue-id\n00:01.000 --> 00:03.000 align:start position:20%\nHello <00:02.000>world\n';src=self.file('x.vtt',s);out=self.root/'o.vtt';Document(src).write(out,self.mapping());text=out.read_text();self.assertIn('::cue { color: lime; }',text);self.assertIn('align:start position:20%',text);self.assertIn('<00:00:04.000>',text)
+  s='WEBVTT\n\nSTYLE\n::cue { color: lime; }\n\ncue-id\n00:01.000 --> 00:03.000 align:start position:20%\nHello <00:02.000>world\n';src=self.file('x.vtt',s);out=self.root/'o.vtt';Document(src).write(out,self.mapping());text=out.read_text(encoding='utf-8');self.assertIn('::cue { color: lime; }',text);self.assertIn('align:start position:20%',text);self.assertIn('<00:00:04.000>',text)
  def test_ttml_style_preservation_and_nested_rejection(self):
-  src=self.file('x.ttml','<tt><head><styling id="keep"/></head><body><p begin="1s" end="3s" style="a"><span>Hi</span></p></body></tt>');out=self.root/'o.ttml';Document(src).write(out,self.mapping());self.assertIn('begin="3.000s"',out.read_text());self.assertIn('<styling id="keep"/>',out.read_text());bad=self.file('bad.ttml','<tt><body begin="2s"><p begin="1s" end="3s">Hi</p></body></tt>');self.assertRaises(ValueError,Document,bad)
+  src=self.file('x.ttml','<tt><head><styling id="keep"/></head><body><p begin="1s" end="3s" style="a"><span>Hi</span></p></body></tt>');out=self.root/'o.ttml';Document(src).write(out,self.mapping());self.assertIn('begin="3.000s"',out.read_text(encoding='utf-8'));self.assertIn('<styling id="keep"/>',out.read_text(encoding='utf-8'));bad=self.file('bad.ttml','<tt><body begin="2s"><p begin="1s" end="3s">Hi</p></body></tt>');self.assertRaises(ValueError,Document,bad)
  def test_microdvd_and_mpl2(self):
-  src=self.file('x.sub','{25}{50}Hello|world\n');out=self.root/'o.sub';Document(src,fps=25).write(out,self.mapping(),target_fps=24);self.assertEqual(out.read_text(),'{72}{96}Hello|world\n');self.assertRaises(ValueError,Document,src)
-  src=self.file('x.mpl2','[10][20]Hello\n');Document(src).write(out,self.mapping());self.assertEqual(out.read_text(),'[30][40]Hello\n')
+  src=self.file('x.sub','{25}{50}Hello|world\n');out=self.root/'o.sub';Document(src,fps=25).write(out,self.mapping(),target_fps=24);self.assertEqual(out.read_text(encoding='utf-8'),'{72}{96}Hello|world\n');self.assertRaises(ValueError,Document,src)
+  src=self.file('x.mpl2','[10][20]Hello\n');Document(src).write(out,self.mapping());self.assertEqual(out.read_text(encoding='utf-8'),'[30][40]Hello\n')
  def test_sami(self):
-  src=self.file('x.smi','<SAMI><STYLE>.a {color:red}</STYLE><SYNC Start=1000><P>Hi<SYNC Start=3000><P>&nbsp;</SAMI>');out=self.root/'o.smi';Document(src).write(out,self.mapping());self.assertIn('Start=3000',out.read_text());self.assertIn('Start=5000',out.read_text())
+  src=self.file('x.smi','<SAMI><STYLE>.a {color:red}</STYLE><SYNC Start=1000><P>Hi<SYNC Start=3000><P>&nbsp;</SAMI>');out=self.root/'o.smi';Document(src).write(out,self.mapping());self.assertIn('Start=3000',out.read_text(encoding='utf-8'));self.assertIn('Start=5000',out.read_text(encoding='utf-8'))
  def test_map_cut_and_rate(self):
   rows=[(x,1.04*x+2,.99) for x in range(10,100,10)]+[(x,1.04*x-30,.99) for x in range(150,240,10)]
   m=fit_map(rows,260,'visual',.25);self.assertEqual(len(m.sections),2);self.assertAlmostEqual(m.interval(50,55)[0],54,places=4);self.assertIsNone(m.interval(100,150));self.assertAlmostEqual(m.interval(180,185)[0],157.2,places=4)

@@ -54,6 +54,22 @@ def opening_audio_correspondence(source_features, target_features, proposed_star
     different = all(informative) and max(scores) < .28
     return dict(matched=False, different=bool(different), score=max(scores))
 
+def edge_matches(visual,model,side,count=15):
+    """Picture matches nearest one end, taken from the main timing model.
+
+    A recap or reused title shot at the very start maps elsewhere in the
+    source; using it as the edge makes the boundary test compare the wrong
+    source pictures. 0.5 s tolerates a dub's audio/picture delay.
+    """
+    own=visual[abs(visual[:,1]-(model['speed']*visual[:,0]+model['offset']))<.5]
+    if len(own)>=5:visual=own
+    return visual[:min(count,len(visual))] if side=='start' else visual[-min(count,len(visual)):]
+
+def unmatched_prefix(q,x,missing):
+    """Picture scores where the first `missing` target seconds have no source frame."""
+    k=min(len(q),int(round(missing*RATE)))
+    return np.r_[np.zeros(k),compare(q[k:],x)] if k else compare(q,x)
+
 def boundary_from_scores(scores,dark,lo,side):
     scores=np.asarray(scores);n=len(scores)
     if n<10*RATE:raise ValueError('Too few pictures to verify a main-episode boundary.')
@@ -64,8 +80,20 @@ def boundary_from_scores(scores,dark,lo,side):
     # A common OP/ED cannot be identified semantically from correspondence alone.
     if (side=='start' and k<RATE) or (side=='end' and k>n-RATE):
         return dict(time=lo if side=='start' else lo+n/RATE,status='kept',reason='No clearly differing outer sequence detected')
+    # An outer sequence starts at the target edge. Shared pictures at the edge
+    # with only short differing runs (a localized title card) mean the opening
+    # or ending is shared; long differing runs (cold open + new OP) still need
+    # a manual boundary below.
+    edge=slice(0,3*RATE) if side=='start' else slice(n-3*RATE,n)
+    lit=scores[edge][~np.asarray(dark[:n],bool)[edge]]
+    differing=np.r_[False,uniform_filter1d(scores,RATE)<.6,False]
+    runs=np.flatnonzero(np.diff(differing.astype(int)))
+    longest=max((b-a for a,b in zip(runs[::2],runs[1::2])),default=0)
+    if len(lit)>=RATE and np.median(lit)>.75 and longest<10*RATE:
+        return dict(time=lo if side=='start' else lo+n/RATE,status='kept',
+                    reason=f'Shared pictures at the {side} edge; only short differing inserts (longest {longest/RATE:.1f}s, e.g. a title card)')
     if len(matched)<5*RATE or len(outside)<2*RATE or matched.mean()<.83 or outside.mean()>.60:
-        raise ValueError(f'{side} boundary is ambiguous; use --main-{side} with a verified target time.')
+        raise ValueError(f'{side} boundary is ambiguous; enable Advanced audio settings in the desktop app and enter Main {side} (target seconds) after verifying the frame, or use --main-{side}.')
     removed=scores[:max(0,k-RATE)] if side=='start' else scores[min(n,k+RATE):]
     if len(removed)>=5*RATE and np.max(uniform_filter1d(removed,5*RATE))>.86:
         raise ValueError(f'Matching footage exists in the proposed {side} trim (possible cold open/epilogue); supply a manual boundary.')
@@ -105,6 +133,33 @@ def refine_estimated_boundary(plan,visual,delay,estimate,side):
     return fallback
 
 
+def picture_trim(plan,source_features=None,target_features=None,keep_target_outer=False):
+    """Main episode from a picture timeline: between target-only outer runs.
+
+    The picture timeline already proves which opening/ending target frames
+    have no source picture. A shared opening SONG over different pictures is
+    not removed (same veto as detect_main) unless target outer audio is kept.
+    """
+    segs=plan['segments'];d=plan['duration'];bounds={}
+    a,b=0.,d
+    first,last=segs[0],segs[-1]
+    if first['kind']=='reference' and first.get('picture_outer')=='outer_start':
+        a=float(first['target_end'])
+        bounds['start']=dict(time=a,status='supported',reason='Picture timeline: target-only opening (no source pictures)')
+        if not keep_target_outer:
+            speed=float((plan.get('models') or [{}])[0].get('speed',1.))
+            ev=opening_audio_correspondence(source_features,target_features,a,speed)
+            if ev and ev.get('matched'):
+                a=0.;bounds['start']=dict(time=0.,status='kept',reason=f"Opening music is shared with the source (score {ev['score']:.3f}); not trimmed")
+    else:bounds['start']=dict(time=0.,status='kept',reason='Picture timeline: opening pictures are shared')
+    if last['kind']=='reference' and last.get('picture_outer')=='outer_end':
+        b=float(last['target_start'])
+        bounds['end']=dict(time=b,status='supported',reason='Picture timeline: target-only ending (no source pictures)')
+    else:bounds['end']=dict(time=d,status='kept',reason='Picture timeline: ending pictures are shared')
+    if not 0<=a<b<=d or b-a<10:raise ValueError('Invalid main-episode boundaries from the picture timeline.')
+    return dict(original_duration=d,target_start=a,target_end=b,duration=b-a,boundaries=bounds)
+
+
 def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_features=None,target_features=None,keep_target_outer=False):
     if not plan.get('source_video') or not plan.get('target_video'):raise ValueError('Main-episode detection requires both videos.')
     # Keep-target-OP/ED does not delete target opening video/music: it only
@@ -123,7 +178,7 @@ def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_fe
             continue
         if len(visual)<8:raise ValueError('Not enough shared pictures for automatic OP/ending trimming.')
         m=plan['models'][0 if side=='start' else -1]
-        edge=visual[:min(15,len(visual))] if side=='start' else visual[-min(15,len(visual)):]
+        edge=edge_matches(visual,m,side)
         offsets=edge[:,1]-m['speed']*edge[:,0];off=float(np.median(offsets))
         good=edge[abs(offsets-off)<.1]
         if len(good)<5:raise ValueError('Unstable picture timing near '+side+'; use a manual boundary.')
@@ -133,10 +188,13 @@ def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_fe
         if hi-lo>min(duration*.4,420):raise ValueError('Unmatched '+side+' is too long to safely classify as OP/ending.')
         print(f'Finding main-episode {side}: target {lo:.2f}–{hi:.2f}s',flush=True)
         source_begin=m['speed']*lo+off+delay
-        if source_begin<0:raise ValueError('Source pictures unavailable at target start; supply --main-start.')
+        # Target pictures before the source begins have no counterpart: they are
+        # differing outer footage by definition, not a reason to give up.
+        missing=max(0.,-source_begin/m['speed'])
+        if missing and (side!='start' or missing>=hi-lo-10):raise ValueError('Source pictures unavailable at target start; supply --main-start.')
         q,dark=frames(plan['target_video'],lo,hi-lo,crop=plan.get('target_crop',''),with_dark=True)
-        x=frames(plan['source_video'],source_begin,hi-lo,m['speed'],plan.get('source_crop',''))
-        results[side]=boundary_from_scores(compare(q,x),dark,lo,side)
+        x=frames(plan['source_video'],max(0.,source_begin),hi-lo-missing,m['speed'],plan.get('source_crop',''))
+        results[side]=boundary_from_scores(unmatched_prefix(q,x,missing),dark,lo,side)
         if (side == 'start' and not keep_target_outer and
                 results[side]['status'] == 'supported' and results[side]['time'] > 0):
             evidence = opening_audio_correspondence(source_features, target_features, results[side]['time'], m['speed'])
@@ -153,6 +211,24 @@ def detect_main(plan,visual,delay=0.,manual_start=None,manual_end=None,source_fe
     return dict(original_duration=duration,target_start=a,target_end=b,duration=b-a,boundaries=results)
 
 
+def absorb_edge_slivers(segments,limit=.25):
+    """Merge a sub-limit first/last fragment into its neighbouring audio segment.
+
+    The picture boundary and the audio cut are independent estimates; when
+    they differ by a few frames the trim keeps a sliver of the outer section,
+    mapped to unrelated source audio. Continuing the neighbour's mapping is
+    seamless; the sliver itself carries no timing evidence.
+    """
+    s=[dict(x) for x in segments]
+    if len(s)>=2 and s[-1]['target_end']-s[-1]['target_start']<limit and s[-2]['kind']=='audio':
+        last=s.pop();s[-1]['target_end']=last['target_end']
+    if len(s)>=2 and s[0]['target_end']-s[0]['target_start']<limit and s[1]['kind']=='audio':
+        n=s[1];start=s[0]['target_start']
+        earlier=n['source_start']-(n['target_start']-start)*n['speed']
+        if earlier>=0:
+            s.pop(0);n.update(target_start=start,source_start=earlier)
+    return s
+
 def trim_plan(plan,trim):
     a,b=trim['target_start'],trim['target_end'];p=copy.deepcopy(plan);segments=[]
     for s in p['segments']:
@@ -161,6 +237,7 @@ def trim_plan(plan,trim):
         q=dict(s);q['target_start']=lo-a;q['target_end']=hi-a
         if q['kind']=='audio':q['source_start']=s['source_start']+(lo-s['target_start'])*s['speed']
         segments.append(q)
+    segments=absorb_edge_slivers(segments)
     review=[]
     for r in p.get('review',[]):
         lo=max(a,r['start']);hi=min(b,r['end'])
@@ -174,19 +251,47 @@ def trim_plan(plan,trim):
     return p
 
 
+def frame_rate(video):
+    """Constant frame rate of the first video stream, or None."""
+    v=next((s for s in vc.probe(video)['streams'] if s['codec_type']=='video'),None)
+    for key in ('r_frame_rate','avg_frame_rate'):
+        try:
+            a,b=map(float,(v or {}).get(key,'0/0').split('/'))
+            if a>0 and b>0:return a/b
+        except (ValueError,ZeroDivisionError):pass
+    return None
+
+
+def snap_to_frames(trim,fps):
+    """Main-episode boundaries on the target frame grid.
+
+    The trimmed picture starts at the first whole frame at or after the
+    boundary; audio cut at a fractional boundary lags it by up to one frame
+    (measured: 31 ms over all of case 3, 23.976 fps, boundary 93.52 s).
+    """
+    if not fps:return trim
+    t=dict(trim);eps=1e-3
+    t['target_start']=float(np.ceil((t['target_start']-eps)*fps)/fps)
+    t['target_end']=float(max(t['target_start']+1/fps,np.floor((t['target_end']+eps)*fps)/fps))
+    t['duration']=t['target_end']-t['target_start'];t['fps']=fps
+    return t
+
+
 def export_video(plan,audio,out,codec='h264',preset='veryfast'):
     trim=plan['main_trim'];dest=Path(out)/'main_episode.mkv'
     if dest.exists():raise RuntimeError('main_episode.mkv already exists; use a new output folder.')
     tmp=Path(out)/'main_episode.partial.mkv'
     encoding=['-c:v','ffv1','-level','3'] if codec=='ffv1' else ['-c:v','libx264','-preset',preset,'-crf','16']
     print('Encoding frame-accurate trimmed target video...',flush=True)
+    # Boundaries are on the frame grid: seek a quarter frame early so rounding of
+    # the boundary frame's PTS cannot drop it.
     try:
-        vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-ss',str(trim['target_start']+plan.get('input_trims',{}).get('target',{}).get('start',0.)),'-i',plan['target_video'],'-i',str(audio),'-map','0:v:0','-map','1:a:0','-t',str(plan['duration']),'-vf','setpts=PTS-STARTPTS','-fps_mode','passthrough',*encoding,'-c:a','copy','-map_metadata','-1','-map_chapters','-1',str(tmp)])
+        vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-ss',str(trim['target_start']-(.25/trim['fps'] if trim.get('fps') else 0.)+plan.get('input_trims',{}).get('target',{}).get('start',0.)),'-i',plan['target_video'],'-i',str(audio),'-map','0:v:0','-map','1:a:0','-t',str(plan['duration']),'-vf','setpts=PTS-STARTPTS','-fps_mode','passthrough',*encoding,'-c:a','copy','-map_metadata','-1','-map_chapters','-1',str(tmp)])
         d=vc.probe(tmp);actual=float(d['format']['duration'])
         if abs(actual-plan['duration'])>.1:raise RuntimeError('Trimmed video duration does not match trimmed audio.')
-        tmp.replace(dest)
+        vc.finish_partial(tmp,dest)
     finally:
-        if tmp.exists():tmp.unlink()
+        vc.discard_partial(tmp)
     return dest
 
 
@@ -221,7 +326,7 @@ def export_full_video(plan,audio,out):
                 '-map','0:v:0','-map','1:a:0','-c:v','copy','-c:a','copy','-map_metadata','-1','-map_chapters','0',str(tmp)])
         actual=vc.video_duration(tmp)
         if abs(actual-plan['duration'])>.15:raise RuntimeError('Full episode duration differs from target timeline.')
-        tmp.replace(dest)
+        vc.finish_partial(tmp,dest)
     finally:
-        if tmp.exists():tmp.unlink()
+        vc.discard_partial(tmp)
     return dest

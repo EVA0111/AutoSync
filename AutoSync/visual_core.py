@@ -22,6 +22,34 @@ def run(cmd):
 def probe(path):
     return json.loads(run([binary('ffprobe'), '-v','error','-show_format','-show_streams','-of','json',str(path)]))
 
+def finish_partial(tmp, dest, timeout=60., wait=.25, sleep=None):
+    """Rename a finished partial export, retrying while Windows still holds it.
+
+    A just-closed file can stay locked (indexer, antivirus): WinError 32. A scan
+    of a multi-GB video took longer than 5 s in the matrix (Zorro, remove
+    unmatched). Retry with growing waits for up to a minute; if the rename is
+    still refused, copy the content (reading is usually still allowed) and
+    remove the partial file when it is released.
+    """
+    import time
+    sleep = sleep or time.sleep
+    waited = 0.
+    while True:
+        try:
+            return Path(tmp).replace(dest)
+        except PermissionError:
+            if waited >= timeout:
+                break
+            sleep(wait); waited += wait; wait = min(wait * 2, 5.)
+    shutil.copyfile(tmp, dest)
+    discard_partial(tmp)
+    return Path(dest)
+
+def discard_partial(tmp):
+    """Best-effort removal; never masks the error that left the partial file."""
+    try: Path(tmp).unlink(missing_ok=True)
+    except OSError: pass
+
 def video_duration(path):
     """Presentation span of the first video track, relative to its first PTS.
 

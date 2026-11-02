@@ -41,6 +41,7 @@ def run_request(request):
         v.update({k:'' for k in ['source','target','audio','reference','out','batch','plan']})
         v.update(mode='Keep target opening / ending',sync_method='standard',video_codec='h264',video_preset='veryfast')
         v.update({k:False for k in ['audio_only','analyze_only','reference_fallback','remove_unmatched_video','allow_uncertain_cuts']})
+        v.update(censored_dub='',restored_subtitles='')
         supplied=request['values']
         if not isinstance(supplied,dict) or set(supplied)-set(v):raise ValueError('Unknown desktop settings.')
         v.update(supplied)

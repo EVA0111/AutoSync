@@ -34,3 +34,14 @@ test('cannot reuse a standard plan as an AI-assisted alignment',()=>{
  assert.equal(reusablePreviewPlan(p,{...v,sync_method:'ai_assisted'}),false);
  assert.equal(reusablePreviewPlan({...p,sync_method:'ai_assisted'},{...v,sync_method:'ai_assisted'}),true);
 });
+
+test('manual opening/ending boundaries are available and forwarded to audio jobs',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'renderer.js'),'utf8');
+ assert.match(src,/\['main_start','Main start \(target seconds, optional\)'/);
+ assert.match(src,/\['main_end','Main end \(target seconds, optional\)'/);
+ const jobBuilder=src.slice(src.indexOf('function audioJob()'),src.indexOf("$('stop').onclick"));
+ assert.ok(jobBuilder.includes('...advanced.map(x=>x[0])'));
+ assert.match(jobBuilder,/if\(values\.mode==='Sync full target audio'\)\{values\.main_start='';values\.main_end='';\}/);
+ // In main-episode modes the selected values remain available to the engine.
+ assert.ok(jobBuilder.includes('...advanced.map(x=>x[0])'));
+});

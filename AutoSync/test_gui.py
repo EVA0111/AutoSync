@@ -22,13 +22,36 @@ class GUICommands(unittest.TestCase):
         with self.assertRaises(ValueError):build_command(self.v,'Single episode')
         self.v['main_start']='';out=Path(self.v['out']);out.mkdir();(out/'plan.json').touch()
         with self.assertRaises(ValueError):build_command(self.v,'Single episode')
+    def test_manual_main_boundaries_reach_engine_in_both_main_modes(self):
+        # The desktop must not discard manually verified boundary times.
+        self.v.update(main_start='86.16',main_end='1300.5')
+        for mode in ('Main episode only', 'Keep target opening / ending'):
+            self.v['mode']=mode
+            cmd,_=build_command(self.v,'Single episode')
+            self.assertEqual(cmd[cmd.index('--main-start')+1], '86.16')
+            self.assertEqual(cmd[cmd.index('--main-end')+1], '1300.5')
+        self.v['main_end']='86.16'
+        with self.assertRaisesRegex(ValueError,'Main end must be after main start'):
+            build_command(self.v,'Single episode')
+
+    def test_ai_assisted_and_standard_exports_both_get_sampled_audio_check(self):
+        from autosync import should_verify_export
+        ref=object()
+        plan={'segments':[{'kind':'audio'}]}
+        self.assertTrue(should_verify_export('audio matches, with visual rate estimate',ref,plan))
+        self.assertTrue(should_verify_export('AI-assisted: audio matches, with visual rate estimate',ref,plan))
+        self.assertFalse(should_verify_export('visual fallback',ref,plan))
+        self.assertFalse(should_verify_export('AI-assisted: visual fallback',ref,plan))
+        self.assertFalse(should_verify_export('AI-assisted: audio matches',None,plan))
+        self.assertFalse(should_verify_export('AI-assisted: audio matches',ref,{'video_edits':{'kept':[]}}))
+
     def test_saved_plan_skips_input_validation(self):
         self.v.update(source='',target='',plan=str(self.file),video_codec='ffv1')
         cmd,_=build_command(self.v,'Saved plan');self.assertIn('--render-plan',cmd);self.assertNotIn('--audio',cmd);self.assertIn('ffv1',cmd)
     def test_batch_relative_paths_and_duplicates(self):
         path=self.root/'jobs.csv';self.v['batch']=str(path)
         def write(rows):
-            with path.open('w',newline='') as f:
+            with path.open('w',newline='',encoding='utf-8') as f:
                 w=csv.DictWriter(f,fieldnames=['source','target','audio','out']);w.writeheader();w.writerows(rows)
         row=dict(source=self.file.name,target=self.file.name,audio=self.file.name,out='episode1')
         write([row]);cmd,out=build_command(self.v,'Batch CSV');self.assertIn('--batch',cmd);self.assertEqual(out.resolve(),(self.root/'episode1').resolve())
