@@ -176,7 +176,17 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Bundled FFmpeg failed.' }
 
   Write-Host '[7/7] Creating portable ZIP...'
-  Compress-Archive -LiteralPath $bundle -DestinationPath $zip -CompressionLevel Optimal
+  # Antivirus may briefly lock the executables just run by the checks above.
+  for ($attempt = 1; ; $attempt++) {
+    try {
+      Compress-Archive -LiteralPath $bundle -DestinationPath $zip -CompressionLevel Optimal -Force -ErrorAction Stop
+      break
+    } catch {
+      if ($attempt -ge 5) { throw }
+      Write-Host "ZIP attempt $attempt failed ($($_.Exception.Message)); retrying..."
+      Start-Sleep -Seconds (3 * $attempt)
+    }
+  }
   if (-not (Test-Path -LiteralPath $zip)) { throw 'Portable ZIP was not created.' }
   $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
   Write-Host 'Portable app: ' $bundle
