@@ -17,6 +17,7 @@ in target-video seconds (after any speed change); "src" maps t -> a + (t-t0)*s.
 """
 import argparse
 import json
+import math
 import subprocess
 from pathlib import Path
 
@@ -63,36 +64,47 @@ CASES = {
 
 
 def probe(path):
-    out = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,width,height,r_frame_rate',
+    out = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type,width,height,r_frame_rate,start_time',
                           '-of', 'json', str(path)], stdout=subprocess.PIPE, check=True).stdout
     v = next(s for s in json.loads(out)['streams'] if s['codec_type'] == 'video')
     a, b = map(float, v['r_frame_rate'].split('/'))
-    return int(v['width']), int(v['height']), a / b
+    return int(v['width']), int(v['height']), a / b, float(v.get('start_time') or 0)
 
 
 def build(case, source, insert, out):
-    W, H, F = probe(source)
+    W, H, F, V0 = probe(source)
+    # Every piece is a whole number of frames and starts on a source frame, so
+    # the truth is exact (a fractional cut or a frame-rate conversion would
+    # otherwise shift everything after it by up to a frame).
+    frame_at = lambda t: math.ceil((t - V0) * F - 1e-6)
     speed = case.get('speed', 1.)
     graph, labels, truth, t = [], [], [], 0.
     for k, p in enumerate(case['pieces']):
         kind = p[0]
-        if kind in ('src', 'ins'):
-            i = 0 if kind == 'src' else 1
-            a, b = p[1], p[2]
-            fit = '' if i == 0 else f',scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={F}'
-            graph.append(f'[{i}:v]trim={a}:{b},setpts=PTS-STARTPTS{fit}[v{k}]')
-            graph.append(f'[{i}:a]atrim={a}:{b},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo[a{k}]')
-            d = b - a
-            truth.append(dict(kind='src' if i == 0 else 'none', start=t, end=t + d, source_start=a if i == 0 else None))
+        if kind == 'src':
+            ka, kb = frame_at(p[1]), frame_at(p[2])
+            a, d = V0 + ka / F, (kb - ka) / F
+            graph.append(f'[0:v]trim=start_frame={ka}:end_frame={kb},setpts=PTS-STARTPTS[v{k}]')
+            graph.append(f'[0:a]atrim=start={a:.9f}:duration={d:.9f},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo[a{k}]')
+            truth.append(dict(kind='src', start=t, end=t + d, source_start=a))
+        elif kind == 'ins':
+            a, n = p[1], round((p[2] - p[1]) * F)
+            d = n / F
+            fit = f',scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={F}'
+            graph.append(f'[1:v]trim=start={a},setpts=PTS-STARTPTS{fit},trim=end_frame={n}[v{k}]')
+            graph.append(f'[1:a]atrim=start={a}:duration={d:.9f},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo[a{k}]')
+            truth.append(dict(kind='none', start=t, end=t + d, source_start=None))
         elif kind == 'hold':
-            at, d = p[1], p[2]
-            graph.append(f'[0:v]trim=start={at}:duration={1 / F:.6f},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={d},trim=duration={d}[v{k}]')
-            graph.append(f'anullsrc=r=48000:cl=stereo,atrim=duration={d}[a{k}]')
-            truth.append(dict(kind='hold', start=t, end=t + d, source_start=at))
+            ka, n = frame_at(p[1]), round(p[2] * F)
+            d = n / F
+            graph.append(f'[0:v]trim=start_frame={ka}:end_frame={ka + 1},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop={n - 1}[v{k}]')
+            graph.append(f'anullsrc=r=48000:cl=stereo,atrim=duration={d:.9f}[a{k}]')
+            truth.append(dict(kind='hold', start=t, end=t + d, source_start=V0 + ka / F))
         else:
-            d = p[1]
-            graph.append(f'color=black:s={W}x{H}:r={F}:d={d}[v{k}]')
-            graph.append(f'anullsrc=r=48000:cl=stereo,atrim=duration={d}[a{k}]')
+            n = round(p[1] * F)
+            d = n / F
+            graph.append(f'color=black:s={W}x{H}:r={F},trim=end_frame={n}[v{k}]')
+            graph.append(f'anullsrc=r=48000:cl=stereo,atrim=duration={d:.9f}[a{k}]')
             truth.append(dict(kind='none', start=t, end=t + d, source_start=None))
         labels.append(f'[v{k}][a{k}]')
         t += truth[-1]['end'] - truth[-1]['start']

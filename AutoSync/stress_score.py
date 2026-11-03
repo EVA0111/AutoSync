@@ -47,10 +47,11 @@ def truth_source_times(truth, times):
     return src, scored
 
 
-def score(plan, truth):
+def score(plan, truth, video_start=0.):
+    """Truth is in target container time; plans count from the first target frame."""
     end = max(p['end'] for p in truth['pieces'])
     t = np.arange(0, end, STEP)
-    pred = plan_source_times(plan, t)
+    pred = plan_source_times(plan, t - video_start)
     true, scored = truth_source_times(truth, t)
     is_src = scored & ~np.isnan(true)
     is_none = scored & np.isnan(true)
@@ -70,6 +71,12 @@ def score(plan, truth):
     res['pass'] = bool(res['within_40ms'] >= .97 and res['false_match_seconds'] <= 1. and
                        (res['p95_ms'] or 0) <= 40)
     return res
+
+
+def video_start(path):
+    out = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=start_time',
+                          '-of', 'csv=p=0', str(path)], stdout=subprocess.PIPE, text=True).stdout.strip()
+    return float(out or 0)
 
 
 def main():
@@ -97,7 +104,7 @@ def main():
                 failed += 1
                 continue
         plan = json.loads((engine / 'plan.json').read_text(encoding='utf-8'))
-        res = score(plan, json.loads((case / 'truth.json').read_text(encoding='utf-8')))
+        res = score(plan, json.loads((case / 'truth.json').read_text(encoding='utf-8')), video_start(case / 'target.mkv'))
         (case / f'score_{a.method}.json').write_text(json.dumps(res, indent=1), encoding='utf-8')
         failed += not res['pass']
         print(f"{name:24} {'PASS' if res['pass'] else 'FAIL'}  in40={res['within_40ms']:.3f} "
