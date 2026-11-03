@@ -152,7 +152,21 @@ def plan_map(plan_path):
                 continue
             ordered.pop()
         ordered.append(s)
-    m = TimingMap(ordered, 'visual' if picture else 'audio-plan')
+    # Consecutive pieces that continue each other (a split in the plan, not an
+    # edit) become one section, so lines across them are not split.
+    merged = []
+    for s in ordered:
+        p = merged[-1] if merged else None
+        if p and abs(s.start - p.end) < .05 and abs(s.scale - p.scale) < 1e-6 and abs((s.scale * s.start + s.offset) - (p.scale * s.start + p.offset)) < .005:
+            p.end = s.end
+        else:
+            merged.append(s)
+    # A merge or a join jitter must not make target time run backwards.
+    for x, y in zip(merged, merged[1:]):
+        ty = y.scale * y.start + y.offset
+        if x.scale * x.end + x.offset > ty:
+            x.end = max(x.start, (ty - x.offset) / x.scale)
+    m = TimingMap(merged, 'visual' if picture else 'audio-plan')
     # Plans map target picture time to source AUDIO time.
     m.source_domain, m.target_domain = 'audio', 'picture'
     return m
@@ -199,18 +213,25 @@ class Placer:
                 spans.append((lo, hi))
         return spans
 
-    def edge(self, src_frame, opening):
+    def edge(self, src_frame, opening, span=None):
         """Target frame for a line edge at source frame `src_frame`.
 
-        For the opening edge that is the frame showing the same picture as the
-        first displayed source frame; for the closing edge, one past the target
-        frame showing the last displayed source frame.
+        The first target frame showing source frame `src_frame` (opening) or
+        anything after it (closing). A target frame shows the source picture
+        nearest its time, so the change from frame k-1 to k falls at
+        (k - 0.5)/fps: mapping that boundary covers every target frame of a
+        picture shown twice (25 -> 29.97 fps, pulldown) and equals frame k at
+        equal rates.
         """
-        f = src_frame if opening else src_frame - 1
-        hit = self.point(self.src.mid(f))
+        rel = (src_frame - .5) / self.src.fps
+        # Look up inside this piece's map section (the boundary of its first frame
+        # lies half a frame before it; joins can leave ms gaps) and follow the
+        # section's rate from there.
+        look = min(max(rel, span[0] + 1e-4), span[1] - 1e-4) if span else rel
+        hit = self.point(look)
         if hit is None:
             return None, None
-        n = self.tgt.frame_at(hit[0])
+        n = math.ceil((hit[0] + (rel - look) * hit[1]) * self.tgt.fps - 1e-4)
         cut_rel = src_frame / self.src.fps
         if len(self.src.cuts) and np.min(np.abs(self.src.cuts - cut_rel)) * self.src.fps <= .5:
             mapped_cut = self.point(cut_rel) or self.point(self.src.mid(src_frame))
@@ -218,7 +239,7 @@ class Placer:
                 snapped = self.tgt.cut_frame(mapped_cut[0], self.within)
                 if snapped is not None:
                     return snapped, hit
-        return (n if opening else n + 1), hit
+        return n, hit
 
     def place(self, start, end):
         """Pieces for a cue shown from `start` to `end` (source container times), or [] if unmapped."""
@@ -236,11 +257,13 @@ class Placer:
             # Section ends carry float noise (109.96002 for a 109.96 s frame boundary):
             # snap within a millisecond, or the piece reaches into removed footage.
             snap = lambda x: math.ceil(x * self.src.fps - 1e-3 * self.src.fps)
-            f0, f1 = (k0 if i == 0 else snap(lo)), (k1 if i == len(spans) - 1 else snap(hi))
+            # The line's own edges only where its section reaches them.
+            f0 = k0 if lo <= a + 1e-3 else snap(lo)
+            f1 = k1 if hi >= b - 1e-3 else snap(hi)
             if f1 <= f0:
                 continue
-            n0, h0 = self.edge(f0, True)
-            n1, h1 = self.edge(f1, False)
+            n0, h0 = self.edge(f0, True, (lo, hi))
+            n1, h1 = self.edge(f1, False, (lo, hi))
             if n0 is None or n1 is None or n1 <= n0:
                 continue
             pieces.append(Piece(self.tgt.ass_time(n0), self.tgt.ass_time(n1), h0[1], h0[2],

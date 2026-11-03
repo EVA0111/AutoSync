@@ -110,6 +110,37 @@ class SplitWithFloatNoise(unittest.TestCase):
         self.assertEqual(shown(pieces[1].start, pieces[1].end, g).tolist(), list(range(250, 300)))
 
 
+class JoinGap(unittest.TestCase):
+    def test_line_over_a_few_ms_gap_between_sections_is_placed(self):
+        # Plans can leave 4 ms between consecutive sections with no edit there.
+        m = TimingMap([Section(0, 245.416, 1, 0, []), Section(245.42, 400, 1, 0, [])], 'visual')
+        g = FrameGrid(25.)
+        pieces = Placer(m, g, g).place(g.time(6100), g.time(6200))
+        frames = sorted(set().union(*[set(shown(p.start, p.end, g, 8000).tolist()) for p in pieces]))
+        self.assertEqual(frames, list(range(6100, 6200)))
+
+
+class HigherTargetRate(unittest.TestCase):
+    def test_picture_shown_twice_keeps_both_target_frames(self):
+        # 25 -> 29.97 fps by nearest frame: target frame n shows round(n * 25/29.97).
+        src, tgt = FrameGrid(25.), FrameGrid(30000 / 1001)
+        r = 25 / tgt.fps
+        (p,) = Placer(identity(), src, tgt).place(src.time(500), src.time(560))
+        frames = shown(p.start, p.end, tgt, 4000).tolist()
+        want = [n for n in range(4000) if 500 <= round(n * r) < 560]
+        self.assertEqual(frames, want)
+
+
+class LineRunningIntoRemovedFootage(unittest.TestCase):
+    def test_piece_stops_at_the_edit(self):
+        # source 0-10 s kept, 10-14 s removed, 14 s on kept; the line runs 8-12 s.
+        m = TimingMap([Section(0, 10, 1, 0, []), Section(14, 40, 1, -4, [])], 'visual')
+        g = FrameGrid(25.)
+        (p,) = Placer(m, g, g).place(8., 12.)
+        self.assertEqual(shown(p.start, p.end, g).tolist(), list(range(200, 250)))
+        self.assertIn('review', p.quality)
+
+
 class Rebase(unittest.TestCase):
     def test_move_transform_and_fade(self):
         text = r'{\fad(200,300)\move(0,0,100,100,1000,3000)\t(500,1500,\frz10)}Sign'
