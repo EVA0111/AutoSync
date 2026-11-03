@@ -41,7 +41,7 @@ def truth_source_times(truth, times):
     for p in truth['pieces']:
         inside = (times >= p['start'] + EDGE) & (times < p['end'] - EDGE)
         if p['kind'] == 'src':
-            src[inside] = p['source_start'] + (times[inside] - p['start']) * truth['speed']
+            src[inside] = p['source_start'] + (times[inside] - p['start']) * p.get('speed', truth['speed'])
         if p['kind'] != 'hold':
             scored |= inside
     return src, scored
