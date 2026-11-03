@@ -503,7 +503,8 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
     def audio_cut(p,m,t,lo,hi):
         # Join inside a static/dark span bounded by picture evidence: dense audio
         # evidence first; otherwise the point where the least source sound is cut.
-        oa,ob=p['offset']/pt.FPS+shift,m['offset']/pt.FPS+shift
+        # Offsets at the join itself (a section may drift or run at its own rate).
+        oa,ob=pt.offset_at(p,lo*pt.FPS)/pt.FPS+shift,pt.offset_at(m,hi*pt.FPS)/pt.FPS+shift
         ts=ti['origin']-ti['start']   # frame seconds -> target video seconds (reference features)
         if ref_t is not None:
             c=locate_cut(dict(speed=tl.ratio,offset=oa-tl.ratio*ts,last=lo+ts+4),dict(speed=tl.ratio,offset=ob-tl.ratio*ts,first=hi+ts-4),ref_t,energy_t,sf)

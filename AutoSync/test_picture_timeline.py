@@ -409,3 +409,45 @@ class FirstFrameMeasured(unittest.TestCase):
             subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=64x48:r=25:d=2',
                             '-output_ts_offset', '0.3', '-c:v', 'libx264', str(f)], check=True)
             self.assertAlmostEqual(pt.stream_info(f)['origin'], .3, delta=.002)
+
+
+class RateFromSections(unittest.TestCase):
+    """The rate is the one at which matched sections hold their pictures still.
+
+    Stress suite: broadcast trims of 2-6 frames every 11-43 s read as a 0.6 %
+    speed-up from match-pair slopes; a 0.1 % (film vs NTSC) rate was snapped
+    to 1; and one act from a PAL master could not be expressed at all.
+    """
+    @classmethod
+    def setUpClass(cls):
+        cls.S = slow_frames(420 * FPS, 41, width=30)
+
+    def timeline(self, pos):
+        T = noisy(resample(self.S, np.asarray(pos, float)), .2)
+        return pt.from_features(self.S, np.full(len(self.S), 20.), T, sparse_detail(len(T), 3), dict(score=1.),
+                                dict(start=0.), dict(start=0.), progress=lambda *_: None)
+
+    def test_micro_cuts_keep_rate_one(self):
+        pos, s = [], 30. * FPS
+        for gap, frames in zip([13, 29, 41, 17, 23, 37, 11, 31, 19, 43, 27], [2, 6, 3, 5, 2, 4, 6, 3, 2, 5, 4]):
+            pos += list(s + np.arange(gap * FPS)); s += gap * FPS + frames
+        self.assertEqual(self.timeline(pos).ratio, 1.)
+
+    def test_film_to_ntsc_rate(self):
+        t = np.arange(280 * FPS)
+        self.assertAlmostEqual(self.timeline(30 * FPS + t * 1.001).ratio, 1.001, places=9)
+
+    def test_one_act_at_pal_speed(self):
+        t = np.arange(280 * FPS) / FPS
+        src = np.where(t < 90, 30 + t, np.where(t < 186, 120 + (t - 90) * 25 / 24, 220 + (t - 186)))
+        tl = self.timeline(src * FPS)
+        self.assertEqual(tl.ratio, 1.)
+        act = [x for x in tl.sections if x.get('rate')]
+        self.assertEqual(len(act), 1)
+        self.assertAlmostEqual(act[0]['rate'], 25 / 24)
+        self.assertLess(abs(act[0]['first'] / FPS - 90), 3); self.assertLess(abs(act[0]['last'] / FPS - 186), 3)
+        segs = plan(tl, len(t) / FPS)
+        for x in (100., 150., 180.):
+            got = next(s['source_start'] + (x - s['target_start']) * s['speed'] for s in segs
+                       if s['kind'] == 'audio' and s['target_start'] <= x < s['target_end'])
+            self.assertAlmostEqual(got, 120 + (x - 90) * 25 / 24, delta=.04)

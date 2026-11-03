@@ -29,7 +29,9 @@ FPS = 25                 # decode grid
 W, H = 64, 48            # decode size (full frame; crops applied in numpy)
 STEP = .5                # target sample spacing (s)
 CLIP = np.arange(-25, 26, 5)          # +-1 s every 0.2 s, in frames
-KNOWN = (1., 25 / 24, 25025 / 24000, 24 / 25, 24000 / 25025)
+KNOWN = (1., 25 / 24, 25025 / 24000, 24 / 25, 24000 / 25025, 1001 / 1000, 1000 / 1001)
+RATE_CHECK = 2e-4       # rate error matched sections must show before a re-solve (real releases: < 6e-5)
+RATE_SNAP = 3e-4        # a corrected rate this close to a standard ratio is that ratio
 MATCH = .82              # clip score above which a match is evidence
 JUMP, BACK, FAR, NULL = 1.5, 3.0, 4.0, .6
 
@@ -853,10 +855,8 @@ def build(source_video, target_video, ffmpeg='ffmpeg', ffprobe='ffprobe', progre
                          verify=verify)
 
 
-def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, ratio=None, verify=None):
-    """Solve the timeline from unit-norm frame features (25 fps grids)."""
-    r = ratio or estimate_ratio(FT, DT, FS, DS)
-    progress(f'Picture timeline: source/target rate {r:.9f}')
+def solve_sections(FT, DT, FS, DS, r):
+    """Matched and target-only sections (constant offsets) at one source/target rate."""
     samples = np.arange(int(FPS * STEP), len(FT) - int(FPS * STEP), int(FPS * STEP))
     cand = candidates(FT, DT, FS, DS, r, samples)
     path = solve(cand, r)
@@ -892,6 +892,203 @@ def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, rati
                      samples=n, strong=m['strong'] + s['strong'])
         else:
             merged.append(dict(s))
+    return merged
+
+
+def section_rate_error(sections, FT, FS, DT, r, min_len=10):
+    """[(offset slope, span frames)] inside matched sections of at least min_len s.
+
+    A wrong rate leaves each section's picture sliding against its constant
+    offset. Sub-frame offsets of the first and last third measure that slide
+    precisely (real releases: within 6e-5), where sparse frame matches cannot:
+    evenly spread small cuts make long-spaced match pairs lean like a speed
+    change, and 0.1 % is below the standard-ratio snap.
+    """
+    out = []
+    for x in sections:
+        if x['kind'] != 'match' or x['last'] - x['first'] < min_len * FPS:
+            continue
+        # 2 s clear of the edges: a section edge can sit a sample past its cut,
+        # and clips there see the neighbouring shot's timing.
+        fr = np.arange(x['first'] + 2 * FPS, x['last'] - 2 * FPS + 1, int(FPS * STEP))
+        fr = fr[DT[fr] > 6]
+        if len(fr) < 12:
+            continue
+        k = len(fr) // 3
+        head, tail = fr[:k], fr[-k:]
+        oh = ot = None
+        for _ in range(2):  # re-centre: refine_offset searches +-1.5 frames
+            oh = refine_offset(FT, FS, DT, r, list(head), offset_at(x, head.mean()) if oh is None else oh)
+            ot = refine_offset(FT, FS, DT, r, list(tail), offset_at(x, tail.mean()) if ot is None else ot)
+        span = float(tail.mean() - head.mean())
+        out.append(((ot - oh) / span, span))
+    return out
+
+
+def corrected_rate(sections, FT, FS, DT, r):
+    """A better rate when the matched sections agree that r is off, else None."""
+    sl = section_rate_error(sections, FT, FS, DT, r)
+    if len(sl) < 3:
+        return None
+    d = np.array([x[0] for x in sl]); w = np.array([x[1] for x in sl]) ** 2
+    order = np.argsort(d)
+    med = float(d[order][np.searchsorted(np.cumsum(w[order]) / w.sum(), .5)])
+    agree = w[np.abs(d - med) <= max(.5 * abs(med), RATE_CHECK)].sum() / w.sum()
+    if abs(med) < RATE_CHECK or agree < .6:
+        return None
+    new = r + med
+    near = min(KNOWN, key=lambda x: abs(x - new))
+    new = near if abs(near - new) < RATE_SNAP else new
+    return None if abs(new - r) < 1e-9 else new
+
+
+STILL = 6e-4             # a section slides less than this at its true rate (real releases: <= 5e-4)
+
+
+def still_span(sections, FT, FS, DT, r):
+    """(Frames of matched sections that hold their pictures at rate r, median |slide|).
+
+    At the true rate the sections' pictures hold their offsets; at a wrong one
+    they slide by the rate error. Section length alone cannot tell: a slight
+    rate error makes small cuts look continuous, so sections at a wrong rate
+    are often longer. Counting only sections that hold still also keeps one
+    act at another rate (a long, clean section at its own rate) from deciding
+    the episode's rate.
+    """
+    sl = section_rate_error(sections, FT, FS, DT, r)
+    if not sl:
+        return 0., None
+    d = np.abs([x[0] for x in sl])
+    return float(sum(span for (_, span), x in zip(sl, d) if x < STILL)), float(np.median(d))
+
+
+def choose_rate(FT, DT, FS, DS, r0):
+    """(rate, sections, {rate: sections}) among r0 and the standard ratios within 5 %.
+
+    The pair-slope estimate r0 can be pulled off by evenly spread small cuts
+    (each pair spanning some of them leans the same way); the solved sections
+    themselves tell which rate holds the picture still within them.
+    """
+    sols = {r0: solve_sections(FT, DT, FS, DS, r0)}
+    for k in KNOWN:
+        if abs(k - r0) < .05 and all(abs(k - x) > 1e-9 for x in sols):
+            sols[k] = solve_sections(FT, DT, FS, DS, k)
+    score = {x: still_span(v, FT, FS, DT, x) for x, v in sols.items()}
+    most = max(span for span, _ in score.values())
+    if most <= 0:
+        return r0, sols[r0], sols
+    # Near-equal still spans (within 5 %): the rate whose sections slide least.
+    near = [x for x, (span, _) in score.items() if span >= .95 * most]
+    best = min(near, key=lambda x: score[x][1])
+    return best, sols[best], sols
+
+
+def other_rate_sections(sections, FT, DT, FS, DS, r, progress=print, min_len=20, solved=None):
+    """Long stretches that run at another standard rate (one act from a PAL master).
+
+    At the episode rate such a stretch slides a frame or more per second, so
+    it breaks into short sections or none. Each other standard ratio is solved
+    on its own; its sections that keep one offset across short gaps (dark or
+    still frames) form a stretch. A stretch of at least min_len s replaces the
+    episode-rate solution there when it holds still at r2, its pictures match
+    on at least 20 % more of the frames, nothing at the episode rate inside it
+    is longer than half of it, and the source order stays forward. It keeps
+    the episode rate's offset form with drift knots, so its own speed is r2.
+    """
+    taken = []
+    solved = solved or {}
+    for r2 in KNOWN:
+        if abs(r2 - r) < 5e-3:
+            continue
+        got = next((v for k, v in solved.items() if abs(k - r2) < 1e-9), None)
+        stretches = []
+        for x in (got if got is not None else solve_sections(FT, DT, FS, DS, r2)):
+            if x['kind'] != 'match':
+                continue
+            g = stretches[-1] if stretches else None
+            if g and x['first'] - g['last'] <= 5 * FPS and abs(x['offset'] - g['offset']) <= 1.5:
+                n_ = g['samples'] + x['samples']
+                g.update(last=x['last'], offset=(g['offset'] * g['samples'] + x['offset'] * x['samples']) / n_,
+                         samples=n_, strong=g['strong'] + x['strong'])
+            else:
+                stretches.append(dict(x))
+        for x in stretches:
+            n = x['last'] - x['first']
+            if n < min_len * FPS or x['strong'] < 10:
+                continue
+            inside = [min(m['last'], x['last']) - max(m['first'], x['first']) for m in sections
+                      if m['kind'] == 'match' and m['last'] > x['first'] and m['first'] < x['last']]
+            if max(inside, default=0) > n / 2:
+                continue
+            fr = np.arange(x['first'], x['last'])
+            fr = fr[DT[fr] > 6]
+            if not len(fr):
+                continue
+            own = frame_scores(FT, FS, r2, x['first'], x['last'], x['offset'])[fr - x['first']] >= MATCH
+            main = np.zeros(len(fr), bool)
+            for m in sections:
+                if m['kind'] == 'match' and m['last'] > x['first'] and m['first'] < x['last']:
+                    lo, hi = max(m['first'], x['first']), min(m['last'], x['last'])
+                    sel = (fr >= lo) & (fr < hi)
+                    if sel.any():
+                        sc = frame_scores(FT, FS, r, lo, hi, offset_at(m, (lo + hi) / 2))
+                        main[sel] = sc[fr[sel] - lo] >= MATCH
+            if own.mean() < .5 or own.mean() < main.mean() + .2:
+                continue
+            sl = section_rate_error([x], FT, FS, DT, r2)
+            if not sl or abs(sl[0][0]) >= RATE_CHECK * 5:
+                continue                     # not steady at r2 either
+            taken.append((n, r2, x))
+    out = [dict(x) for x in sections]
+    for n, r2, x in sorted(taken, key=lambda v: -v[0]):
+        a, b = x['first'], x['last']
+        if any(y.get('rate') and y['first'] < b and y['last'] > a for y in out):
+            continue
+        k0, k1 = x['offset'] + (r2 - r) * a, x['offset'] + (r2 - r) * b
+        src0, src1 = r * a + k0, r * b + k1
+        before = [y for y in out if y['kind'] == 'match' and y['last'] <= a]
+        after = [y for y in out if y['kind'] == 'match' and y['first'] >= b]
+        if (before and r * before[-1]['last'] + offset_at(before[-1], before[-1]['last']) > src0 + 1.5 * FPS) or \
+                (after and r * after[0]['first'] + offset_at(after[0], after[0]['first']) < src1 - 1.5 * FPS):
+            continue                         # would replay or skip back
+        kept = []
+        for y in out:
+            if y['last'] <= a or y['first'] >= b:
+                kept.append(y); continue
+            for lo, hi in ((y['first'], min(y['last'], a - 1)), (max(y['first'], b + 1), y['last'])):
+                if hi - lo >= 2 * FPS:
+                    part = dict(y, first=lo, last=hi, samples=int((hi - lo) // (FPS * STEP)) + 1)
+                    kept.append(part)
+        kept.append(dict(kind='match', first=a, last=b, offset=(k0 + k1) / 2, samples=x['samples'],
+                         strong=x['strong'], knots=[(a, k0), (b, k1)], rate=r2, base=x['offset']))
+        out = sorted(kept, key=lambda y: y['first'])
+        progress(f'Picture timeline: {a / FPS:.1f}-{b / FPS:.1f}s runs at rate {r2:.9f} '
+                 f'(episode {r:.9f})')
+    return out
+
+
+def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, ratio=None, verify=None):
+    """Solve the timeline from unit-norm frame features (25 fps grids)."""
+    r = ratio or estimate_ratio(FT, DT, FS, DS)
+    progress(f'Picture timeline: source/target rate {r:.9f}')
+    samples = np.arange(int(FPS * STEP), len(FT) - int(FPS * STEP), int(FPS * STEP))
+    solved = {}
+    if ratio is None:
+        r1, merged, solved = choose_rate(FT, DT, FS, DS, r)
+        if r1 != r:
+            progress(f'Picture timeline: sections hold their pictures at rate {r1:.9f}, not {r:.9f}')
+            r = r1
+    else:
+        merged = solve_sections(FT, DT, FS, DS, r)
+    if ratio is None:
+        for _ in range(4):
+            new = corrected_rate(merged, FT, FS, DT, r)
+            if new is None:
+                break
+            progress(f'Picture timeline: matched sections slide against rate {r:.9f}; re-solving at {new:.9f}')
+            r = new
+            merged = solve_sections(FT, DT, FS, DS, r)
+        merged = other_rate_sections(merged, FT, DT, FS, DS, r, progress, solved=solved)
     def cut_near(i, step):
         # A cut: another matched section within 2 s (a short unmatched gap
         # between them is the join's own transition).
@@ -902,7 +1099,7 @@ def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, rati
     drifted = []
     for i, s in enumerate(merged):
         got = follow_drift(s, FT, FS, DT, r, verify, cut_before=cut_near(i, -1),
-                           cut_after=cut_near(i, 1)) if s['kind'] == 'match' else None
+                           cut_after=cut_near(i, 1)) if s['kind'] == 'match' and not s.get('rate') else None
         if not got:
             drifted.append(s); continue
         drifted.extend(got)
@@ -1106,6 +1303,12 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
                                  reason='Picture-verified target-only footage; use selected target audio' if verified else
                                         'Target opening/ending with no source pictures'))
     for m in matches:
+        if m.get('rate'):                    # a stretch at its own rate (see other_rate_sections)
+            r2 = m['rate']
+            models.append(dict(speed=r2, offset=m['base'] / FPS + audio_shift - r2 * target_shift,
+                               first=m['first'] / FPS + target_shift, last=m['last'] / FPS + target_shift,
+                               anchors=m['strong'], p90_residual=0.))
+            continue
         models.append(dict(speed=r, offset=m['offset'] / FPS + audio_shift - r * target_shift,
                            first=m['first'] / FPS + target_shift, last=m['last'] / FPS + target_shift,
                            anchors=m['strong'], p90_residual=0.))
