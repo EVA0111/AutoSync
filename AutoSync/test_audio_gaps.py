@@ -72,3 +72,21 @@ class LateTargetAudio(unittest.TestCase):
                         segments=[dict(kind='audio', target_start=0, target_end=2., source_start=.5, speed=1.)])
             with self.assertRaisesRegex(RuntimeError, 'too short|ends too early'):
                 render(plan, td, False)
+
+
+@unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'FFmpeg unavailable')
+class EarlyEndingTargetAudio(unittest.TestCase):
+    def test_target_audio_ending_before_its_picture_is_silent_there(self):
+        from autosync import render
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td); target = td / 'target.mkv'
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=s=64x48:r=25:d=4', '-f', 'lavfi', '-i',
+                            'sine=frequency=1000:sample_rate=48000:duration=2.5', '-c:v', 'libx264', '-c:a', 'flac',
+                            str(target)], check=True)
+            plan = dict(audio=str(target), audio_stream=0, reference=str(target), reference_stream=0, duration=4.,
+                        review=[], segments=[dict(kind='reference', target_start=0, target_end=4., verified_insert=True)])
+            x = np.frombuffer(subprocess.run(['ffmpeg', '-v', 'error', '-i', str(render(plan, td, True)), '-ac', '1',
+                                              '-f', 'f32le', '-'], stdout=subprocess.PIPE).stdout, np.float32)
+            self.assertEqual(len(x), 4 * 48000)
+            self.assertGreater(np.abs(x[:2 * 48000]).max(), .1)
+            self.assertLess(np.abs(x[int(2.6 * 48000):]).max(), 1e-3)

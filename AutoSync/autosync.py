@@ -380,7 +380,16 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
                 # Stretch with up to 0.5 s of real context on each side, then keep the
                 # exact middle: atempo's start/end latency falls outside the segment.
                 pre=min(ss,.5);post=max(0.,min(.5,pcm.length(path,track)-(ss+dur*sp)))
+            # Likewise at the end: target audio that stops before its picture
+            # (case 9: 2.4 s) is silent there in the target. At most 5 s.
+            tail=0
+            if s['kind']!='audio':
+                have=pcm.length(path,track)-ss
+                if 0<have<dur and dur-have<=5.:tail=round((dur-have)*48000);dur=have
             pcm.cut(path,track,ss-pre,dur*sp+pre+post,raw)
+            if tail:
+                with raw.open('ab') as f:f.write(bytes(tail*ch*4))
+                dur+=tail/48000
             if lead:
                 body=np.fromfile(raw,np.float32);np.concatenate([np.zeros(lead*ch,np.float32),body]).tofile(raw);del body
                 dur+=lead/48000
@@ -781,8 +790,19 @@ def _run_job(job,args):
         elif args.keep_target_op_ed:
             from main_episode import export_full_video
             video=export_full_video(plan,output,out);say(f'Saved {video}. Complete target video with target opening/ending and synced source main audio.')
-        else:say(f'Saved {output}. Mux at 0 ms delay.')
+        else:say(f'Saved {output}. '+mux_advice(target))
     return out
+
+def mux_advice(target):
+    """FLAC time 0 is the target's first picture. Muxers rebase a file to its
+    earliest timestamp, so when the picture starts later than that (AAC
+    priming, a dropped first frame) the FLAC needs that much delay."""
+    try:
+        info=vc.probe(target);v=next(s for s in info['streams'] if s['codec_type']=='video')
+        lead=float(v.get('start_time') or 0)-float(info['format'].get('start_time') or 0)
+    except Exception:lead=0.
+    if abs(lead)<.0005:return 'Mux at 0 ms delay.'
+    return f'Mux with {lead*1000:+.0f} ms delay: the target picture starts {lead*1000:.0f} ms into its file.'
 
 def dialog(title,directory=False,multiple=False):
     from tkinter import Tk,filedialog
