@@ -56,10 +56,33 @@ def stream_info(path, ffprobe='ffprobe'):
     # video does not start exactly there, e.g. -0.021 s AAC priming in MKV, and
     # the fps filter then rounds every picture to a neighbouring slot.)
     file_start = float(d.get('format', {}).get('start_time') or 0)
-    video_start = float(v.get('start_time') or file_start)
+    # FFmpeg reports the first frame relative to the file start.
+    video_start = file_start + first_frame_time(path, ffprobe, float(v.get('start_time') or file_start) - file_start)
     return dict(start=video_start, origin=video_start, file_start=file_start,
                 aspect=w * sar / h, width=w, height=h,
                 audio_starts=[float(s.get('start_time') or 0) for s in d['streams'] if s['codec_type'] == 'audio'])
+
+
+def first_frame_time(path, ffprobe='ffprobe', fallback=0.):
+    """Presentation time (from the file start) of the first frame FFmpeg decodes.
+
+    decode() starts its grid there (setpts=PTS-STARTPTS). The stream start
+    time can be earlier: Zorro's MPEG-4 (packets without PTS, B-frames)
+    reports 0 while FFmpeg presents its first picture at 0.083 s, which put
+    every match two frames off. Measured with the same FFmpeg decode.
+    """
+    import re
+    ffmpeg = str(ffprobe).replace('ffprobe', 'ffmpeg')
+    try:
+        p = subprocess.run([ffmpeg, '-hide_banner', '-nostdin', '-i', str(path), '-map', '0:v:0', '-frames:v', '1',
+                            '-an', '-sn', '-vf', 'showinfo', '-f', 'null', '-'],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
+        m = re.search(r'pts_time:\s*(-?[\d.]+)', p.stderr.decode('utf-8', 'replace'))
+        if m:
+            return float(m.group(1))
+    except Exception:
+        pass
+    return fallback
 
 
 def decode(path, ffmpeg='ffmpeg'):

@@ -382,3 +382,30 @@ class OffGridVideoStart(unittest.TestCase):
             self.assertLess(same, shifted / 5)
             # Picture time 0 is each video's first frame on the container timeline.
             self.assertAlmostEqual(ia['origin'], ia['start']); self.assertAlmostEqual(ib['origin'], ib['start'])
+
+
+class FirstFrameLaterThanStream(unittest.TestCase):
+    """Zorro: the stream starts at 0 but its first picture is shown at 0.083 s."""
+    def test_origin_is_the_first_shown_frame(self):
+        from unittest.mock import patch
+        import json as _json
+        streams = _json.dumps(dict(format=dict(start_time='0.000000'), streams=[
+            dict(codec_type='video', width=640, height=480, start_time='0.000000'),
+            dict(codec_type='audio', start_time='0.000000')]))
+        with patch.object(pt, '_run', return_value=streams), patch.object(pt, 'first_frame_time', return_value=.083):
+            info = pt.stream_info('zorro.mkv')
+        self.assertAlmostEqual(info['origin'], .083)
+        self.assertAlmostEqual(info['start'], .083)
+        self.assertAlmostEqual(info['audio_starts'][0], 0.)
+
+
+@unittest.skipUnless(__import__('shutil').which('ffmpeg'), 'FFmpeg unavailable')
+class FirstFrameMeasured(unittest.TestCase):
+    def test_first_frame_time_follows_the_decoder(self):
+        import subprocess, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / 'late.mkv'
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=64x48:r=25:d=2',
+                            '-output_ts_offset', '0.3', '-c:v', 'libx264', str(f)], check=True)
+            self.assertAlmostEqual(pt.stream_info(f)['origin'], .3, delta=.002)
