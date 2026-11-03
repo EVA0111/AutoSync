@@ -119,9 +119,12 @@ class Document:
         else:raise ValueError('Unsupported lossless subtitle format. Supported: ASS, SSA, SRT, VTT, SBV, MicroDVD SUB, MPL2, SAMI, flat TTML/DFXP, and PGS SUP with a timing map. VobSub, STL and other binary formats require conversion first.')
         for cue in self.cues:
             if cue.end<cue.start:raise ValueError('Subtitle has an end before its start.')
-    def write(self,path,mapping,target_fps=None):
+    def write(self,path,mapping,target_fps=None,placer=None):
         changes=[];report=[]
         for i,c in enumerate(self.cues,1):
+            if placer is not None and self.kind in ('.ass','.ssa','.srt','.vtt'):
+                done=self._place(i,c,placer,changes)
+                if done is not None:report.append(done);continue
             mapped=mapping.interval(c.start,c.end)
             if mapped is None:
                 report.append({'cue':i,'source_start':c.start,'source_end':c.end,'status':'unmapped','reason':'Outside supported mapping or crossing a cut; original timing retained in DRAFT.'});continue
@@ -151,10 +154,42 @@ class Document:
                 if span and value is not None:changes.append((*span,value))
             report.append({'cue':i,'source_start':c.start,'source_end':c.end,'target_start':start,'target_end':end,'status':'review' if reason else 'mapped','reason':'; '.join(reason)})
         result=self.text
-        for a,b,value in sorted(changes,reverse=True):result=result[:a]+value+result[b:]
+        for a,b,value in sorted(changes,key=lambda x:(x[0],x[1]),reverse=True):result=result[:a]+value+result[b:]
         if self.kind=='.sub' and target_fps:
             result=re.sub(r'(?m)^(\{1\}\{1\})[0-9.]+',lambda m:m[1]+format(target_fps,'g'),result)
         enc=self.encoding
         if enc=='utf-8-sig' and not self.bom:enc='utf-8'
         Path(path).write_bytes(result.encode(enc))
         return report
+    def _place(self,i,c,placer,changes):
+        """Frame-accurate placement (subtitle_typeset.Placer); ASS lines crossing an edit are split."""
+        from subtitle_typeset import rebase_ass
+        pieces=placer.place(c.start,c.end)
+        row={'cue':i,'source_start':c.start,'source_end':c.end}
+        if not pieces:
+            return {**row,'status':'unmapped','reason':'Outside supported mapping or crossing a cut; original timing retained in DRAFT.'}
+        ass=self.kind in ('.ass','.ssa');reason=[]
+        if not ass and len(pieces)>1:
+            # One cue per block in these formats: keep the longest kept piece.
+            pieces=[max(pieces,key=lambda p:p.end-p.start)];reason.append('Line crosses an edit; kept its longest part.')
+        lines=[]
+        for p in pieces:
+            if p.quality!='supported':reason.append(p.quality)
+            if ass:
+                body,review=rebase_ass(c.text,p.skip_ms,p.keep_in,p.keep_out)
+                if review:reason.append('Split line has animation that needs checking.')
+                body=scale_ass(body,p.scale)
+                if c.effect and abs(p.scale-1)>1e-6:reason.append('Legacy ASS Effect field speed needs manual review.')
+                lines.append((timestamp(p.start,'ass'),timestamp(p.end,'ass'),body))
+            else:
+                kind='srt' if self.kind=='.srt' else 'vtt'
+                lines.append((timestamp(p.start,kind),timestamp(p.end,kind),c.text))
+        if c.typeset and getattr(placer.mapping,'evidence','')!='visual':reason.append('Typesetting inferred without source-picture evidence; check against the target video.')
+        (s0,e0),(s1,e1),(s2,e2)=c.spans
+        if len(lines)==1:
+            for (x,y),value in zip(c.spans,lines[0]):changes.append((x,y,value))
+        else:
+            begin=self.text.rfind('\n',0,s0)+1;newline='\r\n' if '\r\n' in self.text[:4096] else '\n'
+            changes.append((begin,e2,newline.join(self.text[begin:s0]+a+self.text[e0:s1]+b+self.text[e1:s2]+body for a,b,body in lines)))
+        status='review' if reason else 'mapped'
+        return {**row,'target_start':pieces[0].start,'target_end':pieces[-1].end,'pieces':len(pieces),'status':status,'reason':'; '.join(dict.fromkeys(reason))}

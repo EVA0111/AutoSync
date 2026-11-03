@@ -38,7 +38,26 @@ def visual_map(args,out,duration):
     matches=vc.matches(st,sf,tt,tf)
     rows=[(float(s),float(t),float(score)) for t,s,score in matches]
     print(f'Found {len(rows)} unique picture anchors.',flush=True)
-    return fit_map(rows,duration,'visual',.25)
+    m=fit_map(rows,duration,'visual',.25)
+    m.source_domain=m.target_domain='picture'  # scene times count from each first frame
+    return m
+
+def picture_map(args,out,duration):
+    """Frame-verified map from AutoSync's picture timeline; scene anchors if it cannot run."""
+    if not args.source_video or not args.target_media:raise ValueError('Encode-to-encode mode requires both source and target videos.')
+    from subtitle_typeset import plan_map
+    plan=Path(args.picture_plan) if args.picture_plan else out/'picture_analysis'/'plan.json'
+    if not args.picture_plan:
+        print('Matching the two videos frame by frame…',flush=True)
+        root=Path(__file__).resolve().parent
+        cmd=[sys.executable,str(root/'autosync.py'),'--source',args.source_video,'--audio',args.source_video,'--target',args.target_media,'--reference',args.target_media,'--audio-stream',str(args.source_audio_track),'--reference-stream',str(args.audio_track),'--out',str(plan.parent),'--analyze-only']
+        p=subprocess.run(cmd,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace')
+        (out/'picture_analysis.log').write_text(p.stdout,encoding='utf-8')
+    if plan.is_file():
+        mapping=plan_map(plan)
+        if mapping.evidence=='visual':return mapping
+    print('Picture timeline unavailable; falling back to scene-change anchors.',flush=True)
+    return visual_map(args,out,duration)
 
 def transcribe(args,out):
     if not args.target_media:raise ValueError('Audio-only target mode requires a target video or audio file.')
@@ -47,7 +66,7 @@ def transcribe(args,out):
     media=Path(args.target_media).resolve();streams=[s for s in vc.probe(media)['streams'] if s['codec_type']=='audio']
     if args.audio_track<0 or args.audio_track>=len(streams):raise ValueError('Target audio track does not exist.')
     wave=out/'target_speech.wav'
-    vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-i',str(media),'-map',f'0:a:{args.audio_track}','-ac','1','-ar','16000','-y',str(wave)])
+    vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-i',str(media),'-map',f'0:a:{args.audio_track}','-af',vc.AUDIO_ON_TIMESTAMPS,'-ac','1','-ar','16000','-y',str(wave)])
     # ffmpeg decodes from the beginning. Preserve stream offset relative to the video timeline.
     probe=vc.probe(media);video=next((s for s in probe['streams'] if s['codec_type']=='video'),None)
     origin=float(video.get('start_time',0)) if video else float(probe['format'].get('start_time',0))
@@ -128,7 +147,9 @@ def parser():
     p.add_argument('--sushi-window',type=int,default=10);p.add_argument('--sushi-max-window',type=int,default=30)
     p.add_argument('--encoding',default='utf-8-sig');p.add_argument('--source-fps',type=float);p.add_argument('--target-fps',type=float)
     p.add_argument('--semantic',action='store_true');p.add_argument('--scene-threshold',type=float,default=.15)
-    p.add_argument('--whisper-model',default='small');return p
+    p.add_argument('--whisper-model',default='small')
+    p.add_argument('--picture-plan',default='',help='Reuse an AutoSync plan.json of the same two videos (encodes mode)')
+    p.add_argument('--no-frame-snap',action='store_true',help='Map raw times instead of placing lines on target frames');return p
 
 def run(args):
     if not args.out:raise ValueError('Choose a new output folder.')
@@ -146,8 +167,10 @@ def run(args):
             return run_sushi(args,path,out)
         doc=None if sup else Document(path,args.encoding,args.source_fps)
         duration=max(c.end for c in doc.cues) if doc else vc.video_duration(args.source_video) if args.source_video else 86400
-        if args.mode=='map':mapping=TimingMap.load(args.timing_map)
-        elif args.mode=='encodes':mapping=visual_map(args,out,duration)
+        if args.mode=='map':
+            from subtitle_typeset import plan_map
+            mapping=plan_map(args.timing_map)
+        elif args.mode=='encodes':mapping=picture_map(args,out,duration)
         else:
             if sup:raise ValueError('Bitmap subtitles have no searchable text. Use encode-to-encode or a saved map; OCR is not included.')
             if args.mode=='reference':
@@ -160,7 +183,12 @@ def run(args):
             mapping=fit_map(rows,duration,evidence,.6 if args.mode=='reference' else .8)
         mapping.save(out/'subtitle_map.json')
         dest=out/('synced'+path.suffix.lower())
-        report=retime_sup(path,dest,mapping) if sup else doc.write(dest,mapping,args.target_fps)
+        placer=None
+        if not sup and not args.no_frame_snap and args.source_video and args.target_media and Path(args.target_media).suffix.lower() in VIDEO_EXT:
+            # Place lines on the target's frames (and its scene cuts) for typesetting.
+            from subtitle_typeset import Placer,video_grid
+            placer=Placer(mapping,video_grid(args.source_video,out,'cuts_source'),video_grid(args.target_media,out,'cuts_target'))
+        report=retime_sup(path,dest,mapping) if sup else doc.write(dest,mapping,args.target_fps,placer)
         needs_review=any(r['status'] in ('review','unmapped') for r in report)
         if needs_review:
             new=dest.with_name('DRAFT-review-required'+dest.suffix);dest.rename(new);dest=new

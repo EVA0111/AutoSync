@@ -15,6 +15,10 @@ class Section:
     quality:str='supported'
 
 class TimingMap:
+    # Time bases: 'container' (subtitle timestamps), 'picture' (seconds from a
+    # video's first frame) or 'audio' (seconds from the source audio's first
+    # sample, as AutoSync plans use). subtitle_typeset.Placer converts.
+    source_domain='container';target_domain='container'
     def __init__(self,sections,evidence='reference'):
         self.sections=sorted(sections,key=lambda s:s.start);self.evidence=evidence
         if not self.sections:raise ValueError('No reliable timing sections found.')
