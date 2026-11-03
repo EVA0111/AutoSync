@@ -139,14 +139,52 @@ def map_anchors(anchors,plan):
     rows=[]
     for row in anchors:
         for k in plan['video_edits']['kept']:
+            if k.get('media'):continue
             if k['start']<=row[0]<k['end']:
                 q=row.copy();q[0]+=k['output_start']-k['start'];rows.append(q);break
     return np.asarray(rows,dtype=float).reshape((-1,anchors.shape[1]))
 
 
+IMAGE_EXT={'.png','.jpg','.jpeg','.bmp','.webp','.tif','.tiff'}
+
+
+def target_picture(path):
+    """Size, sample aspect, frame rate and pixel format every output piece is conformed to."""
+    v=next(s for s in vc.probe(path)['streams'] if s['codec_type']=='video')
+    sar=v.get('sample_aspect_ratio') or '1:1'
+    if sar in ('0:1','N/A'):sar='1:1'
+    rate=v.get('r_frame_rate') or v.get('avg_frame_rate') or '25/1'
+    return int(v['width']),int(v['height']),sar.replace(':','/'),rate
+
+
+def media_graph(plan):
+    """Inputs and filter graph for an output made of target ranges and imported clips (in output order)."""
+    W,H,sar,rate=target_picture(plan['target_video'])
+    inputs=[['-i',plan['target_video']]];index={};chains=[];labels=[]
+    for n,k in enumerate(plan['video_edits']['kept']):
+        if k.get('media'):
+            m=str(k['media'])
+            if m not in index:
+                index[m]=len(inputs)
+                still=Path(m).suffix.lower() in IMAGE_EXT
+                inputs.append(['-loop','1','-framerate',rate,'-i',m] if still else ['-i',m])
+            i=index[m];a=float(k.get('media_start',0));b=a+k['end']-k['start']
+            fit=(f'scale={W}:{H}:force_original_aspect_ratio=decrease:eval=frame,'
+                 f'pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black')
+            chains.append(f'[{i}:v:0]trim=start={a:.9f}:end={b:.9f},setpts=PTS-STARTPTS,{fit},setsar={sar},fps={rate},format=yuv420p[p{n}]')
+        else:
+            a,b=k['original_start'],k['original_end']
+            chains.append(f'[0:v:0]trim=start={a:.9f}:end={b:.9f},setpts=PTS-STARTPTS,scale={W}:{H},setsar={sar},fps={rate},format=yuv420p[p{n}]')
+        labels.append(f'[p{n}]')
+    chains.append(''.join(labels)+f'concat=n={len(labels)}:v=1:a=0[v]')
+    return inputs,';\n'.join(chains)
+
+
 def export_video(plan,audio,out,codec='h264',preset='veryfast'):
     out=Path(out);dest=out/'edited_episode.mkv';tmp=out/'edited_episode.partial.mkv'
     if dest.exists():raise RuntimeError('Edited video already exists; use a new output folder.')
+    if any(k.get('media') for k in plan['video_edits']['kept']):
+        return export_with_media(plan,audio,dest,tmp,codec,preset,out)
     intervals=[]
     for k in plan['video_edits']['kept']:
         a,b=k['original_start'],k['original_end']
@@ -164,6 +202,24 @@ def export_video(plan,audio,out,codec='h264',preset='veryfast'):
     print('Encoding edited target video with unmatched sections removed...',flush=True)
     try:
         vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-i',plan['target_video'],'-i',str(audio),'-/filter_complex',str(script),'-map','[v]','-map','1:a:0','-t',str(plan['duration']),'-fps_mode','passthrough','-enc_time_base','1:1000000',*encoding,'-c:a','copy','-map_metadata','-1','-map_chapters','-1',str(tmp)])
+        if abs(vc.video_duration(tmp)-plan['duration'])>.15:raise RuntimeError('Edited video duration does not match synced audio.')
+        vc.finish_partial(tmp,dest)
+    finally:
+        vc.discard_partial(tmp)
+    return dest
+
+
+def export_with_media(plan,audio,dest,tmp,codec,preset,out):
+    """Concatenate target ranges and imported clips, each conformed to the target picture."""
+    for k in plan['video_edits']['kept']:
+        if k.get('media') and not Path(str(k['media'])).is_file():raise RuntimeError('Imported media file is missing: '+str(k['media']))
+    inputs,graph=media_graph(plan)
+    script=out/'video_edit_filter.txt';script.write_text(graph,encoding='utf-8')
+    encoding=['-c:v','ffv1','-level','3'] if codec=='ffv1' else ['-c:v','libx264','-preset',preset,'-crf','16']
+    print('Encoding edited video with imported clips...',flush=True)
+    args=[x for pair in inputs for x in pair]
+    try:
+        vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y',*args,'-i',str(audio),'-/filter_complex',str(script),'-map','[v]','-map',f'{len(inputs)}:a:0','-t',str(plan['duration']),*encoding,'-c:a','copy','-map_metadata','-1','-map_chapters','-1',str(tmp)])
         if abs(vc.video_duration(tmp)-plan['duration'])>.15:raise RuntimeError('Edited video duration does not match synced audio.')
         vc.finish_partial(tmp,dest)
     finally:

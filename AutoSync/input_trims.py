@@ -109,6 +109,7 @@ def rebase(plan,meta):
     if 'outer' in meta:p.update(outer_stream=meta['outer']['stream'],outer_shift=p.get('outer_shift',0)-meta['outer']['offset'])
     if 'target' in meta and p.get('video_edits'):
         for k in p['video_edits']['kept']:
+            if k.get('media'):continue  # imported clip: no target time
             k['original_start']+=meta['target']['start'];k['original_end']+=meta['target']['start']
     from cut_detection import source_cuts
     p['source_cuts']=source_cuts(p['segments'])

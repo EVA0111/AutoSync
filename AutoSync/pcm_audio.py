@@ -17,7 +17,7 @@ class PCMCache:
             decoded=self.directory/f'decoded_{len(self.files):03}.f32'
             print(f'Decoding audio once for accurate cuts: {Path(path).name}',flush=True)
             vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-i',str(path),'-map',f'0:a:{stream}',
-                    '-vn','-ac',str(self.channels),'-ar',str(self.rate),'-f','f32le',str(decoded)])
+                    '-vn','-af',vc.AUDIO_ON_TIMESTAMPS,'-ac',str(self.channels),'-ar',str(self.rate),'-f','f32le',str(decoded)])
             if decoded.stat().st_size%(4*self.channels):raise RuntimeError('Incomplete PCM sample in decoded audio.')
             self.files[key]=decoded
         return self.files[key]

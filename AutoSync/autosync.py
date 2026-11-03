@@ -17,7 +17,7 @@ def audio_streams(path): return [s for s in vc.probe(path)['streams'] if s['code
 def wav_features(path,stream,work,label):
     say('Reading '+label+' audio...')
     pcm=work/(label+'.f32')
-    vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-i',str(path),'-map',f'0:a:{stream}','-ac','1','-ar','8000','-f','f32le',str(pcm)])
+    vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-i',str(path),'-map',f'0:a:{stream}','-af',vc.AUDIO_ON_TIMESTAMPS,'-ac','1','-ar','8000','-f','f32le',str(pcm)])
     a=np.fromfile(pcm,np.float32);pcm.unlink()
     if len(a)<80000: raise RuntimeError('Audio is shorter than 10 seconds.')
     f,t,z=signal.stft(a,8000,nperseg=512,noverlap=352)
@@ -324,7 +324,11 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
         start=float(section['target_start']);end=float(section['target_end'])
         if not np.isfinite([start,end]).all() or end<=start or abs(start-cursor)>.0001:
             raise RuntimeError('Plan segments must be finite, contiguous, ordered, and non-overlapping.')
-        if section.get('kind') not in ('audio','reference','verified_gap','target_outer'):raise RuntimeError('Unknown segment type.')
+        if section.get('kind') not in ('audio','reference','verified_gap','target_outer','media'):raise RuntimeError('Unknown segment type.')
+        if section['kind']=='media':
+            # Imported clip (Preview & Edit): its own audio, or silence (image / silent video).
+            if not Path(str(section.get('media',''))).is_file():raise RuntimeError('Imported media file is missing: '+str(section.get('media')))
+            if not np.isfinite(float(section.get('media_start',0))) or float(section.get('media_start',0))<0:raise RuntimeError('Invalid imported media position in plan.')
         if section['kind']=='audio':
             ss=float(section['source_start']);sp=float(section['speed'])
             if not np.isfinite([ss,sp]).all() or ss<0 or not .5<=sp<=2:raise RuntimeError('Invalid source position or speed in plan.')
@@ -356,8 +360,18 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
             start,end=s['target_start'],s['target_end'];dur=end-start
             if dur<=0:raise RuntimeError('Invalid segment duration.')
             n=round(end*48000)-round(start*48000)
+            if s['kind']=='media' and s.get('media_stream') is None:
+                dst=td/f'{i:04}.f32';parts.append(dst)
+                np.zeros((n,ch),np.float32).tofile(dst);say(f'Rendered {i+1}/{len(plan["segments"])} sections');continue
             path,track,ss,sp=(audio,stream,s['source_start'],s['speed']) if s['kind']=='audio' else (ref,refstream,s.get('reference_target_start',start)-plan.get('reference_shift',0),1)
             if s['kind']=='target_outer':path,track,ss,sp=plan['target_video'],plan.get('outer_stream',0),s.get('reference_target_start',start)-plan.get('outer_shift',0),1.
+            if s['kind']=='media':path,track,ss,sp=s['media'],int(s['media_stream']),float(s.get('media_start',0)),1.
+            # A target whose audio starts a little after its picture (stream start
+            # offsets) is silent there in the target itself: reproduce that, never
+            # for source audio and never for more than a second.
+            lead=0
+            if ss<0 and s['kind']!='audio' and ss>-1. and -ss<dur:
+                lead=round(-ss*48000);dur-=-ss;start+=-ss;ss=0.
             if ss<0:raise RuntimeError('Reference fallback begins before available reference audio.')
             # Do not hide short decodes with apad. Inspect decoded length before retiming.
             raw=td/'chunk.f32'
@@ -367,6 +381,9 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
                 # exact middle: atempo's start/end latency falls outside the segment.
                 pre=min(ss,.5);post=max(0.,min(.5,pcm.length(path,track)-(ss+dur*sp)))
             pcm.cut(path,track,ss-pre,dur*sp+pre+post,raw)
+            if lead:
+                body=np.fromfile(raw,np.float32);np.concatenate([np.zeros(lead*ch,np.float32),body]).tofile(raw);del body
+                dur+=lead/48000
             if s['kind']=='verified_gap':
                 data=np.fromfile(raw,np.float32).reshape(-1,ch)
                 blocks=[np.mean(z*z) for z in np.array_split(data,max(1,len(data)//960))]
@@ -465,8 +482,8 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
     import picture_timeline as pt
     tl=pt.build(source_video,target,vc.binary('ffmpeg'),vc.binary('ffprobe'),say)
     si,ti=tl.diagnostics['s_info'],tl.diagnostics['t_info']
-    # Decoded frame k sits at the FILE origin + k/fps (ffmpeg pads to the file
-    # start), so: source audio time = source frame seconds + origin - audio start.
+    # Decoded frame k shows the picture at the video's first timestamp (origin)
+    # + k/fps, so: source audio time = source frame seconds + origin - audio start.
     shift=-delay
     if Path(audio).resolve()==Path(source_video).resolve():shift+=si['origin']-si['audio_starts'][stream]
     else:shift+=si['origin']-si['start']   # external audio: t=0 is the source's first picture

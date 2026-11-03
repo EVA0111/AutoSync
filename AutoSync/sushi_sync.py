@@ -23,7 +23,7 @@ def timed_wave(media,track,destination):
     video=next((s for s in info['streams'] if s['codec_type']=='video'),None)
     origin=float((video or info.get('format',{})).get('start_time',0))
     shift=float(audio[track].get('start_time',origin))-origin
-    filters='asetpts=PTS-STARTPTS'
+    filters='asetpts=PTS-STARTPTS,'+vc.AUDIO_ON_TIMESTAMPS
     if shift>0:filters+=f',adelay={shift*1000:.6f}:all=1'
     elif shift<0:filters+=f',atrim=start={-shift:.9f},asetpts=PTS-STARTPTS'
     vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-i',str(media),'-map',f'0:a:{track}','-vn','-af',filters,'-ac','1','-ar','12000','-c:a','pcm_s16le','-y',str(destination)])

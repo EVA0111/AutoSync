@@ -19,6 +19,11 @@ def run(cmd):
     if p.returncode: raise RuntimeError(p.stderr.decode(errors='replace')[-6000:])
     return p.stdout
 
+# Decode audio on its timestamps: a gap in the packets (common in DVD/TV rips)
+# becomes silence instead of pulling all later audio earlier.
+AUDIO_ON_TIMESTAMPS = 'aresample=async=1'
+
+
 def probe(path):
     return json.loads(run([binary('ffprobe'), '-v','error','-show_format','-show_streams','-of','json',str(path)]))
 

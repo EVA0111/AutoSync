@@ -309,3 +309,76 @@ class FrameOrigin(unittest.TestCase):
         self.assertAlmostEqual(sa, sb, delta=.002)
         self.assertAlmostEqual(moved[0]['target_start'], 0.)
         self.assertAlmostEqual(moved[-1]['target_end'], 100.)
+
+
+def sparse_detail(n, every=6):
+    """Real footage has an unambiguous frame only every few seconds."""
+    d = np.zeros(n)
+    d[(np.arange(n) // FPS) % every == 0] = 20.
+    return d
+
+
+class RateWithManyCuts(unittest.TestCase):
+    """A target missing 7 % of the source in four cuts still plays at rate 1.
+
+    The median slope of match pairs leaned towards the duration ratio (300/280)
+    because most pairs 20-200 s apart straddle a cut.
+    """
+    def test_rate_is_not_the_duration_ratio(self):
+        S = unique_frames(300 * FPS, 5)
+        keep = [(0, 50), (56, 110), (112.5, 170), (178, 240), (243, 300)]
+        T = np.vstack([S[int(a * FPS):int(b * FPS)] for a, b in keep])
+        r = pt.estimate_ratio(T, sparse_detail(len(T)), S, np.full(len(S), 20.))
+        self.assertAlmostEqual(r, 1., places=4)
+
+    def test_rate_with_inserts(self):
+        S = unique_frames(300 * FPS, 6)
+        extra = unique_frames(60 * FPS, 7)
+        T = np.vstack([S[:60 * FPS], extra[:8 * FPS], S[60 * FPS:150 * FPS], extra[20 * FPS:35 * FPS],
+                       S[150 * FPS:220 * FPS], extra[40 * FPS:52 * FPS], S[220 * FPS:]])
+        r = pt.estimate_ratio(T, sparse_detail(len(T)), S, np.full(len(S), 20.))
+        self.assertAlmostEqual(r, 1., places=4)
+
+
+class ZoomedFraming(unittest.TestCase):
+    """Source is the target zoomed in 12 % off centre (broadcast overscan / re-framing)."""
+    def test_zoomed_side_is_found(self):
+        from scipy import ndimage
+        rng = np.random.default_rng(3)
+        T = np.repeat(ndimage.gaussian_filter(rng.uniform(0, 255, (50, pt.H, pt.W)), (0, 2.5, 2.5)), 12, axis=0)  # held shots
+        T = (T - T.min(axis=(1, 2), keepdims=True)) / np.ptp(T, axis=(1, 2), keepdims=True) * 200 + 30
+        y0, x0, h, w = 2, 6, int(pt.H * .88), int(pt.W * .88)
+        S = ndimage.zoom(T[:, y0:y0 + h, x0:x0 + w], (1, pt.H / h, pt.W / w), order=1)
+        info = dict(aspect=4 / 3)
+        S, T = S.astype(np.uint8), T.astype(np.uint8)
+        plain = pt._framing_score(pt.features(S[::12], (0, 0, 1, 1))[0],
+                                  *pt.features(T[np.linspace(pt.FPS * 5, len(T) - pt.FPS * 5, 160).astype(int)], (0, 0, 1, 1)))
+        score, sr, tr = pt._best_geometry(S, T, info, info)
+        self.assertGreater(score, plain + .02)
+        self.assertEqual(tuple(sr), (0, 0, 1, 1))
+        self.assertLess(tr[2] - tr[0], .95)  # the target (wider view) is the side cropped
+
+
+@unittest.skipUnless(__import__('shutil').which('ffmpeg'), 'FFmpeg unavailable')
+class OffGridVideoStart(unittest.TestCase):
+    """MKV with AAC priming starts its video 0.021 s after the file start.
+
+    The decode grid used to start at the FILE start, so the fps filter put
+    every picture in a neighbouring slot (a constant 19-59 ms timing error).
+    """
+    def test_same_pictures_decode_to_same_frames(self):
+        import subprocess, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as td:
+            a, b = Path(td) / 'a.mp4', Path(td) / 'b.mkv'
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=320x240:r=25:d=6', '-f', 'lavfi',
+                            '-i', 'sine=d=6', '-c:v', 'libx264', '-g', '1', '-c:a', 'aac', '-shortest', str(a)], check=True)
+            subprocess.run(['ffmpeg', '-v', 'error', '-i', str(a), '-c', 'copy', str(b)], check=True)
+            ia, ib = pt.stream_info(a), pt.stream_info(b)
+            A, B = pt.decode(a).astype(float), pt.decode(b).astype(float)
+            n = min(len(A), len(B)) - 2
+            same = np.mean([np.abs(A[k] - B[k]).mean() for k in range(1, n)])
+            shifted = np.mean([np.abs(A[k] - B[k + 1]).mean() for k in range(1, n)])
+            self.assertLess(same, shifted / 5)
+            # Picture time 0 is each video's first frame on the container timeline.
+            self.assertAlmostEqual(ia['origin'], ia['start']); self.assertAlmostEqual(ib['origin'], ib['start'])

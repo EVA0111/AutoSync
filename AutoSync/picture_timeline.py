@@ -50,9 +50,14 @@ def stream_info(path, ffprobe='ffprobe'):
         a, b = map(float, sar.split(':')); sar = a / b if a > 0 and b > 0 else 1.
     except ValueError:
         sar = 1.
-    # Decoded frame k sits at origin + k/FPS: ffmpeg rebases to the FILE start
-    # and pads the first picture back to it, whatever the video stream's start.
-    return dict(start=float(v.get('start_time') or 0), origin=float(d.get('format', {}).get('start_time') or 0),
+    # Decoded frame k shows the picture at origin + k/FPS, origin being the
+    # video stream's own first timestamp: decode() starts its grid there. (A
+    # grid from the FILE start is off by a fraction of a frame whenever the
+    # video does not start exactly there, e.g. -0.021 s AAC priming in MKV, and
+    # the fps filter then rounds every picture to a neighbouring slot.)
+    file_start = float(d.get('format', {}).get('start_time') or 0)
+    video_start = float(v.get('start_time') or file_start)
+    return dict(start=video_start, origin=video_start, file_start=file_start,
                 aspect=w * sar / h, width=w, height=h,
                 audio_starts=[float(s.get('start_time') or 0) for s in d['streams'] if s['codec_type'] == 'audio'])
 
@@ -60,13 +65,18 @@ def stream_info(path, ffprobe='ffprobe'):
 def decode(path, ffmpeg='ffmpeg'):
     """uint8 (n, H, W) frames on a fixed 25 fps grid from the first video PTS."""
     out = _run([ffmpeg, '-v', 'error', '-nostdin', '-i', str(path), '-map', '0:v:0', '-an', '-sn',
-                '-vf', f'fps={FPS},scale={W}:{H}:flags=area,format=gray', '-f', 'rawvideo', '-pix_fmt', 'gray', '-'])
+                '-vf', f'setpts=PTS-STARTPTS,fps={FPS},scale={W}:{H}:flags=area,format=gray', '-f', 'rawvideo',
+                '-pix_fmt', 'gray', '-'])
     return np.frombuffer(out, np.uint8).reshape(-1, H, W)
 
 
-def decode_span(path, start, duration, ffmpeg='ffmpeg'):
-    """uint8 (n, H, W) frames at FINE fps for [start, start + duration) file seconds."""
-    out = _run([ffmpeg, '-v', 'error', '-nostdin', '-ss', f'{max(0., start):.6f}', '-i', str(path),
+def decode_span(path, start, duration, ffmpeg='ffmpeg', file_start=0.):
+    """uint8 (n, H, W) frames at FINE fps for [start, start + duration) stream seconds.
+
+    Input -ss counts from the file start (FFmpeg adds the format start time),
+    so a stream timestamp is converted by subtracting `file_start`.
+    """
+    out = _run([ffmpeg, '-v', 'error', '-nostdin', '-ss', f'{max(0., start - file_start):.6f}', '-i', str(path),
                 '-t', f'{duration:.6f}', '-map', '0:v:0', '-an', '-sn',
                 '-vf', f'fps={FINE},scale={W}:{H}:flags=area,format=gray', '-f', 'rawvideo', '-pix_fmt', 'gray', '-'])
     return np.frombuffer(out, np.uint8).reshape(-1, H, W)
@@ -109,6 +119,33 @@ def features(frames, rect):
     return f, detail
 
 
+def _framing_score(fs, ft, dt):
+    sim = ft[dt > 6] @ fs.T
+    if not len(sim):
+        return None
+    return float(np.mean(np.sort(sim.max(axis=1))[len(sim) // 3:]))
+
+
+def zoom_rects(rect, scales=(.94, .88, .82, .76), shift=(-2, -1, 0, 1, 2)):
+    """Centred-ish sub-rectangles of `rect` at the same aspect: one side zoomed in.
+
+    Broadcast overscan, pan-and-scan and remaster re-framing show the same
+    picture enlarged by a few to ~25 percent, often off centre. Shifts are in
+    whole decoded pixels.
+    """
+    x0, y0, x1, y1 = rect
+    out = []
+    for sc in scales:
+        w, h = (x1 - x0) * sc, (y1 - y0) * sc
+        for dx in shift:
+            for dy in shift:
+                cx = (x0 + x1) / 2 + dx / W; cy = (y0 + y1) / 2 + dy / H
+                r = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+                if r[0] >= x0 - 1e-9 and r[1] >= y0 - 1e-9 and r[2] <= x1 + 1e-9 and r[3] <= y1 + 1e-9:
+                    out.append(r)
+    return out
+
+
 def _best_geometry(S, T, s_info, t_info):
     s_rects = geometry_candidates(active_rect(S), s_info['aspect'], t_info['aspect'] * 1.)
     t_rects = geometry_candidates(active_rect(T), t_info['aspect'], s_info['aspect'] * 1.)
@@ -119,12 +156,28 @@ def _best_geometry(S, T, s_info, t_info):
         fs, ds = features(ss, sr)
         for tr in t_rects:
             ft, dt = features(ts, tr)
-            sim = ft[dt > 6] @ fs.T
-            if not len(sim):
-                continue
-            score = float(np.mean(np.sort(sim.max(axis=1))[len(sim) // 3:]))
-            if best is None or score > best[0]:
+            score = _framing_score(fs, ft, dt)
+            if score is not None and (best is None or score > best[0]):
                 best = (score, sr, tr)
+    if best is None or best[0] > .9:
+        return best
+    # A weak framing may be one side zoomed in: try cropping the other side.
+    score0, sr0, tr0 = best
+    fs, _ = features(ss, sr0)
+    for tr in zoom_rects(tr0):  # source shows less: crop the target
+        ft, dt = features(ts, tr)
+        score = _framing_score(fs, ft, dt)
+        if score is not None and score > best[0] + .02:
+            best = (score, sr0, tr)
+    ft, dt = features(ts, tr0)
+    sub = ss[::4]  # ranking only; the winner is re-scored on every sample
+    for sr in zoom_rects(sr0):  # target shows less: crop the source
+        fsub, _ = features(sub, sr)
+        score = _framing_score(fsub, ft, dt)
+        if score is not None and score > best[0] + .02:
+            full = _framing_score(features(ss, sr)[0], ft, dt)
+            if full > best[0] + .02:
+                best = (full, sr, tr0)
     return best
 
 
@@ -140,17 +193,38 @@ def estimate_ratio(FT, DT, FS, DS):
             alt = sim[row].copy(); alt[max(0, j - FPS * 2):j + FPS * 2] = -1
             if v > .93 and v - alt.max() > .05 and DS[j] > 6:
                 pts.append((i / FPS, j / FPS))
-    slopes = []
+    slopes, width = [], []
     for a in range(len(pts)):
         for b in range(a + 1, min(len(pts), a + 40)):
             du = pts[b][0] - pts[a][0]
             if 20 < du < 200:
                 sl = (pts[b][1] - pts[a][1]) / du
                 if .8 < sl < 1.25:
-                    slopes.append(sl)
+                    slopes.append(sl); width.append(.08 / du)
     if len(slopes) < 10:
         raise RuntimeError('Too few unambiguous picture matches to establish the edition rate.')
-    med = float(np.median(slopes))
+    return slope_mode(np.array(slopes), np.array(width))
+
+
+def slope_mode(slopes, width):
+    """The rate most match pairs agree on, each within its own timing tolerance.
+
+    Pairs inside one continuous stretch all give the true rate; pairs across a
+    cut or insert are off by (edit length / spacing). With many edits those are
+    most pairs, and they all lean one way (cuts up, inserts down), so a median
+    drifts towards the duration ratio. The mode of the tolerance intervals does
+    not: only the true rate is shared by many pairs.
+    """
+    ends = np.concatenate([slopes - width, slopes + width])
+    step = np.concatenate([np.ones(len(slopes)), -np.ones(len(slopes))])
+    order = np.lexsort((-step, ends))  # at equal values, open before close
+    cover = np.cumsum(step[order])
+    k = int(np.argmax(cover))
+    best = (ends[order][k] + ends[order][min(k + 1, len(ends) - 1)]) / 2
+    agree = np.abs(slopes - best) <= width
+    if agree.sum() < 10:
+        raise RuntimeError('Too few unambiguous picture matches to establish the edition rate.')
+    med = float(np.median(slopes[agree]))
     near = min(KNOWN, key=lambda x: abs(x - med))
     return near if abs(near - med) < 1.5e-3 else med
 
@@ -748,9 +822,9 @@ def build(source_video, target_video, ffmpeg='ffmpeg', ffprobe='ffprobe', progre
     FS, DS = features(S, geo[1]); FT, DT = features(T, geo[2]); del S, T
     progress(f'Picture timeline: framing score {geo[0]:.3f}; source crop {np.round(geo[1], 3).tolist()}, target crop {np.round(geo[2], 3).tolist()}')
     def verify(t0, t1, s0, s1):
-        # Frame seconds are relative to each FILE origin (see stream_info).
-        TF = features(decode_span(target_video, t_info['origin'] + t0, t1 - t0, ffmpeg), geo[2])[0]
-        SF = features(decode_span(source_video, s_info['origin'] + s0, s1 - s0, ffmpeg), geo[1])[0]
+        # Frame seconds are relative to each video's first picture (see stream_info).
+        TF = features(decode_span(target_video, t_info['origin'] + t0, t1 - t0, ffmpeg, t_info['file_start']), geo[2])[0]
+        SF = features(decode_span(source_video, s_info['origin'] + s0, s1 - s0, ffmpeg, s_info['file_start']), geo[1])[0]
         return TF, SF
     return from_features(FS, DS, FT, DT, dict(score=geo[0], source=geo[1], target=geo[2]), s_info, t_info, progress,
                          verify=verify)

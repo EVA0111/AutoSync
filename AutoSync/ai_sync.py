@@ -192,7 +192,8 @@ def _audio_vectors(file, stream, progress):
     with tempfile.TemporaryDirectory(prefix="autosync-ai-audio-") as temp:
         pcm = Path(temp) / "mono.f32"
         vc.run([vc.binary("ffmpeg"), "-v", "error", "-nostdin", "-y", "-i", str(file),
-                "-map", f"0:a:{int(stream)}", "-ac", "1", "-ar", "16000", "-f", "f32le", str(pcm)])
+                "-map", f"0:a:{int(stream)}", "-af", vc.AUDIO_ON_TIMESTAMPS, "-ac", "1", "-ar", "16000",
+                "-f", "f32le", str(pcm)])
         # Read into RAM so the FFmpeg scratch file can close on Windows.
         audio = np.fromfile(pcm, dtype="<f4")
         duration = len(audio) / 16000.
