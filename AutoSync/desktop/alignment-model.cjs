@@ -15,8 +15,14 @@ function validateSegments(rows,duration){
    throw Error('Regions must be contiguous, ordered, nonempty and inside the output timeline (region '+(i+1)+').');
   previous=end;
   const kind=row.kind;
-  if(!['audio','reference','target_outer','verified_gap'].includes(kind))
+  if(!['audio','reference','target_outer','verified_gap','media'].includes(kind))
    throw Error('Invalid region kind '+kind);
+  if(kind==='media'){
+   const ms=Number(row.media_start||0);
+   if(typeof row.media!=='string'||!row.media||!Number.isFinite(ms)||ms<0)throw Error('Invalid imported media in region '+(i+1));
+   if(row.media_stream!==null&&row.media_stream!==undefined&&!(Number.isInteger(Number(row.media_stream))&&Number(row.media_stream)>=0))
+    throw Error('Invalid imported audio stream in region '+(i+1));
+  }
   if(kind==='audio'){
    const ss=Number(row.source_start),speed=Number(row.speed);
    if(!Number.isFinite(ss)||ss<0||!Number.isFinite(speed)||speed<.5||speed>2)
@@ -44,14 +50,42 @@ function sourceTime(segments,time){
 }
 function originalTargetTime(plan,time){
  // Video edits already carry original times (input trims included); main-episode
- // trims and input trims (a marked range on the target) are offsets.
+ // trims and input trims (a marked range on the target) are offsets. Imported
+ // clips have no target time.
  for(const k of plan.video_edits?.kept||[]){
   const end=Number(k.output_start)+Number(k.end)-Number(k.start);
   if(time>=Number(k.output_start)-.001&&time<=end+.001)
-   return Number(k.original_start)+time-Number(k.output_start);
+   return k.media?null:Number(k.original_start)+time-Number(k.output_start);
  }
  const trimmed=Number(plan.input_trims?.target?.start||0);
  if(plan.main_trim)return time+Number(plan.main_trim.target_start||0)+trimmed;
  return time+trimmed;
 }
-module.exports={validateSegments,findRegion,sourceTime,originalTargetTime};
+/** Output video pieces from Preview & Edit: contiguous, inside the target, imports known. */
+function validateTimeline(timeline,plan,knownMedia){
+ const duration=Number(timeline?.duration),kept=timeline?.kept;
+ if(!Number.isFinite(duration)||duration<=0||duration>24*3600||!Array.isArray(kept)||!kept.length||kept.length>5000)
+  throw Error('Invalid edited video timeline.');
+ const shift=Number(plan.main_trim?.target_start||0)+Number(plan.input_trims?.target?.start||0);
+ const limit=Number(plan.video_edits?.original_target_duration??plan.duration)+shift+.05;
+ let at=0;
+ const result=kept.map((k,i)=>{
+  const start=Number(k.start),end=Number(k.end),out=Number(k.output_start);
+  if(![start,end,out].every(Number.isFinite)||end<=start+1e-5||Math.abs(out-at)>1e-3)
+   throw Error('Video pieces must be contiguous and nonempty (piece '+(i+1)+').');
+  at=out+end-start;
+  if(k.media){
+   knownMedia(k.media);
+   const ms=Number(k.media_start||0);
+   if(!Number.isFinite(ms)||ms<0)throw Error('Invalid imported clip position (piece '+(i+1)+').');
+   return {start,end,output_start:out,media:String(k.media),media_start:ms,label:String(k.label||'').slice(0,200)};
+  }
+  const a=Number(k.original_start),b=Number(k.original_end);
+  if(!Number.isFinite(a)||!Number.isFinite(b)||a<-.05||b>limit||Math.abs(b-a-(end-start))>1e-3)
+   throw Error('Video piece '+(i+1)+' is outside the target video.');
+  return {start,end,output_start:out,original_start:a,original_end:b};
+ });
+ if(Math.abs(at-duration)>1e-3)throw Error('Video pieces must cover the edited output.');
+ return {duration,kept:result};
+}
+module.exports={validateSegments,validateTimeline,findRegion,sourceTime,originalTargetTime};

@@ -5,11 +5,12 @@ const path=require('node:path');
 const {execFile,spawn}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
 const {randomUUID,createHash}=require('node:crypto');
-const {validateSegments}=require('./alignment-model.cjs');
+const {validateSegments,validateTimeline}=require('./alignment-model.cjs');
 const clips=require('./audio-clip-tools.cjs');
 const timelineGestures=require('./timeline-gestures.cjs');
 const {preparePreviewValues}=require('./preview-request.cjs');
 
+const IMAGE_EXT=['.png','.jpg','.jpeg','.bmp','.webp','.tif','.tiff'];
 function createAlignmentEditor(root,python){
  let editor=null,project=null,exportChild=null,prepareChild=null,lastPrepared=null;
  let proxyChildren=new Set();
@@ -41,6 +42,33 @@ function createAlignmentEditor(root,python){
   const source=p.source_video||p.audio;
   const target=p.target_video||p.reference;
   return {source:source&&fs.existsSync(source)?pathToFileURL(source).href:null,target:target&&fs.existsSync(target)?pathToFileURL(target).href:null};
+ }
+ // Media imported in Preview & Edit (or already in the plan): probed once; the
+ // renderer can only name these files, never arbitrary paths.
+ async function probeMedia(file){
+  const out=JSON.parse((await run('ffprobe',['-v','error','-show_entries','format=duration:stream=index,codec_type,width,height,disposition','-of','json',file],1024*1024)).toString());
+  const streams=out.streams||[];
+  const image=IMAGE_EXT.includes(path.extname(file).toLowerCase());
+  const video=streams.find(s=>s.codec_type==='video'&&!(s.disposition?.attached_pic));
+  const audio=streams.filter(s=>s.codec_type==='audio');
+  const duration=image?null:Number(out.format?.duration);
+  if(!image&&!(duration>0))throw Error('Cannot read the length of '+path.basename(file));
+  if(!video&&!audio.length)throw Error(path.basename(file)+' has no picture or sound.');
+  return {path:file,name:path.basename(file),url:pathToFileURL(file).href,image,duration,hasVideo:!!video,
+   hasAudio:audio.length>0,audioStream:0,width:Number(video?.width)||null,height:Number(video?.height)||null,stillSeconds:5};
+ }
+ async function registerPlanMedia(){
+  project.imports=new Map();
+  const files=new Set([...(project.plan.segments||[]),...(project.plan.video_edits?.kept||[])].filter(x=>x.media).map(x=>String(x.media)));
+  for(const file of files){
+   if(!fs.existsSync(file))continue;
+   try{project.imports.set(file,await probeMedia(file));}catch{}
+  }
+ }
+ function importedFile(file){
+  const info=project.imports?.get(String(file));
+  if(!info)throw Error('Unknown imported media.');
+  return info;
  }
  function send(kind,payload){
   if(editor&&!editor.isDestroyed())editor.webContents.send('alignment-event',{kind,payload});
@@ -153,7 +181,8 @@ function createAlignmentEditor(root,python){
  ipcMain.handle('align-get-plan',async e=>{
   trusted(e);
   const [source,target]=await Promise.all([videoInfo(project.plan.source_video),videoInfo(project.plan.target_video)]);
-  return {file:project.file,plan:project.plan,media:mediaInfo(),fps:target?.fps||25,videos:{source,target}};
+  if(!project.imports)await registerPlanMedia();
+  return {file:project.file,plan:project.plan,media:mediaInfo(),fps:target?.fps||25,videos:{source,target},imports:[...project.imports.values()]};
  });
  ipcMain.handle('align-waveform',async(e,track)=>{
   trusted(e);
@@ -227,40 +256,77 @@ function createAlignmentEditor(root,python){
  ipcMain.handle('align-clip-op',(e,op,payload)=>{
   trusted(e);
   if(!payload||JSON.stringify(payload).length>250000)throw Error('Invalid clip edit.');
-  const rows=validateSegments(payload.segments,project.plan.duration);
+  // Picture edits change the output length; the renderer sends the current one.
+  const duration=payload.duration===undefined?project.plan.duration:Number(payload.duration);
+  if(!Number.isFinite(duration)||duration<=0||duration>24*3600)throw Error('Invalid output duration.');
+  const rows=validateSegments(payload.segments,duration);
   if(op==='copy')return clips.copyClip(rows,payload.index,payload.inPoint??null,payload.outPoint??null);
-  if(op==='paste')return clips.pasteClip(rows,project.plan.duration,payload.at,payload.clip);
-  if(op==='move')return timelineGestures.placeClip(rows,project.plan.duration,payload.index,payload.at,{copy:!!payload.copy});
-  if(op==='slip')return timelineGestures.slipClip(rows,project.plan.duration,payload.index,payload.delta);
-  if(op==='edge')return timelineGestures.trimClip(rows,project.plan.duration,payload.index,payload.edge,payload.at);
-  if(op==='razor')return timelineGestures.splitClip(rows,project.plan.duration,payload.index,payload.at);
+  if(op==='paste')return clips.pasteClip(rows,duration,payload.at,payload.clip);
+  if(op==='move')return timelineGestures.placeClip(rows,duration,payload.index,payload.at,{copy:!!payload.copy});
+  if(op==='slip')return timelineGestures.slipClip(rows,duration,payload.index,payload.delta);
+  if(op==='edge')return timelineGestures.trimClip(rows,duration,payload.index,payload.edge,payload.at);
+  if(op==='razor')return timelineGestures.splitClip(rows,duration,payload.index,payload.at);
   if(op==='trim-left'||op==='trim-right')
-   return clips.trimTo(rows,project.plan.duration,payload.index,payload.at,op==='trim-left'?'left':'right');
+   return clips.trimTo(rows,duration,payload.index,payload.at,op==='trim-left'?'left':'right');
   throw Error('Unknown clip operation.');
  });
 
- ipcMain.handle('align-frame',async(e,track,time)=>{
+ ipcMain.handle('align-frame',async(e,track,time,media)=>{
   trusted(e);
-  if(!['source','target'].includes(track))throw Error('Invalid preview track.');
-  const file=track==='source'?(project.plan.source_video||project.plan.audio):(project.plan.target_video||project.plan.reference);
+  if(!['source','target','media'].includes(track))throw Error('Invalid preview track.');
+  const file=track==='media'?importedFile(media).path:track==='source'?(project.plan.source_video||project.plan.audio):(project.plan.target_video||project.plan.reference);
   if(!file||!fs.existsSync(file))return null;
-  const t=assertTime(time);
-  const b=await run('ffmpeg',['-v','error','-nostdin','-ss',String(t),'-i',file,'-map','0:v:0','-frames:v','1','-vf','scale=600:360:force_original_aspect_ratio=decrease','-an','-c:v','mjpeg','-f','image2pipe','pipe:1'],8*1024*1024);
+  const t=track==='media'&&importedFile(media).image?0:assertTime(time);
+  const b=await run('ffmpeg',['-v','error','-nostdin',...(t?['-ss',String(t)]:[]),'-i',file,'-map','0:v:0','-frames:v','1','-vf','scale=600:360:force_original_aspect_ratio=decrease','-an','-c:v','mjpeg','-f','image2pipe','pipe:1'],8*1024*1024);
   return b.length?'data:image/jpeg;base64,'+b.toString('base64'):null;
  });
- ipcMain.handle('align-audio',async(e,track,start,duration,speed)=>{
+ ipcMain.handle('align-audio',async(e,track,start,duration,speed,media)=>{
   trusted(e);
-  const {file,stream}=trackInfo(track);
   const time=assertTime(start),len=Number(duration),rate=Number(speed);
   if(!Number.isFinite(len)||len<=0||len>12||!Number.isFinite(rate)||rate<.5||rate>2)throw Error('Invalid preview duration or playback rate.');
+  if(track==='silence'){
+   const s=await run('ffmpeg',['-v','error','-nostdin','-f','lavfi','-i','anullsrc=r=48000:cl=stereo','-t',String(len),'-c:a','pcm_s16le','-f','wav','pipe:1'],10*1024*1024);
+   return 'data:audio/wav;base64,'+s.toString('base64');
+  }
+  const {file,stream}=track==='media'?{file:importedFile(media).path,stream:importedFile(media).audioStream}:trackInfo(track);
   const b=await run('ffmpeg',['-v','error','-nostdin','-ss',String(time),'-t',String(len*rate),'-i',file,'-map','0:a:'+stream,'-af','atempo='+rate,'-ar','48000','-ac','2','-c:a','pcm_s16le','-f','wav','pipe:1'],10*1024*1024);
   if(b.length<64)throw Error('No audio at this timestamp.');
   return 'data:audio/wav;base64,'+b.toString('base64');
  });
- ipcMain.handle('align-save',async(e,segments)=>{
+ ipcMain.handle('align-import',async e=>{
+  trusted(e);
+  const picked=await dialog.showOpenDialog(editor,{title:'Import media into Preview & Edit',properties:['openFile','multiSelections'],
+   filters:[{name:'Video, audio and images',extensions:['mp4','mkv','mov','m4v','avi','webm','ts','m2ts','wmv','mpg','mpeg','mp3','wav','flac','m4a','aac','ogg','opus','wma','ac3','png','jpg','jpeg','bmp','webp','tif','tiff']},{name:'All files',extensions:['*']}]});
+  if(picked.canceled)return [];
+  if(!project.imports)await registerPlanMedia();
+  const added=[],failed=[];
+  for(const file of picked.filePaths.slice(0,50)){
+   try{const info=await probeMedia(path.resolve(file));project.imports.set(info.path,info);added.push(info);}
+   catch(err){failed.push(path.basename(file)+': '+err.message);}
+  }
+  if(failed.length&&!added.length)throw Error(failed.join('; '));
+  return added;
+ });
+ // Unsaved edits restored from the editor's autosave name files imported in an
+ // earlier session: probe them again (existing local media only).
+ ipcMain.handle('align-register-media',async(e,paths)=>{
+  trusted(e);
+  if(!Array.isArray(paths)||paths.length>50)throw Error('Invalid media list.');
+  if(!project.imports)await registerPlanMedia();
+  const found=[];
+  for(const file of paths){
+   if(typeof file!=='string'||!path.isAbsolute(file)||!fs.existsSync(file))continue;
+   try{const info=await probeMedia(path.resolve(file));project.imports.set(info.path,info);found.push(info);}catch{}
+  }
+  return found;
+ });
+ ipcMain.handle('align-save',async(e,segments,timeline)=>{
   trusted(e);
   if(project.exporting)throw Error('Cannot save while export is running.');
-  const revised=validateSegments(segments,project.plan.duration);
+  // Picture edits (ripple deletes, imported clips) change length and video pieces.
+  const edit=timeline?validateTimeline(timeline,project.plan,file=>importedFile(file)):null;
+  const revised=validateSegments(segments,edit?edit.duration:project.plan.duration);
+  for(const s of revised)if(s.kind==='media')importedFile(s.media);
   // Save As can choose any drive, directory and name. Its filename stem becomes
   // the new output folder, so rendered media never overwrites another episode.
   if(!project.outputPlan||project.exported){
@@ -283,6 +349,11 @@ function createAlignmentEditor(root,python){
    project.exported=false;
   }
   const value={...project.plan,segments:revised,source_cuts:[],editor_revision:1,editor_origin_plan:project.file};
+  if(edit){
+   value.duration=edit.duration;
+   value.video_edits={original_target_duration:project.plan.video_edits?.original_target_duration??project.plan.duration,
+    kept:edit.kept,removed:project.plan.video_edits?.removed||[],edited_in_preview:true};
+  }
   // The previous cut-review annotations describe old boundaries, not the edited timeline.
   value.review=[{start:0,end:Math.min(1,value.duration),confidence:'manual',reason:'User-edited sync plan. Verify output joins.'}];
   await fs.promises.writeFile(project.outputPlan,JSON.stringify(value,null,2)+'\n','utf8');

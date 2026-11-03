@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' file: data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: file:; media-src 'self' file: data:;">
 <title>AutoSync v1.3.0 · Preview & Edit</title><link rel="stylesheet" href="alignment-editor.css"></head>
 <body>
 <header class="topbar">
@@ -17,8 +17,9 @@
 <div id="restore-banner" class="banner" hidden><span id="restore-text">Unsaved edits from a previous session were found.</span><button id="restore-yes" class="primary">Restore edits</button><button id="restore-no">Discard</button></div>
 
 <main id="workspace">
- <aside id="issues-panel" class="panel" aria-label="Joins and review points">
-  <div class="panel-head"><h2>Review list</h2><button id="collapse-issues" class="icon small" title="Hide the review list">⟨</button></div>
+ <aside id="issues-panel" class="panel" aria-label="Review points and media">
+  <div class="panel-head"><div class="segmented" role="tablist" aria-label="Left panel"><button id="tab-review" class="on" role="tab" aria-selected="true" title="Joins and points to review">Review</button><button id="tab-media" role="tab" aria-selected="false" title="Imported video, audio and images">Media</button></div><button id="collapse-issues" class="icon small" title="Hide this panel">⟨</button></div>
+  <div id="review-pane" class="pane">
   <div class="segmented" role="radiogroup" aria-label="Filter review list">
    <button data-filter="all" class="on" role="radio" aria-checked="true">All</button>
    <button data-filter="flagged" role="radio" aria-checked="false" title="Only points the analysis marked as uncertain or worth a look">Flagged</button>
@@ -29,6 +30,13 @@
   <ol id="issue-list" aria-label="Review points"></ol>
   <div id="censor-actions" class="censor-actions" hidden><span>This scene:</span><div class="segmented wide"><button id="censor-restore" title="Keep this scene with the original audio">Restore (original audio)</button><button id="censor-cut" title="Remove this scene from the exported video, as the dub did">Cut from video</button></div></div>
   <div class="panel-foot"><button id="previous-issue" title="Previous review point · J">◀ Prev</button><button id="mark-reviewed" title="Mark the current point as checked · R">✓ Checked</button><button id="next-issue" title="Next review point · L">Next ▶</button></div>
+  </div>
+  <div id="media-pane" class="pane" hidden>
+   <div class="media-actions"><button id="import-media" class="primary" title="Add video, audio or image files · Ctrl+I">＋ Import media…</button></div>
+   <ul id="media-list" aria-label="Imported media"></ul>
+   <p id="media-empty" class="small-note">Import video, audio or images, then place them at the playhead. Picture edits ripple: everything after them moves together with its synced audio.</p>
+   <div class="panel-foot media-foot"><button id="media-insert" title="Insert the selected file (picture and sound) at the playhead; everything after moves later · B" disabled>Insert at playhead</button><button id="media-audio" title="Play the selected file's audio over the marked range, or the selected clip; the picture stays" disabled>Use its audio here</button></div>
+  </div>
  </aside>
  <button id="show-issues" class="edge-tab left" title="Show the review list" hidden>Review ⟩</button>
 
@@ -48,7 +56,7 @@
    <article class="viewer" data-track="source"><div class="heading"><strong>Source</strong><span id="source-time"></span></div>
     <div class="picture"><video id="source-video" muted playsinline preload="metadata" hidden aria-label="Source video playback"></video><img id="source-frame" alt="Source frame" hidden><span id="source-wait" class="wait">Loading source video…</span></div></article>
    <article class="viewer" data-track="target"><div class="heading"><strong>Target</strong><span id="target-time"></span></div>
-    <div class="picture"><video id="target-video" muted playsinline preload="metadata" hidden aria-label="Target video playback"></video><img id="target-frame" alt="Target frame" hidden><span id="target-wait" class="wait">Loading target video…</span></div></article>
+    <div class="picture"><video id="target-video" muted playsinline preload="metadata" hidden aria-label="Target video playback"></video><img id="target-frame" alt="Target frame" hidden><video id="import-video" muted playsinline preload="auto" hidden aria-label="Imported clip"></video><img id="import-still" alt="Imported image" hidden><span id="target-wait" class="wait">Loading target video…</span></div></article>
   </div>
   <div class="transport" role="toolbar" aria-label="Playback">
    <button id="back10" class="icon" title="Back 10 frames · Shift+←">⏪</button>
@@ -84,6 +92,7 @@
   </fieldset>
   <fieldset><legend>Edit</legend>
    <div class="grid2"><button id="split" title="Split the clip at the playhead · S">✂ Split (S)</button><button id="join" title="Merge with the clip before; it continues the earlier timing">⇤ Join previous</button><button id="trim-left" title="Trim the start to the playhead; the gap uses target audio · Q">Trim start (Q)</button><button id="trim-right" title="Trim the end to the playhead; the gap uses target audio · W">Trim end (W)</button></div>
+   <button id="ripple-delete" class="wide" title="Remove the marked range, or the selected clip, from the output: picture and sound. Everything after moves earlier · Shift+Delete">⌫ Ripple delete (picture + sound)</button>
   </fieldset>
   <fieldset><legend>Audio for this clip</legend>
    <div class="segmented wide"><button id="source-mode" title="Use the source audio here">Source audio</button><button id="target-mode" title="Use the target's own audio here">Target audio</button></div>
@@ -132,10 +141,10 @@
  <div class="keys">
   <section><h3>Playback</h3><dl><dt>Space</dt><dd>Play / pause</dd><dt>← →</dt><dd>One frame</dd><dt>Shift+← →</dt><dd>Ten frames</dd><dt>Home / End</dt><dd>Start / end</dd><dt>P</dt><dd>Play across the selected join</dd><dt>A</dt><dd>Swap output ↔ target audio</dd><dt>Esc</dt><dd>Stop, or cancel a drag</dd></dl></section>
   <section><h3>Review</h3><dl><dt>J / L</dt><dd>Previous / next review point</dd><dt>R</dt><dd>Mark the point as checked</dd><dt>F</dt><dd>Zoom to the clip</dd><dt>Shift+F</dt><dd>Show everything</dd><dt>Ctrl+scroll</dt><dd>Zoom the timeline</dd><dt>+ / −</dt><dd>Zoom in / out</dd></dl></section>
-  <section><h3>Editing</h3><dl><dt>V / C / Y</dt><dd>Select / Razor / Slip</dd><dt>N</dt><dd>Snapping on / off</dd><dt>S</dt><dd>Split at the playhead</dd><dt>Q / W</dt><dd>Trim start / end to the playhead</dd><dt>, / .</dt><dd>Audio 1 frame earlier / later</dd><dt>Alt+, / Alt+.</dt><dd>Audio 10 ms earlier / later</dd><dt>I / O</dt><dd>Mark In / Out</dd><dt>Ctrl+C / X / V</dt><dd>Copy / cut / paste audio</dd><dt>Ctrl+Z / Y</dt><dd>Undo / redo</dd><dt>Ctrl+S</dt><dd>Save As…</dd></dl></section>
+  <section><h3>Editing</h3><dl><dt>V / C / Y</dt><dd>Select / Razor / Slip</dd><dt>N</dt><dd>Snapping on / off</dd><dt>S</dt><dd>Split at the playhead</dd><dt>Q / W</dt><dd>Trim start / end to the playhead</dd><dt>, / .</dt><dd>Audio 1 frame earlier / later</dd><dt>Alt+, / Alt+.</dt><dd>Audio 10 ms earlier / later</dd><dt>I / O</dt><dd>Mark In / Out</dd><dt>Ctrl+C / X / V</dt><dd>Copy / cut / paste audio</dd><dt>Ctrl+Z / Y</dt><dd>Undo / redo</dd><dt>Ctrl+S</dt><dd>Save As…</dd><dt>Shift+Delete</dt><dd>Ripple delete range / clip</dd><dt>Ctrl+I</dt><dd>Import media</dd><dt>B</dt><dd>Insert the selected media at the playhead</dd></dl></section>
  </div>
- <p class="small-note">The picture never changes: every edit only re-times audio. Edits are kept automatically until you save.</p>
+ <p class="small-note">Audio edits never move the picture. Picture edits (ripple delete, inserted media) move everything after them together, so synced audio stays on its picture. Edits are kept automatically until you save.</p>
  <form method="dialog"><button class="primary">Close</button></form>
 </dialog>
 <audio id="audio-player" preload="auto"></audio>
-<script src="alignment-editor.js"></script></body></html>
+<script src="video-timeline.js"></script><script src="alignment-editor.js"></script></body></html>

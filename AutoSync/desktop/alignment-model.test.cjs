@@ -53,3 +53,18 @@ test('Target trims: editor target time maps back to the original target file',()
  assert.equal(originalTargetTime(edited,10),40);
  assert.equal(originalTargetTime({},10),10);
 });
+
+test('edited video timeline is validated before saving',()=>{
+ const {validateTimeline}=require('./alignment-model.cjs');
+ const plan={duration:100,segments:[]};
+ const known=new Set(['C:/m/clip.mp4']);
+ const media=p=>{if(!known.has(p))throw Error('Unknown imported media.');};
+ const ok=validateTimeline({duration:103,kept:[
+  {start:0,end:50,output_start:0,original_start:0,original_end:50},
+  {start:50,end:53,output_start:50,media:'C:/m/clip.mp4',media_start:1},
+  {start:50,end:100,output_start:53,original_start:50,original_end:100}]},plan,media);
+ assert.equal(ok.kept.length,3);assert.equal(ok.duration,103);
+ assert.throws(()=>validateTimeline({duration:103,kept:[{start:0,end:103,output_start:0,original_start:0,original_end:103}]},plan,media),/outside the target/);
+ assert.throws(()=>validateTimeline({duration:10,kept:[{start:0,end:10,output_start:0,media:'C:/other.mp4'}]},plan,media),/Unknown imported/);
+ assert.throws(()=>validateTimeline({duration:20,kept:[{start:0,end:10,output_start:0,original_start:0,original_end:10},{start:10,end:20,output_start:11,original_start:10,original_end:20}]},plan,media),/contiguous/);
+});

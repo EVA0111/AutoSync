@@ -179,3 +179,19 @@ dialog .small-note{margin-top:12px}
 .censor-actions .segmented button#censor-restore.on{background:#1f4d47}
 #issue-list li.censor .dot{background:#f0786e}
 #issue-list li.dubonly .dot{background:#e8c07a}
+
+/* Left panel tabs and the media bin */
+.pane{display:flex;flex-direction:column;min-height:0;flex:1}
+.pane[hidden]{display:none}
+.media-actions{padding:4px 10px 8px;display:flex}
+.media-actions button{flex:1}
+#media-list{list-style:none;margin:0;padding:0 6px;overflow-y:auto;flex:1;min-height:0}
+#media-list li{display:grid;grid-template-columns:22px 1fr;gap:1px 7px;padding:6px;border-radius:6px;border:1px solid transparent;cursor:pointer}
+#media-list li:hover{background:#1d2836}
+#media-list li.on{background:#2b2a1f;border-color:#8a6d3a}
+#media-list .kind{grid-row:span 2;font-size:15px;line-height:1.2;text-align:center}
+#media-list .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#media-list .meta{font-size:11px;color:var(--muted)}
+#media-empty{padding:0 12px}
+.media-foot{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#ripple-delete{margin-top:6px;width:100%}
