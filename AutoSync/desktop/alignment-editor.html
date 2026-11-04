@@ -5,6 +5,27 @@
 <body>
 <header class="topbar">
  <div class="title"><h1>Preview &amp; Edit</h1><p id="project-path" title="">Opening an alignment plan…</p></div>
+ <nav class="menubar" aria-label="Menu">
+  <details class="menu"><summary>File</summary><div class="menu-items">
+   <button data-cmd="import">Import media…<kbd>Ctrl+I</kbd></button><button data-cmd="save">Save As…<kbd>Ctrl+S</kbd></button><button data-cmd="export">Export</button><button data-cmd="folder">Open output folder</button><hr><button data-cmd="frame">Save frame as PNG<kbd>Ctrl+Shift+S</kbd></button></div></details>
+  <details class="menu"><summary>Edit</summary><div class="menu-items">
+   <button data-cmd="undo">Undo<kbd>Ctrl+Z</kbd></button><button data-cmd="redo">Redo<kbd>Ctrl+Y</kbd></button><hr>
+   <button data-cmd="cut">Cut audio<kbd>Ctrl+X</kbd></button><button data-cmd="copy">Copy audio<kbd>Ctrl+C</kbd></button><button data-cmd="paste">Paste audio<kbd>Ctrl+V</kbd></button><hr>
+   <button data-cmd="split">Split at playhead<kbd>S</kbd></button><button data-cmd="join">Join with previous</button><button data-cmd="ripple">Ripple delete range<kbd>Shift+Del</kbd></button><hr>
+   <button data-cmd="in">Mark In<kbd>I</kbd></button><button data-cmd="out">Mark Out<kbd>O</kbd></button><button data-cmd="clear">Clear In/Out</button></div></details>
+  <details class="menu"><summary>Picture</summary><div class="menu-items">
+   <button data-cmd="insert">Insert media on V1 (ripple)<kbd>B</kbd></button><button data-cmd="overlay">Put media on V2<kbd>Shift+B</kbd></button><button data-cmd="deloverlay">Remove selected V2 clip<kbd>Del</kbd></button><hr>
+   <button data-cmd="fill">Fill range with motion<kbd>M</kbd></button><button data-cmd="black">Fill range with black<kbd>Shift+M</kbd></button></div></details>
+  <details class="menu"><summary>Tracks</summary><div class="menu-items">
+   <button data-cmd="lockV2">Lock / unlock V2</button><button data-cmd="lockV1">Lock / unlock V1</button><button data-cmd="lockMIX">Lock / unlock MIX</button><hr><button data-cmd="hideV2">Show / hide V2</button></div></details>
+  <details class="menu"><summary>Markers</summary><div class="menu-items">
+   <button data-cmd="marker">Add / remove marker<kbd>K</kbd></button><button data-cmd="prev">Previous point<kbd>J</kbd></button><button data-cmd="next">Next point<kbd>L</kbd></button></div></details>
+  <details class="menu"><summary>View</summary><div class="menu-items">
+   <button data-cmd="fitall">Fit all<kbd>Shift+F</kbd></button><button data-cmd="fitclip">Fit clip or range<kbd>F</kbd></button><button data-cmd="full">Full screen<kbd>Alt+Enter</kbd></button><hr>
+   <button data-cmd="view-side">Side by side</button><button data-cmd="view-overlay">Overlay</button><button data-cmd="view-difference">Difference</button><button data-cmd="view-wipe">Wipe</button></div></details>
+  <details class="menu"><summary>Help</summary><div class="menu-items"><button data-cmd="keys">Keyboard shortcuts<kbd>?</kbd></button></div></details>
+ </nav>
+
  <div class="chips"><span id="issues-chip" class="chip">— to review</span><span id="state-chip" class="chip">No changes</span></div>
  <div class="actions">
   <button id="undo" title="Undo · Ctrl+Z">↶ Undo</button><button id="redo" title="Redo · Ctrl+Y">↷ Redo</button>
@@ -36,7 +57,8 @@
    <div class="media-actions"><button id="import-media" class="primary" title="Add video, audio or image files · Ctrl+I">＋ Import media…</button></div>
    <ul id="media-list" aria-label="Imported media"></ul>
    <p id="media-empty" class="small-note">Import video, audio or images, then place them at the playhead. Picture edits ripple: everything after them moves together with its synced audio.</p>
-   <div class="panel-foot media-foot"><button id="media-insert" title="Insert the selected file (picture and sound) at the playhead; everything after moves later · B" disabled>Insert at playhead</button><button id="media-audio" title="Play the selected file's audio over the marked range, or the selected clip; the picture stays" disabled>Use its audio here</button></div>
+   <p class="small-note">Drag files from Explorer into the window to import them. Drag a pool item onto V1 (insert), V2 (overlay) or MIX (sound).</p>
+   <div class="panel-foot media-foot"><button id="media-insert" title="Insert the selected file (picture and sound) on V1 at the playhead; everything after moves later · B" disabled>Insert on V1</button><button id="media-overlay" title="Put the selected picture on V2 at the playhead: it covers V1 there, the sound is unchanged · Shift+B" disabled>Put on V2</button><button id="media-audio" title="Play the selected file's audio over the marked range, or the selected clip; the picture stays" disabled>Use its sound</button></div>
   </div>
  </aside>
  <button id="show-issues" class="edge-tab left" title="Show the review list" hidden>Review ⟩</button>
@@ -95,8 +117,10 @@
     <button id="nudge-frame-left" title="One frame earlier · ,">−1 fr</button><button id="nudge-left" title="10 ms earlier · Alt+,">−10 ms</button><button id="nudge-right" title="10 ms later · Alt+.">+10 ms</button><button id="nudge-frame-right" title="One frame later · .">+1 fr</button></div>
    <p class="small-note" id="offset-note"></p>
   </fieldset>
-  <fieldset><legend>Edit</legend>
+  <fieldset><legend>Edit audio</legend>
    <div class="grid2"><button id="split" title="Split the clip at the playhead · S">✂ Split (S)</button><button id="join" title="Merge with the clip before; it continues the earlier timing">⇤ Join previous</button><button id="trim-left" title="Trim the start to the playhead; the gap uses target audio · Q">Trim start (Q)</button><button id="trim-right" title="Trim the end to the playhead; the gap uses target audio · W">Trim end (W)</button></div>
+  </fieldset>
+  <fieldset><legend>Picture (In/Out range or clip)</legend>
    <button id="ripple-delete" class="wide" title="Remove the marked range, or the selected clip, from the output: picture and sound. Everything after moves earlier · Shift+Delete">⌫ Ripple delete (picture + sound)</button>
    <div class="grid2"><button id="fill-motion" title="Replace the picture in the marked range (or the selected clip) with the frame at In, kept moving: only small motion inside the picture (mouths, eyes); anything bigger holds still. The sound does not change · M">◫ Fill motion (M)</button><button id="fill-black" title="Make the picture in the marked range (or the selected clip) black; the sound does not change · Shift+M">■ Fill black</button></div>
   </fieldset>
@@ -151,7 +175,7 @@
  <div class="keys">
   <section><h3>Playback</h3><dl><dt>Space</dt><dd>Play / pause</dd><dt>← →</dt><dd>One frame</dd><dt>Shift+← →</dt><dd>Ten frames</dd><dt>Home / End</dt><dd>Start / end</dd><dt>Shift+Space</dt><dd>Play the In/Out range</dd><dt>P</dt><dd>Play across the selected join</dd><dt>K</dt><dd>Add / remove a marker</dd><dt>Alt+Enter</dt><dd>Full screen</dd><dt>Ctrl+Shift+S</dt><dd>Save the frame as PNG</dd><dt>A</dt><dd>Swap output ↔ target audio</dd><dt>Esc</dt><dd>Stop, or cancel a drag</dd></dl></section>
   <section><h3>Review</h3><dl><dt>J / L</dt><dd>Previous / next review point</dd><dt>R</dt><dd>Mark the point as checked</dd><dt>F</dt><dd>Zoom to the clip (or the In/Out range)</dd><dt>Shift+F</dt><dd>Show everything</dd><dt>Ctrl+scroll</dt><dd>Zoom the timeline</dd><dt>+ / −</dt><dd>Zoom in / out</dd></dl></section>
-  <section><h3>Editing</h3><dl><dt>V / C / Y</dt><dd>Select / Razor / Slip</dd><dt>N</dt><dd>Snapping on / off</dd><dt>S</dt><dd>Split at the playhead</dd><dt>Q / W</dt><dd>Trim start / end to the playhead</dd><dt>, / .</dt><dd>Audio 1 frame earlier / later</dd><dt>Alt+, / Alt+.</dt><dd>Audio 10 ms earlier / later</dd><dt>I / O</dt><dd>Mark In / Out</dd><dt>Ctrl+C / X / V</dt><dd>Copy / cut / paste audio</dd><dt>Ctrl+Z / Y</dt><dd>Undo / redo</dd><dt>Ctrl+S</dt><dd>Save As…</dd><dt>Shift+Delete</dt><dd>Ripple delete range / clip</dd><dt>M</dt><dd>Fill the range with motion from the frame at In</dd><dt>Shift+M</dt><dd>Fill the range with black</dd><dt>Ctrl+I</dt><dd>Import media</dd><dt>B</dt><dd>Insert the selected media at the playhead</dd></dl></section>
+  <section><h3>Editing</h3><dl><dt>V / C / Y</dt><dd>Select / Razor / Slip</dd><dt>N</dt><dd>Snapping on / off</dd><dt>S</dt><dd>Split at the playhead</dd><dt>Q / W</dt><dd>Trim start / end to the playhead</dd><dt>, / .</dt><dd>Audio 1 frame earlier / later</dd><dt>Alt+, / Alt+.</dt><dd>Audio 10 ms earlier / later</dd><dt>I / O</dt><dd>Mark In / Out</dd><dt>Ctrl+C / X / V</dt><dd>Copy / cut / paste audio</dd><dt>Ctrl+Z / Y</dt><dd>Undo / redo</dd><dt>Ctrl+S</dt><dd>Save As…</dd><dt>Shift+Delete</dt><dd>Ripple delete range / clip</dd><dt>M</dt><dd>Fill the range with motion from the frame at In</dd><dt>Shift+M</dt><dd>Fill the range with black</dd><dt>Ctrl+I</dt><dd>Import media</dd><dt>B</dt><dd>Insert the selected media on V1 at the playhead</dd><dt>Shift+B</dt><dd>Put the selected media on V2</dd><dt>Delete</dt><dd>Remove the selected V2 clip</dd></dl></section>
  </div>
  <p class="small-note">Audio edits never move the picture. Picture edits (ripple delete, inserted media) move everything after them together; a motion fill only replaces the picture in its range, so synced audio stays on its picture. Edits are kept automatically until you save.</p>
  <form method="dialog"><button class="primary">Close</button></form>

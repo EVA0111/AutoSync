@@ -9,7 +9,9 @@
  * the plan's own target time, as video_edits.py writes them) or an imported
  * clip {start,end,output_start,media,media_start} (start/end only give its
  * length), or a motion fill {..., fill:'motion', hold} that shows target
- * picture `hold` kept moving (built at export; video_edits.py). Edits ripple: later picture AND audio move together, so the
+ * picture `hold` kept moving (built at export; video_edits.py). `overlays` is the
+ * V2 track: imported clips {at,length,media,media_start,label} that cover V1's
+ * picture where they sit (flatten() merges them into `kept` for export). Edits ripple: later picture AND audio move together, so the
  * source audio stays on the picture it was synced to.
  *
  * Pure functions: no Electron, FFmpeg or DOM. Every result is a new object.
@@ -27,7 +29,19 @@ function baseKept(plan){
 }
 
 function fromPlan(plan,segments){
- return {segments:copy(segments||plan.segments),duration:Number(plan.duration),kept:baseKept(plan)};
+ return {segments:copy(segments||plan.segments),duration:Number(plan.duration),kept:baseKept(plan),overlays:copy(plan.video_overlays||[])};
+}
+const oEnd=o=>Number(o.at)+Number(o.length);
+// Parts of V2 clips outside [a,b) (a clip spanning the range becomes two).
+function cutOverlays(overlays,a,b){
+ const out=[];
+ for(const o of overlays||[]){
+  const s=Number(o.at),e=oEnd(o);
+  if(e<=a+EPS||s>=b-EPS){out.push({...o});continue;}
+  if(s<a-EPS)out.push({...o,length:a-s});
+  if(e>b+EPS)out.push({...o,at:b,length:e-b,media_start:Number(o.media_start||0)+(b-s)});
+ }
+ return out.sort((x,y)=>x.at-y.at);
 }
 
 /** What the output shows at time t: {media,time} for an imported clip, else {target:time}. */
@@ -78,6 +92,7 @@ function splitKept(kept,t){
 
 function shiftFrom(tl,at,delta){
  for(const s of tl.segments)if(s.target_start>=at-EPS){s.target_start+=delta;s.target_end+=delta;}
+ for(const o of tl.overlays||[])if(Number(o.at)>=at-EPS)o.at=Number(o.at)+delta;
  for(const k of tl.kept)if(Number(k.output_start)>=at-EPS){
   k.output_start=Number(k.output_start)+delta;
   if(k.media){k.start=Number(k.start)+delta;k.end=Number(k.end)+delta;}
@@ -93,7 +108,7 @@ function rippleDelete(tl,a,b){
  let kept=splitKept(splitKept(copy(tl.kept),a),b);
  segments=segments.filter(s=>!(s.target_start>=a-EPS&&s.target_end<=b+EPS));
  kept=kept.filter(k=>!(Number(k.output_start)>=a-EPS&&Number(k.output_start)+len(k)<=b+EPS));
- const out={segments,kept,duration:tl.duration-(b-a)};
+ const out={segments,kept,overlays:cutOverlays(tl.overlays,a,b),duration:tl.duration-(b-a)};
  shiftFrom(out,b,-(b-a));
  return check(out);
 }
@@ -104,7 +119,9 @@ function insertClip(tl,t,item,inPoint=0,length=null){
  const L=clipLength(item,inPoint,length);
  t=Math.max(0,Math.min(tl.duration,t));
  let segments=splitSegments(pin(tl.segments),t),kept=splitKept(copy(tl.kept),t);
- const out={segments,kept,duration:tl.duration+L};
+ const out={segments,kept,overlays:cutOverlays(tl.overlays,t,t),duration:tl.duration+L};
+ // A V2 clip spanning t splits there: its later part moves with everything after t.
+ out.overlays=out.overlays.flatMap(o=>Number(o.at)<t-EPS&&oEnd(o)>t+EPS?[{...o,length:t-o.at},{...o,at:t,length:oEnd(o)-t,media_start:Number(o.media_start||0)+(t-o.at)}]:[o]);
  shiftFrom(out,t,L);
  out.segments.push({kind:'media',target_start:t,target_end:t+L,media:item.path,media_start:inPoint,
   media_stream:item.hasAudio?Number(item.audioStream||0):null,label:item.name||''});
@@ -124,7 +141,7 @@ function replaceAudio(tl,a,b,item,inPoint=0){
  segments.push({kind:'media',target_start:a,target_end:b,media:item.path,media_start:inPoint,
   media_stream:Number(item.audioStream||0),label:item.name||''});
  segments.sort((x,y)=>x.target_start-y.target_start);
- return check({segments,kept:copy(tl.kept),duration:tl.duration});
+ return check({segments,kept:copy(tl.kept),overlays:copy(tl.overlays||[]),duration:tl.duration});
 }
 
 /** Fill output [a,b) with the target picture shown at a, kept moving ('motion'), or black; the audio does not change. */
@@ -139,7 +156,55 @@ function fillRange(tl,a,b,kind='motion'){
  kept=kept.filter(k=>!(Number(k.output_start)>=a-EPS&&Number(k.output_start)+len(k)<=b+EPS));
  kept.push({start:a,end:b,output_start:a,original_start:hold,original_end:hold+(b-a),fill:kind,hold});
  kept.sort((x,y)=>Number(x.output_start)-Number(y.output_start));
- return check({segments:copy(tl.segments),kept,duration:tl.duration});
+ return check({segments:copy(tl.segments),kept,overlays:copy(tl.overlays||[]),duration:tl.duration});
+}
+
+/** Put an imported clip (picture) on V2 at `at`: it covers V1 there and overwrites V2 clips under it. */
+function placeOverlay(tl,at,item,inPoint=0,length=null){
+ if(!item?.path||!item.hasVideo)throw Error('Only pictures and videos can go on a video track.');
+ at=Math.max(0,Math.min(tl.duration-.04,at));
+ const L=Math.min(clipLength(item,inPoint,length),tl.duration-at);
+ const overlays=cutOverlays(tl.overlays,at,at+L);
+ overlays.push({at,length:L,media:item.path,media_start:inPoint,label:item.name||'',image:!!item.image});
+ return check({segments:copy(tl.segments),kept:copy(tl.kept),overlays:overlays.sort((x,y)=>x.at-y.at),duration:tl.duration});
+}
+/** Move V2 clip i to start at `at` (it overwrites what it lands on). */
+function moveOverlay(tl,i,at){
+ const o=tl.overlays?.[i];if(!o)throw Error('No clip on V2 there.');
+ at=Math.max(0,Math.min(tl.duration-Number(o.length),at));
+ const rest=copy(tl.overlays);rest.splice(i,1);
+ const overlays=cutOverlays(rest,at,at+Number(o.length));overlays.push({...o,at});
+ return check({segments:copy(tl.segments),kept:copy(tl.kept),overlays:overlays.sort((x,y)=>x.at-y.at),duration:tl.duration});
+}
+/** Trim V2 clip i: edge 'start' or 'end' moves to `time` (inside the clip's media). */
+function trimOverlay(tl,i,edge,time){
+ const o={...tl.overlays?.[i]};if(!o.media)throw Error('No clip on V2 there.');
+ const s=Number(o.at),e=oEnd(o);
+ if(edge==='start'){const t=Math.max(Math.max(0,s-Number(o.media_start||0)*(o.image?Infinity:1)),Math.min(e-.04,time));o.media_start=Math.max(0,Number(o.media_start||0)+(t-s));o.at=t;o.length=e-t;}
+ else{o.length=Math.max(.04,Math.min(tl.duration,time)-s);}
+ const rest=copy(tl.overlays);rest.splice(i,1);
+ const overlays=cutOverlays(rest,o.at,oEnd(o));overlays.push(o);
+ return check({segments:copy(tl.segments),kept:copy(tl.kept),overlays:overlays.sort((x,y)=>x.at-y.at),duration:tl.duration});
+}
+function removeOverlay(tl,i){
+ const overlays=copy(tl.overlays||[]);overlays.splice(i,1);
+ return check({segments:copy(tl.segments),kept:copy(tl.kept),overlays,duration:tl.duration});
+}
+/** The output picture as one sequence: V2 clips laid over V1 (what export renders). */
+function flatten(kept,overlays){
+ let out=copy(kept);
+ for(const o of overlays||[]){
+  const a=Number(o.at),b=oEnd(o);
+  out=splitKept(splitKept(out,a),b).filter(k=>!(Number(k.output_start)>=a-EPS&&Number(k.output_start)+len(k)<=b+EPS));
+  out.push({start:a,end:b,output_start:a,media:o.media,media_start:Number(o.media_start||0),label:o.label||''});
+  out.sort((x,y)=>Number(x.output_start)-Number(y.output_start));
+ }
+ return out;
+}
+/** V2 clip showing at output time t, or null. */
+function overlayAt(overlays,t){
+ for(const o of overlays||[])if(t>=Number(o.at)-1e-6&&t<oEnd(o))return {media:o.media,time:Number(o.media_start||0)+t-Number(o.at),overlay:o};
+ return null;
 }
 
 function clipLength(item,inPoint,length){
@@ -164,6 +229,11 @@ function check(tl){
   at=Number(k.output_start)+len(k);
  }
  if(Math.abs(at-duration)>1e-3)throw Error('Video does not cover the output.');
+ let end=0;
+ for(const o of tl.overlays||[]){
+  if(!(Number(o.length)>0)||Number(o.at)<end-1e-3||oEnd(o)>duration+1e-3)throw Error('Edit produced overlapping or out-of-range clips on V2.');
+  end=oEnd(o);
+ }
  return tl;
 }
 
@@ -175,6 +245,7 @@ function editsPicture(plan,kept){
   Math.abs(Number(kept[0].original_start)-Number(base[0].original_start))>1e-3;
 }
 
-const api={fromPlan,baseKept,pictureAt,rippleDelete,insertClip,replaceAudio,fillRange,check,editsPicture,splitSegments,splitKept};
+const api={fromPlan,baseKept,pictureAt,rippleDelete,insertClip,replaceAudio,fillRange,check,editsPicture,splitSegments,splitKept,
+ placeOverlay,moveOverlay,trimOverlay,removeOverlay,flatten,overlayAt,cutOverlays};
 // Node (tests) and the editor page (plain script) share this file.
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else globalThis.VideoTimeline=api;

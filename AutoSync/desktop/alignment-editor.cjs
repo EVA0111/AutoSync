@@ -5,7 +5,7 @@ const path=require('node:path');
 const {execFile,spawn}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
 const {randomUUID,createHash}=require('node:crypto');
-const {validateSegments,validateTimeline}=require('./alignment-model.cjs');
+const {validateSegments,validateTimeline,validateOverlays}=require('./alignment-model.cjs');
 const clips=require('./audio-clip-tools.cjs');
 const timelineGestures=require('./timeline-gestures.cjs');
 const {preparePreviewValues}=require('./preview-request.cjs');
@@ -64,12 +64,18 @@ function createAlignmentEditor(root,python){
   const duration=image?null:Number(out.format?.duration);
   if(!image&&!(duration>0))throw Error('Cannot read the length of '+path.basename(file));
   if(!video&&!audio.length)throw Error(path.basename(file)+' has no picture or sound.');
+  let thumb=null;
+  if(video)try{
+   const at=image?0:Math.min(Math.max(0,duration*.1),Math.max(0,duration-.1));
+   const jpg=await run('ffmpeg',['-v','error','-nostdin',...(at?['-ss',String(at)]:[]),'-i',file,'-map','0:'+video.index,'-frames:v','1','-vf','scale=160:90:force_original_aspect_ratio=decrease','-c:v','mjpeg','-f','image2pipe','pipe:1'],2*1024*1024);
+   if(jpg.length)thumb='data:image/jpeg;base64,'+jpg.toString('base64');
+  }catch{}
   return {path:file,name:path.basename(file),url:pathToFileURL(file).href,image,duration,hasVideo:!!video,
-   hasAudio:audio.length>0,audioStream:0,width:Number(video?.width)||null,height:Number(video?.height)||null,stillSeconds:5};
+   hasAudio:audio.length>0,audioStream:0,width:Number(video?.width)||null,height:Number(video?.height)||null,stillSeconds:5,thumb};
  }
  async function registerPlanMedia(){
   project.imports=new Map();
-  const files=new Set([...(project.plan.segments||[]),...(project.plan.video_edits?.kept||[])].filter(x=>x.media).map(x=>String(x.media)));
+  const files=new Set([...(project.plan.segments||[]),...(project.plan.video_edits?.kept||[]),...(project.plan.video_edits?.v1||[]),...(project.plan.video_overlays||[])].filter(x=>x.media).map(x=>String(x.media)));
   for(const file of files){
    if(!fs.existsSync(file))continue;
    try{project.imports.set(file,await probeMedia(file));}catch{}
@@ -393,7 +399,14 @@ function createAlignmentEditor(root,python){
    value.duration=edit.duration;
    value.video_edits={original_target_duration:project.plan.video_edits?.original_target_duration??project.plan.duration,
     kept:edit.kept,removed:project.plan.video_edits?.removed||[],edited_in_preview:true};
+   // Tracks as edited (V1 sequence and V2 clips), so the editor reopens them; export
+   // renders `kept`, the flattened picture.
+   if(Array.isArray(timeline.v1))value.video_edits.v1=validateTimeline({duration:edit.duration,kept:timeline.v1},project.plan,file=>importedFile(file)).kept;
   }
+  const overlays=validateOverlays(extras?.overlays,value.duration,file=>importedFile(file));
+  if(overlays.length)value.video_overlays=overlays;else delete value.video_overlays;
+  const tracks=extras?.tracks;
+  if(tracks&&typeof tracks==='object')value.editor_tracks={locks:Object.fromEntries(['V2','V1','MIX'].map(k=>[k,!!tracks.locks?.[k]])),hidden:{V2:!!tracks.hidden?.V2}};
   // The previous cut-review annotations describe old boundaries, not the edited timeline.
   value.review=[{start:0,end:Math.min(1,value.duration),confidence:'manual',reason:'User-edited sync plan. Verify output joins.'}];
   await fs.promises.writeFile(project.outputPlan,JSON.stringify(value,null,2)+'\n','utf8');

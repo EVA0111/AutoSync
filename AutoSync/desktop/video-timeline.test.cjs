@@ -82,3 +82,20 @@ test('black fill needs no target picture and keeps the sound',()=>{
  assert.equal(tl.kept.find(k=>k.fill).fill,'black');
  assert.throws(()=>vt.fillRange(vt.fromPlan(plan),10,12,'blur'),/Unknown fill/);
 });
+
+test('V2 clips cover V1 where they sit and ripple with the timeline',()=>{
+ const pic={path:'C:/media/logo.png',name:'logo.png',image:true,hasVideo:true,hasAudio:false,stillSeconds:5};
+ let tl=vt.placeOverlay(vt.fromPlan(plan),10,pic,0,4);
+ assert.equal(tl.overlays.length,1);near(vt.overlayAt(tl.overlays,12).time,2,'clip time');
+ const flat=vt.flatten(tl.kept,tl.overlays);
+ assert.equal(flat.filter(k=>k.media).length,1);near(vt.pictureAt(flat,11).time,1,'covers V1');near(vt.pictureAt(flat,15).target,15,'V1 after');
+ tl=vt.placeOverlay(tl,12,clip,0,3);                       // overwrites the end of the first one
+ assert.deepEqual(tl.overlays.map(o=>[o.at,o.length]),[[10,2],[12,3]]);
+ tl=vt.rippleDelete(tl,0,5);                                // everything after 5 s moves 5 s earlier
+ assert.deepEqual(tl.overlays.map(o=>[o.at,o.length]),[[5,2],[7,3]]);
+ tl=vt.moveOverlay(tl,1,20);near(tl.overlays[1].at,20,'moved');
+ tl=vt.trimOverlay(tl,1,'end',21);near(tl.overlays[1].length,1,'trimmed');
+ tl=vt.removeOverlay(tl,0);assert.equal(tl.overlays.length,1);
+ const ins=vt.insertClip(vt.placeOverlay(vt.fromPlan(plan),10,pic,0,4),12,clip,0,2);
+ assert.deepEqual(ins.overlays.map(o=>[o.at,o.length]),[[10,2],[14,2]]);   // split at the insert point
+});

@@ -98,4 +98,17 @@ function validateTimeline(timeline,plan,knownMedia){
  if(Math.abs(at-duration)>1e-3)throw Error('Video pieces must cover the edited output.');
  return {duration,kept:result};
 }
-module.exports={validateSegments,validateTimeline,findRegion,sourceTime,originalTargetTime};
+/** V2 clips from Preview & Edit: ordered, non-overlapping, inside the output, imported files only. */
+function validateOverlays(rows,duration,knownMedia){
+ if(rows===undefined||rows===null)return [];
+ if(!Array.isArray(rows)||rows.length>2000)throw Error('Invalid V2 clips.');
+ let end=0;
+ return rows.map((o,i)=>{
+  const at=Number(o?.at),length=Number(o?.length),ms=Number(o?.media_start||0);
+  if(![at,length,ms].every(Number.isFinite)||at<end-1e-3||length<=0||at+length>Number(duration)+1e-3||ms<0||typeof o.media!=='string')
+   throw Error('Invalid clip on V2 (clip '+(i+1)+').');
+  knownMedia(o.media);end=at+length;
+  return {at,length,media:o.media,media_start:ms,label:String(o.label||'').slice(0,200),image:!!o.image};
+ });
+}
+module.exports={validateSegments,validateTimeline,validateOverlays,findRegion,sourceTime,originalTargetTime};

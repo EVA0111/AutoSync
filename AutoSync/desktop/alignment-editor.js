@@ -16,9 +16,19 @@ const VT=globalThis.VideoTimeline;
 let imports=[],mediaSel=null,originalDuration=0;
 // Clip operations validate against the current output length (picture edits change it).
 const clipEdit=(op,payload)=>window.alignment.clipEdit(op,{...payload,duration:plan.duration});
-let rowTops=[RULER,0,0,0],rowH=80;
-const rowNames=['V1','A1','A2','MIX'];
-const rowDescriptions=['OUTPUT VIDEO','SOURCE AUDIO','TARGET AUDIO','EDITED OUTPUT'];
+// Rows by index: 0 V1 (main picture), 1 A1 (source audio), 2 A2 (target audio),
+// 3 MIX (edited output audio), 4 V2 (overlay picture, drawn on top of V1).
+let rowTops=[RULER,0,0,0,0],rowH=80;
+const rowNames=['V1','A1','A2','MIX','V2'];
+const rowDescriptions=['MAIN VIDEO','SOURCE AUDIO','TARGET AUDIO','EDITED OUTPUT','OVERLAY VIDEO'];
+const LOCKABLE={0:'V1',3:'MIX',4:'V2'};
+let overlays=[],locks={V2:false,V1:false,MIX:false},hidden={V2:false},selOverlay=-1,dropHint=null;
+// A locked track refuses edits; a message says which one and how to unlock it.
+function locked(...tracks){
+ const t=tracks.find(k=>locks[k]);
+ if(t)report(t+' is locked. Click its 🔒 in the track header to unlock it.',true);
+ return !!t;
+}
 let tool='select',snapEnabled=true;
 const trimTime=t=>{const ms=Math.max(0,Math.round(t*1000));return [Math.floor(ms/3600000),Math.floor(ms/60000)%60,Math.floor(ms/1000)%60].map(n=>String(n).padStart(2,'0')).join(':')+'.'+String(ms%1000).padStart(3,'0');};
 const shortTime=t=>{const s=Math.max(0,t);return Math.floor(s/60)+':'+(s%60).toFixed(2).padStart(5,'0');};
@@ -50,11 +60,13 @@ function mapTarget(t){
 // ---------- history, state and autosave ----------
 // Callers record history first and then change the clips: rebuild the list after that.
 function touched(){edited=true;saved=false;autosave();setButtons();setTimeout(()=>{buildIssues();draw();},0);}
-function snapshot(){return {segments:clone(segments),duration:plan.duration,videoEdits:plan.video_edits?clone(plan.video_edits):null};}
+function snapshot(){return {segments:clone(segments),duration:plan.duration,videoEdits:plan.video_edits?clone(plan.video_edits):null,overlays:clone(overlays)};}
 function applySnapshot(x){
  if(Array.isArray(x)){segments=x;return;}
  segments=x.segments;plan.duration=x.duration;
  if(x.videoEdits)plan.video_edits=x.videoEdits;else delete plan.video_edits;
+ if(x.overlays)overlays=x.overlays;
+ selOverlay=-1;
 }
 function saveHistory(){
  undo.push(snapshot());if(undo.length>100)undo.shift();redo=[];touched();
@@ -76,13 +88,13 @@ function autosave(){
  autosaveTimer=setTimeout(()=>{
   if(!plan)return;
   store.set(autosaveKey(),{segments:edited?segments:null,duration:edited?plan.duration:null,
-   videoEdits:edited&&plan.video_edits?plan.video_edits:null,markers,reviewed:[...reviewed],notes,at:Date.now()});
+   videoEdits:edited&&plan.video_edits?plan.video_edits:null,overlays:edited?overlays:null,markers,locks,hidden,reviewed:[...reviewed],notes,at:Date.now()});
  },400);
 }
 function setButtons(){
  $('undo').disabled=!undo.length;$('redo').disabled=!redo.length;
  $('export').disabled=exporting||!saved;
- const video=plan&&(plan.video_edits||plan.censorship?.recreate||segments.some(s=>s.censored_action==='cut'));
+ const video=plan&&(plan.video_edits||overlays.length||plan.censorship?.recreate||segments.some(s=>s.censored_action==='cut'));
  $('export').textContent=video?'Export edited video':'Export corrected audio';
  $('export').title=saved?$('export').textContent:'Save your edits first (Save As…), then export';
  $('paste-clip').disabled=exporting||!clipboard;
@@ -234,8 +246,8 @@ function render(){
  octx.fillStyle='#ffcf72';octx.fillRect(playhead/plan.duration*o.w-1,0,2,o.h);
 }
 function paintTimeline(ctx,w,h){
- rowH=Math.max(34,Math.floor((h-RULER-6)/4));
- rowTops=[0,1,2,3].map(i=>RULER+i*(rowH+2));
+ rowH=Math.max(30,Math.floor((h-RULER-8)/5));
+ rowTops=[1,2,3,4,0].map(i=>RULER+i*(rowH+2));
  const inner=rowH-4,mid=inner/2;
  ctx.clearRect(0,0,w,h);ctx.fillStyle='#101923';ctx.fillRect(0,0,w,h);
  const {scale,left,right}=range();
@@ -258,8 +270,7 @@ function paintTimeline(ctx,w,h){
  for(let row=0;row<4;row++){
   const y=rowTops[row];
   ctx.fillStyle=row===3?'#211d33':row===0?'#132638':'#16212e';ctx.fillRect(left,y,w-left-12,rowH);
-  ctx.fillStyle='#9daec1';ctx.font='600 11px Segoe UI';ctx.fillText(rowNames[row],9,y+15);
-  ctx.font='10px Consolas';ctx.fillStyle='#7f91a6';ctx.fillText(rowDescriptions[row],9,y+29);
+  paintHeader(ctx,row,y);
   const loadingTrack=row===1?'source':row===2?'target':null;
   if(loadingTrack&&waveLoading[loadingTrack]&&rowH>44){ctx.fillStyle='#e8c07a';ctx.fillText('loading…',9,y+43);}
   ctx.save();ctx.beginPath();ctx.rect(left,y,w-left-12,rowH);ctx.clip();
@@ -329,6 +340,7 @@ function paintTimeline(ctx,w,h){
   if(row===3)paintFades(ctx,y,inner);
   ctx.restore();
  }
+ paintV2(ctx,w,inner);
  // ruler
  const step=Math.pow(10,Math.floor(Math.log10(Math.max(.01,view/7))));
  const tick=[1,2,5,10].map(n=>n*step).find(n=>view/n<=12)||step*10;
@@ -348,6 +360,52 @@ function paintTimeline(ctx,w,h){
   ctx.fillStyle='#7fd4ff';ctx.fillRect(x-1,RULER-14,3,10);ctx.fillRect(x-4,RULER-14,9,3);
  }
 }
+// Track header: name, role and (for V1, MIX, V2) a lock; V2 also shows/hides.
+function headerButtons(row,y){
+ const out=[];
+ if(LOCKABLE[row])out.push({kind:'lock',x:100,y:y+4,w:22,h:20});
+ if(row===4)out.push({kind:'eye',x:74,y:y+4,w:22,h:20});
+ return out;
+}
+function paintHeader(ctx,row,y){
+ ctx.fillStyle='#111a25';ctx.fillRect(0,y,126,rowH);
+ ctx.fillStyle='#9daec1';ctx.font='600 11px Segoe UI';ctx.fillText(rowNames[row],9,y+15);
+ if(rowH>40){ctx.font='9px Consolas';ctx.fillStyle='#7f91a6';ctx.fillText(rowDescriptions[row],9,y+29);}
+ for(const b of headerButtons(row,y)){
+  const on=b.kind==='lock'?locks[LOCKABLE[row]]:hidden.V2;
+  ctx.fillStyle=on?'#5a3b22':'#1c2a3a';ctx.fillRect(b.x,b.y,b.w,b.h);
+  ctx.strokeStyle=on?'#e8a35b':'#3b5068';ctx.strokeRect(b.x+.5,b.y+.5,b.w-1,b.h-1);
+  ctx.font='12px Segoe UI Emoji, Segoe UI';ctx.fillStyle='#fff';
+  ctx.fillText(b.kind==='lock'?(on?'🔒':'🔓'):(on?'⊘':'👁'),b.x+4,b.y+15);
+ }
+ if(row!==4&&LOCKABLE[row]&&locks[LOCKABLE[row]]){ctx.fillStyle='rgba(232,163,91,.07)';ctx.fillRect(130,y,geoW,rowH);}
+}
+// V2: imported pictures that cover V1 where they sit.
+function paintV2(ctx,w,inner){
+ const y=rowTops[4],{left}=range();
+ ctx.fillStyle='#16202c';ctx.fillRect(left,y,w-left-12,rowH);
+ paintHeader(ctx,4,y);
+ ctx.save();ctx.beginPath();ctx.rect(left,y,w-left-12,rowH);ctx.clip();
+ overlays.forEach((o,i)=>{
+  const a=xFor(o.at),b=xFor(o.at+o.length);if(b<left||a>w)return;
+  ctx.globalAlpha=hidden.V2?.35:1;
+  ctx.fillStyle='#5a4520';ctx.fillRect(a+1,y+2,Math.max(1,b-a-2),inner);
+  ctx.strokeStyle=i===selOverlay?'#fff1d0':'#e0aa5a';ctx.lineWidth=i===selOverlay?2:1;ctx.strokeRect(a+1,y+2,Math.max(1,b-a-2),inner);
+  const item=imports.find(x=>x.path===o.media),img=item&&thumbImage(item);
+  if(img&&b-a>40&&inner>20){const th=inner-6,tw=Math.min(b-a-8,th*16/9);ctx.drawImage(img,a+4,y+5,tw,th);}
+  if(b-a>90){ctx.fillStyle='#ffe3b8';ctx.font='11px Segoe UI';ctx.fillText('▶ '+(o.label||baseName(o.media)),a+(img?inner*16/9:6),y+15,b-a-12);}
+ });
+ ctx.globalAlpha=1;
+ if(locks.V2){ctx.fillStyle='rgba(232,163,91,.07)';ctx.fillRect(left,y,w,rowH);}
+ ctx.restore();
+}
+const thumbCache=new Map();
+function thumbImage(item){
+ if(!item.thumb)return null;
+ let img=thumbCache.get(item.path);
+ if(!img){img=new Image();img.onload=()=>draw();img.src=item.thumb;thumbCache.set(item.path,img);}
+ return img.complete&&img.naturalWidth?img:null;
+}
 // Per-frame layer: In/Out band, drag ghost and playhead.
 function paintOverlay(ctx,w,h){
  const {left,right}=range(),inner=rowH-4;
@@ -357,11 +415,17 @@ function paintOverlay(ctx,w,h){
   ctx.fillStyle='#7cc4ff';for(const x of [a,b])if(x>=left&&x<=right)ctx.fillRect(x-1,RULER,2,h-RULER);
  }
  if(drag?.ghost){
-  const g=drag.ghost,lo=xFor(g.start),hi=xFor(g.end);
-  ctx.fillStyle='rgba(150,209,255,.22)';ctx.fillRect(lo,rowTops[3]+2,hi-lo,inner);
+  const g=drag.ghost,lo=xFor(g.start),hi=xFor(g.end),gy=rowTops[g.row??3];
+  ctx.fillStyle='rgba(150,209,255,.22)';ctx.fillRect(lo,gy+2,hi-lo,inner);
   ctx.strokeStyle='#c8edff';ctx.lineWidth=2;ctx.setLineDash([5,4]);
-  ctx.strokeRect(lo,rowTops[3]+2,hi-lo,inner);ctx.setLineDash([]);
+  ctx.strokeRect(lo,gy+2,hi-lo,inner);ctx.setLineDash([]);
   if(g.snap!==null){ctx.strokeStyle='#ffe8a0';ctx.beginPath();ctx.moveTo(xFor(g.snap),RULER);ctx.lineTo(xFor(g.snap),h-4);ctx.stroke();}
+ }
+ if(dropHint){
+  const x=xFor(dropHint.time),y=rowTops[dropHint.row];
+  ctx.fillStyle='rgba(124,255,180,.18)';ctx.fillRect(range().left,y,range().right-range().left,rowH);
+  ctx.fillStyle='#7cffb4';ctx.fillRect(x-1,y,3,rowH);
+  ctx.font='11px Segoe UI';ctx.fillText(dropHint.text,Math.min(x+6,range().right-160),y+14);
  }
  const px=xFor(playhead);
  ctx.strokeStyle='#ffcf72';ctx.lineWidth=2;
@@ -463,7 +527,8 @@ function syncVideos(force=false){
 // An inserted clip replaces the target picture in the target viewer.
 function syncImport(force=false){
  const v=$('import-video'),img=$('import-still');
- const pic=plan.video_edits?.kept?.length?VT.pictureAt(plan.video_edits.kept,playhead):null;
+ const ov=hidden.V2?null:VT.overlayAt(overlays,playhead);
+ const pic=ov||(plan.video_edits?.kept?.length?VT.pictureAt(plan.video_edits.kept,playhead):null);
  const item=pic?.media?imports.find(x=>x.path===pic.media):null;
  if(!pic?.media){
   if(!v.hidden){v.pause();v.hidden=true;}img.hidden=true;
@@ -641,6 +706,7 @@ function bound(index,time){
  return true;
 }
 function offset(delta){
+ if(locked('MIX'))return;
  const s=current();if(!s||s.kind!=='audio')return;
  const value=s.source_start+delta;
  if(value<0){report('Cannot shift source before zero.',true);return;}
@@ -651,6 +717,7 @@ function select(index){
  selected=clamp(index,0,segments.length-1);refresh();
 }
 function change(){
+ if(locked('MIX'))return;
  const s=current();if(!s)return;
  const start=Number($('region-start').value),end=Number($('region-end').value),
  src=Number($('region-source').value),sp=Number($('region-speed').value);
@@ -665,6 +732,7 @@ function change(){
 }
 // Clip gain (dB) and fade in/out (ms): heard in the preview and applied at export.
 function applyVolume(){
+ if(locked('MIX'))return;
  const s=current();if(!s)return;
  const g=Number($('clip-gain').value),fi=Number($('fade-in').value),fo=Number($('fade-out').value),len=(s.target_end-s.target_start)*1000;
  if(!Number.isFinite(g)||g<-60||g>24){report('Gain must be between −60 and +24 dB.',true);return;}
@@ -674,18 +742,21 @@ function applyVolume(){
  refresh();report('Clip '+(selected+1)+': '+(g?(g>0?'+':'')+g.toFixed(1)+' dB':'unity gain')+(fi?', fade in '+fi+' ms':'')+(fo?', fade out '+fo+' ms':'')+'.');
 }
 function split(){
+ if(locked('MIX'))return;
  const s=current();if(!s||playhead<=s.target_start+.05||playhead>=s.target_end-.05)return;
  saveHistory();const right={...s,target_start:playhead};
  if(right.kind==='audio')right.source_start=s.source_start+(playhead-s.target_start)*s.speed;
  s.target_end=playhead;segments.splice(selected+1,0,right);selected++;refresh();report('Clip split at '+trimTime(playhead)+'.');
 }
 function join(){
+ if(locked('MIX'))return;
  if(selected<=0)return;
  saveHistory();const s=segments[selected-1];
  // Joining deliberately uses the left clip's mapping across the removed boundary.
  s.target_end=segments[selected].target_end;segments.splice(selected,1);selected--;refresh();report('Joined clips. Listen across the join.');
 }
 function mode(kind){
+ if(locked('MIX'))return;
  const s=current();if(!s||s.kind===kind)return;saveHistory();
  if(kind==='audio'){
   const prev=segments.slice(0,selected).reverse().find(x=>x.kind==='audio');
@@ -740,7 +811,7 @@ function applyEdit(result,index,time,message){
  report(message);
 }
 async function doRazor(index,time){
- const clip=segments[index];if(!clip)return;
+ const clip=segments[index];if(!clip||locked('MIX'))return;
  try{
   const result=await clipEdit('razor',{segments,index,at:time});
   applyEdit(result,index+1,time,'Razor cut at '+trimTime(time)+'. Ctrl+Z to undo.');
@@ -751,6 +822,26 @@ function onDown(e){
  pause();canvas.focus();
  const bounds=canvas.getBoundingClientRect(),x=e.clientX-bounds.left,y=e.clientY-bounds.top;
  const time=tFor(x),row=timelineRow(y);
+ if(x<range().left&&row>=0){                       // track header buttons
+  for(const b of headerButtons(row,rowTops[row]))if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){
+   if(b.kind==='lock'){const k=LOCKABLE[row];locks[k]=!locks[k];report(k+(locks[k]?' locked: its clips cannot be changed.':' unlocked.'));}
+   else{hidden.V2=!hidden.V2;report(hidden.V2?'V2 hidden: its clips are not shown or exported.':'V2 shown.');syncImport(true);setButtons();}
+   autosave();draw();return;
+  }
+  return;
+ }
+ if(row===4){                                        // V2 overlay clips
+  const i=overlays.findIndex(o=>time>=o.at&&time<o.at+o.length);
+  selOverlay=i;draw();movePlayhead(time,false);
+  if(i<0)return;
+  if(locks.V2){report('V2 is locked. Click its 🔒 in the track header to unlock it.',true);return;}
+  const o=overlays[i],edge=Math.min(9,Math.max(4,range().scale*.06));
+  const mode=Math.abs(x-xFor(o.at))<edge?'v2start':Math.abs(x-xFor(o.at+o.length))<edge?'v2end':'v2move';
+  drag={mode,index:i,row:4,initialX:x,anchorTime:time,origin:{...o},moved:false,at:o.at,ghost:null};
+  canvas.setPointerCapture(e.pointerId);
+  report('V2 clip '+(i+1)+': '+(o.label||baseName(o.media))+' · '+trimTime(o.at)+'–'+trimTime(o.at+o.length)+'. Drag to move, drag an edge to trim, Delete to remove.');
+  return;
+ }
  if(y<RULER||row===0){
   drag={mode:'scrub'};movePlayhead(time);
   canvas.setPointerCapture(e.pointerId);return;
@@ -795,6 +886,13 @@ function onMove(e){
  const dt=(x-drag.initialX)/range().scale;
  if(Math.abs(x-drag.initialX)<3)return;
  drag.moved=true;
+ if(drag.mode.startsWith('v2')){
+  const o=drag.origin,end=o.at+o.length;
+  if(drag.mode==='v2move'){const snap=magnetic(clamp(o.at+dt,0,plan.duration-o.length),[o.at,end],!e.shiftKey&&snapEnabled);drag.at=clamp(snap.time,0,plan.duration-o.length);drag.ghost={start:drag.at,end:drag.at+o.length,snap:snap.guide,row:4};}
+  else{const snap=magnetic(time,[o.at,end],!e.shiftKey&&snapEnabled);drag.at=snap.time;
+   drag.ghost={start:drag.mode==='v2start'?Math.min(drag.at,end-.04):o.at,end:drag.mode==='v2end'?Math.max(drag.at,o.at+.04):end,snap:snap.guide,row:4};}
+  requestRender();return;
+ }
  const original=drag.original[drag.index];
  if(drag.mode==='move'){
   const duration=original.target_end-original.target_start;
@@ -822,6 +920,8 @@ async function onUp(e){
  if(!drag)return;
  const action=drag;drag=null;draw();
  if(action.mode==='scrub'||!action.moved)return;
+ if(action.mode.startsWith('v2')){finishV2Drag(action);return;}
+ if(locked('MIX'))return;
  const b=canvas.getBoundingClientRect(),row=timelineRow(e.clientY-b.top);
  if(action.mode==='move'&&action.row!==3&&row!==3){
   report('Drag a clip from A1 or A2 down to MIX to place it into the edited output.');return;
@@ -1066,7 +1166,7 @@ async function copySelected(){
  }catch(e){report('Copy failed: '+e.message,true);}
 }
 async function pasteSelected(){
- if(exporting||!clipboard)return;
+ if(exporting||!clipboard||locked('MIX'))return;
  try{
   const result=await clipEdit('paste',{segments,at:playhead,clip:clipboard});
   pause();saveHistory();segments=result;
@@ -1076,7 +1176,7 @@ async function pasteSelected(){
  }catch(e){report('Paste failed: '+e.message,true);}
 }
 async function trimSelected(which){
- if(exporting)return;
+ if(exporting||locked('MIX'))return;
  try{
   const result=await clipEdit(which==='left'?'trim-left':'trim-right',{
    segments,index:selected,at:playhead
@@ -1088,7 +1188,7 @@ async function trimSelected(which){
  }catch(e){report('Trim failed: '+e.message,true);}
 }
 async function cutSelected(){
- if(exporting)return;
+ if(exporting||locked('MIX'))return;
  const seg=current();if(!seg)return;
  try{
   const captured=await clipEdit('copy',{segments,index:selected,
@@ -1121,7 +1221,10 @@ $('source-mode').onclick=()=>mode('audio');$('target-mode').onclick=()=>mode('re
 // ---------- save / export ----------
 async function saveAs(){
  pause();
- try{const location=await window.alignment.save(segments,plan.video_edits?{duration:plan.duration,kept:plan.video_edits.kept}:null,{markers,notes});if(!location){report('Save cancelled.');return;}
+ try{
+  const shown=hidden.V2?[]:overlays,v1=VT.baseKept(plan);
+  const picture=plan.video_edits||shown.length?{duration:plan.duration,kept:VT.flatten(v1,shown),v1}:null;
+  const location=await window.alignment.save(segments,picture,{markers,notes,overlays,tracks:{locks,hidden}});if(!location){report('Save cancelled.');return;}
   saved=true;edited=false;store.set(autosaveKey(),{segments:null,reviewed:[...reviewed],notes,at:Date.now()});
   setButtons();report('Saved: '+location+'. Export writes the corrected output to that folder.');
  }catch(e){report('Save failed: '+e.message,true);}
@@ -1228,6 +1331,7 @@ window.addEventListener('keydown',e=>{
  if(mod&&k==='v'){handled();pasteSelected();return;}
  if(mod&&k==='i'){handled();importMedia();return;}
  if(e.key==='Delete'&&e.shiftKey&&!mod){handled();rippleDelete();return;}
+ if((e.key==='Delete'||e.key==='Backspace')&&!mod&&selOverlay>=0){handled();deleteOverlay();return;}
  if(mod&&k==='x'){handled();cutSelected();return;}
  if(e.key==='?'){handled();$('shortcuts').showModal();return;}
  if(e.key===','){handled();offset(e.altKey?-.01:-frame);return;}
@@ -1243,7 +1347,7 @@ window.addEventListener('keydown',e=>{
  if(e.key==='-'||e.key==='_'){handled();zoomTo(view*1.5);return;}
  const actions={v:()=>setTool('select'),c:()=>setTool('razor'),y:()=>setTool('slip'),n:()=>$('snap-toggle').click(),
   s:split,i:()=>markPoint('in'),o:()=>markPoint('out'),q:()=>trimSelected('left'),w:()=>trimSelected('right'),
-  j:()=>jumpReview(-1),l:()=>jumpReview(1),a:toggleAB,r:markReviewed,p:playAcrossJoin,b:insertMedia,k:toggleMarker,
+  j:()=>jumpReview(-1),l:()=>jumpReview(1),a:toggleAB,r:markReviewed,p:playAcrossJoin,b:()=>e.shiftKey?overlayMedia():insertMedia(),k:toggleMarker,
   m:()=>fillMotion(e.shiftKey?'black':'motion'),f:()=>e.shiftKey?$('zoom-all').click():focusRegion()};
  if(actions[k]){handled();actions[k]();}
 });
@@ -1260,10 +1364,10 @@ function pictureLocked(fill=false){
   report('This plan cuts censored scenes at export. Restore those scenes (Review → Censorship) before editing the picture.',true);return true;}
  return exporting;
 }
-function currentTimeline(){return {segments:clone(segments),duration:plan.duration,kept:VT.baseKept(plan)};}
+function currentTimeline(){return {segments:clone(segments),duration:plan.duration,kept:VT.baseKept(plan),overlays:clone(overlays)};}
 function applyPictureEdit(tl,message,select_at){
  pause();saveHistory();
- segments=tl.segments;plan.duration=tl.duration;
+ segments=tl.segments;plan.duration=tl.duration;overlays=tl.overlays||overlays;
  plan.video_edits={...(plan.video_edits||{original_target_duration:originalDuration,removed:[]}),kept:tl.kept};
  inMark=null;outMark=null;refreshMarkLabels();
  afterLengthChange();
@@ -1276,7 +1380,7 @@ function editRange(){
  return s?[s.target_start,s.target_end]:null;
 }
 function rippleDelete(){
- if(pictureLocked())return;
+ if(pictureLocked()||locked('V1','MIX','V2'))return;
  const r=editRange();if(!r){report('Select a clip or mark In and Out first.',true);return;}
  try{
   const tl=VT.rippleDelete(currentTimeline(),r[0],r[1]);
@@ -1287,7 +1391,7 @@ function rippleDelete(){
 // picture in a range with the frame at In, kept moving where only small parts
 // of it move (built at export, video_edits.py). The sound is unchanged.
 function fillMotion(kind='motion'){
- if(pictureLocked(true))return;
+ if(pictureLocked(true)||locked('V1'))return;
  const r=editRange();if(!r){report('Select a clip or mark In and Out first.',true);return;}
  try{
   const tl=VT.fillRange(currentTimeline(),r[0],r[1],kind);
@@ -1297,7 +1401,7 @@ function fillMotion(kind='motion'){
 }
 // Save the output picture at the playhead as a PNG.
 async function saveFrame(){
- const pic=plan.video_edits?.kept?.length?VT.pictureAt(plan.video_edits.kept,playhead):null;
+ const pic=(hidden.V2?null:VT.overlayAt(overlays,playhead))||(plan.video_edits?.kept?.length?VT.pictureAt(plan.video_edits.kept,playhead):null);
  if(pic?.piece?.fill==='black'){report('The picture is black here.',true);return;}
  try{
   const file=pic?.media?await window.alignment.snapshot('media',pic.time,pic.media):await window.alignment.snapshot('target',mapTarget(playhead));
@@ -1308,21 +1412,80 @@ function toggleFullscreen(){
  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
  else $('stage').requestFullscreen().catch(e=>report('Full screen unavailable: '+e.message,true));
 }
+function applyOverlayEdit(tl,message){
+ pause();saveHistory();overlays=tl.overlays;selOverlay=-1;touched();draw();syncImport(true);setButtons();report(message);
+}
+function finishV2Drag(a){
+ try{
+  const tl=a.mode==='v2move'?VT.moveOverlay(currentTimeline(),a.index,a.at):VT.trimOverlay(currentTimeline(),a.index,a.mode==='v2start'?'start':'end',a.at);
+  applyOverlayEdit(tl,a.mode==='v2move'?'V2 clip moved to '+trimTime(a.at)+'.':'V2 clip trimmed.');
+ }catch(e){report('V2 edit rejected: '+e.message,true);}
+}
+function deleteOverlay(){
+ if(selOverlay<0||locked('V2'))return;
+ try{applyOverlayEdit(VT.removeOverlay(currentTimeline(),selOverlay),'Removed the V2 clip; V1 shows again there.');}catch(e){report(e.message,true);}
+}
+// Put the selected picture on V2 at `at` (it covers V1 there; the sound is unchanged).
+function overlayMedia(at=playhead,item=selectedMedia()){
+ if(exporting||locked('V2'))return;
+ if(!item){report('Select a file in the Media tab first.',true);return;}
+ try{
+  const length=item.image?Number(item.stillSeconds||5):null;
+  applyOverlayEdit(VT.placeOverlay(currentTimeline(),at,item,0,length),item.name+' is on V2 from '+trimTime(at)+'. It covers V1 there; the sound is unchanged. Undo: Ctrl+Z.');
+ }catch(e){report('Could not put it on V2: '+e.message,true);}
+}
+// ---------- drag and drop: media pool and Explorer onto the timeline ----------
+function dropTarget(e){
+ const b=canvas.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top;
+ if(x<range().left||y<RULER)return null;
+ const row=timelineRow(y);if(row<0)return null;
+ const time=magnetic(tFor(x),[],snapEnabled).time;
+ const text=row===4?'Overlay on V2':row===0?'Insert into V1 (ripples)':'Use its sound on MIX';
+ return {row,time,text:text+' at '+trimTime(time)};
+}
+async function filesToPool(fileList){
+ const paths=window.alignment.pathsForFiles(fileList);
+ if(!paths.length)return [];
+ const added=await window.alignment.registerMedia(paths);
+ for(const item of added){const i=imports.findIndex(x=>x.path===item.path);if(i>=0)imports[i]=item;else imports.push(item);}
+ if(added.length){mediaSel=added[added.length-1].path;setLeftTab('media');renderMedia();}
+ if(added.length<paths.length)report((paths.length-added.length)+' dropped file(s) could not be read as video, audio or images.',true);
+ return added;
+}
+function placeDropped(item,target){
+ mediaSel=item.path;renderMedia();
+ if(target.row===4)overlayMedia(target.time,item);
+ else if(target.row===0){if(!item.hasVideo){report(item.name+' has no picture; drop it on MIX to use its sound.',true);return;}insertMedia(target.time);}
+ else{if(!item.hasAudio){report(item.name+' has no sound; drop it on V1 or V2.',true);return;}useMediaAudio(target.time);}
+}
+canvas.addEventListener('dragover',e=>{if(!plan)return;e.preventDefault();dropHint=dropTarget(e);e.dataTransfer.dropEffect=dropHint?'copy':'none';requestRender();});
+canvas.addEventListener('dragleave',()=>{dropHint=null;requestRender();});
+canvas.addEventListener('drop',async e=>{
+ e.preventDefault();e.stopPropagation();const target=dropTarget(e);dropHint=null;requestRender();
+ const pooled=e.dataTransfer.getData('application/x-autosync-media');
+ try{
+  const items=pooled?[imports.find(x=>x.path===pooled)].filter(Boolean):await filesToPool(e.dataTransfer.files);
+  if(items.length&&target)placeDropped(items[0],target);
+ }catch(err){report('Drop failed: '+err.message,true);}
+});
+// Files dropped anywhere else go into the media pool (the window never navigates to them).
+document.addEventListener('dragover',e=>{if(e.dataTransfer?.types?.includes('Files'))e.preventDefault();});
+document.addEventListener('drop',e=>{if(e.target===canvas)return;e.preventDefault();if(e.dataTransfer?.files?.length)filesToPool(e.dataTransfer.files).catch(err=>report('Import failed: '+err.message,true));});
 function selectedMedia(){return imports.find(x=>x.path===mediaSel)||null;}
-function insertMedia(){
- if(pictureLocked())return;
+function insertMedia(at=playhead){
+ if(pictureLocked()||locked('V1','MIX','V2'))return;
  const item=selectedMedia();if(!item){report('Select a file in the Media tab first.',true);return;}
  try{
   const length=item.image?Number(item.stillSeconds||5):null;
-  const tl=VT.insertClip(currentTimeline(),playhead,item,0,length);
-  const L=tl.duration-plan.duration,at=playhead;
+  const tl=VT.insertClip(currentTimeline(),at,item,0,length);
+  const L=tl.duration-plan.duration;
   applyPictureEdit(tl,'Inserted '+item.name+' ('+L.toFixed(2)+' s) at '+trimTime(at)+'. Everything after moved later.',at+.001);
  }catch(e){report('Insert failed: '+e.message,true);}
 }
-function useMediaAudio(){
- if(exporting)return;
+function useMediaAudio(at=null){
+ if(exporting||locked('MIX'))return;
  const item=selectedMedia();if(!item){report('Select a file in the Media tab first.',true);return;}
- const r=editRange();if(!r){report('Select a clip or mark In and Out for the new audio.',true);return;}
+ const r=at!=null?[at,Math.min(plan.duration,at+(item.duration||5))]:editRange();if(!r){report('Select a clip or mark In and Out for the new audio.',true);return;}
  try{
   const tl=VT.replaceAudio(currentTimeline(),r[0],r[1],item,0);
   pause();saveHistory();segments=tl.segments;
@@ -1343,8 +1506,10 @@ function renderMedia(){
  const list=$('media-list');list.textContent='';
  $('media-empty').hidden=imports.length>0;
  for(const item of imports){
-  const li=document.createElement('li');li.className=item.path===mediaSel?'on':'';li.title=item.path;
-  const kind=document.createElement('span');kind.className='kind';kind.textContent=item.image?'🖼':item.hasVideo?'🎞':'🔊';
+  const li=document.createElement('li');li.className=item.path===mediaSel?'on':'';li.title=item.path+' · drag onto V1, V2 or MIX';
+  li.draggable=true;li.ondragstart=e=>{e.dataTransfer.setData('application/x-autosync-media',item.path);e.dataTransfer.effectAllowed='copy';};
+  const kind=document.createElement(item.thumb?'img':'span');kind.className='kind';
+  if(item.thumb){kind.src=item.thumb;kind.alt='';}else kind.textContent=item.image?'🖼':item.hasVideo?'🎞':'🔊';
   const name=document.createElement('span');name.className='name';name.textContent=item.name;
   const meta=document.createElement('span');meta.className='meta';
   meta.textContent=(item.image?'Image · inserted for '+(item.stillSeconds||5)+' s':trimTime(item.duration))+(item.hasVideo&&!item.image?(item.hasAudio?' · picture + sound':' · picture only'):'')+(!item.hasVideo?' · sound only':'');
@@ -1355,6 +1520,7 @@ function renderMedia(){
  }
  const item=selectedMedia();
  $('media-insert').disabled=!item?.hasVideo||exporting;
+ $('media-overlay').disabled=!item?.hasVideo||exporting;
  $('media-audio').disabled=!item?.hasAudio||exporting;
 }
 function setLeftTab(name){
@@ -1365,9 +1531,21 @@ function setLeftTab(name){
 $('tab-review').onclick=()=>setLeftTab('review');
 $('tab-media').onclick=()=>setLeftTab('media');
 $('import-media').onclick=importMedia;
-$('media-insert').onclick=insertMedia;
-$('media-audio').onclick=useMediaAudio;
+$('media-insert').onclick=()=>insertMedia();
+$('media-overlay').onclick=()=>overlayMedia();
+$('media-audio').onclick=()=>useMediaAudio();
 $('ripple-delete').onclick=rippleDelete;
+// Menu bar: every command also has a button or key; menus close after a choice.
+const COMMANDS={import:importMedia,save:saveAs,export:()=>$('export').click(),folder:()=>$('open-folder').click(),frame:saveFrame,
+ undo:()=>restore(undo,redo),redo:()=>restore(redo,undo),cut:cutSelected,copy:copySelected,paste:pasteSelected,split,join,ripple:rippleDelete,
+ in:()=>markPoint('in'),out:()=>markPoint('out'),clear:()=>$('clear-range').click(),insert:()=>insertMedia(),overlay:()=>overlayMedia(),deloverlay:deleteOverlay,
+ fill:()=>fillMotion('motion'),black:()=>fillMotion('black'),marker:toggleMarker,prev:()=>jumpReview(-1),next:()=>jumpReview(1),
+ fitall:()=>$('zoom-all').click(),fitclip:focusRegion,full:toggleFullscreen,keys:()=>$('shortcuts').showModal(),
+ hideV2:()=>{hidden.V2=!hidden.V2;autosave();draw();syncImport(true);setButtons();report(hidden.V2?'V2 hidden.':'V2 shown.');},
+ ...Object.fromEntries(['V1','V2','MIX'].map(k=>['lock'+k,()=>{locks[k]=!locks[k];autosave();draw();report(k+(locks[k]?' locked.':' unlocked.'));}])),
+ ...Object.fromEntries(['side','overlay','difference','wipe'].map(v=>['view-'+v,()=>setView(v)]))};
+document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>{b.closest('details').open=false;COMMANDS[b.dataset.cmd]?.();});
+document.addEventListener('pointerdown',e=>{for(const d of document.querySelectorAll('.menu[open]'))if(!d.contains(e.target))d.open=false;});
 $('fill-motion').onclick=()=>fillMotion('motion');
 $('fill-black').onclick=()=>fillMotion('black');
 $('snapshot').onclick=saveFrame;
@@ -1383,6 +1561,10 @@ $('add-marker').onclick=toggleMarker;
   plan=data.plan;planFile=data.file;segments=clone(plan.segments);frame=1/(Number(data.fps)||25);videoDims=data.videos||{};
   imports=data.imports||[];originalDuration=plan.duration;renderMedia();
   markers=(Array.isArray(plan.markers)?plan.markers:[]).map(Number).filter(t=>Number.isFinite(t)&&t>=0&&t<=plan.duration);
+  // A plan saved by this editor keeps V1 and V2 apart (export uses the flattened picture).
+  if(plan.video_edits?.v1)plan.video_edits={...plan.video_edits,kept:plan.video_edits.v1};
+  overlays=Array.isArray(plan.video_overlays)?clone(plan.video_overlays):[];
+  if(plan.editor_tracks){Object.assign(locks,plan.editor_tracks.locks||{});Object.assign(hidden,plan.editor_tracks.hidden||{});}
   $('project-path').textContent=data.file;$('project-path').title=data.file;
   document.title='AutoSync v1.3.0 · Preview & Edit · '+String(data.file).split(/[\\/]/).slice(-2).join('/');
   if(!segments.length)throw Error('No editable clips in the selected plan.');
@@ -1395,13 +1577,14 @@ $('add-marker').onclick=toggleMarker;
   if(saved_){
    reviewed=new Set(saved_.reviewed||[]);notes=saved_.notes||{};
    if(Array.isArray(saved_.markers))markers=saved_.markers.filter(Number.isFinite);
+   if(saved_.locks)Object.assign(locks,saved_.locks);if(saved_.hidden)Object.assign(hidden,saved_.hidden);
    if(Array.isArray(saved_.segments)&&(JSON.stringify(saved_.segments)!==JSON.stringify(segments)||saved_.videoEdits)){
     $('restore-text').textContent='Unsaved edits from '+new Date(saved_.at).toLocaleString()+' were found for this plan.';
     $('restore-banner').hidden=false;
     $('restore-yes').onclick=async()=>{
-     const media=[...saved_.segments,...(saved_.videoEdits?.kept||[])].filter(x=>x.media).map(x=>x.media);
+     const media=[...saved_.segments,...(saved_.videoEdits?.kept||[]),...(saved_.overlays||[])].filter(x=>x.media).map(x=>x.media);
      if(media.length){try{for(const item of await window.alignment.registerMedia([...new Set(media)]))if(!imports.some(x=>x.path===item.path))imports.push(item);renderMedia();}catch(e){report('Some imported media could not be found: '+e.message,true);}}
-     undo.push(snapshot());applySnapshot({segments:saved_.segments,duration:saved_.duration??plan.duration,videoEdits:saved_.videoEdits??null});
+     undo.push(snapshot());applySnapshot({segments:saved_.segments,duration:saved_.duration??plan.duration,videoEdits:saved_.videoEdits??null,overlays:saved_.overlays??[]});
      $('restore-banner').hidden=true;selected=0;afterLengthChange();touched();refresh();report('Restored your unsaved edits. Undo (Ctrl+Z) returns to the analysed plan.');};
     $('restore-no').onclick=()=>{$('restore-banner').hidden=true;store.set(autosaveKey(),{segments:null,reviewed:[...reviewed],notes,at:Date.now()});report('Discarded the earlier unsaved edits.');};
    }
