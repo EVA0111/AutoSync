@@ -548,6 +548,12 @@ def dub_only_pictures(tl,segments,shift,ts):
     """
     import picture_timeline as pt
     d=tl.diagnostics;FS,FT,DS=d['FS'],d['FT'],d['DS'];F=pt.FPS;r=tl.ratio
+    def held(g,n,h):
+        # A held frame also records the stretch of its shot it can play back and forth over.
+        x=dict(length=round(n/F,6),hold=bool(h))
+        if h:
+            lo,hi=pt.sway_window(FT,int(g));x['sway']=[round((lo-g)/F,6),round((hi-g)/F,6)]
+        return x
     for s in segments:
         if s['kind']!='audio':continue
         f=np.arange(int(np.ceil((s['target_start']-ts)*F)),int(np.floor((s['target_end']-ts)*F)))
@@ -563,7 +569,7 @@ def dub_only_pictures(tl,segments,shift,ts):
                 # Located by source time, pieces relative to the span: both survive trims of the segment.
                 spans.append(dict(source=round(s['source_start']+(f[i0]/F+ts-s['target_start'])*s['speed'],6),
                                   length=round((i1-i0)/F,6),pieces=[
-                    dict(rel=round((g-f[i0])/F,6),length=round(n/F,6),hold=bool(h)) for g,n,h in got]))
+                    dict(rel=round((g-f[i0])/F,6),**held(g,n,h)) for g,n,h in got]))
         if spans:s['dub_replaced']=spans
     matched=[x for x in tl.sections if x['kind']=='match']
     prev=None
@@ -579,7 +585,7 @@ def dub_only_pictures(tl,segments,shift,ts):
                 got=pt.dub_pictures(FS,FT,(end-shift)*F,(s['source_start']-shift)*F,near,ref)
                 if got:
                     s['dub_pictures']=dict(source_length=round(skip,6),pieces=[
-                        dict(at=round(f/F+ts-s['target_start'],6),length=round(n/F,6),hold=bool(h)) for f,n,h in got])
+                        dict(at=round(f/F+ts-s['target_start'],6),**held(f,n,h)) for f,n,h in got])
         prev=s
 
 
@@ -788,7 +794,7 @@ def _run_job(job,args):
         segments=plan['segments'];review=plan['review']
     if getattr(args,'censored_dub',None):
         import censorship
-        plan=censorship.annotate(plan,args.censored_dub);segments=plan['segments'];review=plan['review']
+        plan=censorship.annotate(plan,args.censored_dub,getattr(args,'recreate_fill','motion'));segments=plan['segments'];review=plan['review']
     if getattr(args,'remove_unmatched_video',False):
         from video_edits import remove_missing,map_anchors,protect_opening
         plan=protect_opening(plan,sf,ref,sl)
@@ -912,6 +918,7 @@ def main():
     p.add_argument('--sync-method',choices=['standard','ai_assisted'],default='standard',help='Optional pretrained AST audio features and DINOv2 visual rescue; install AI Sync in Settings first')
     p.add_argument('--remove-unmatched-video',action='store_true',help='Remove target sections with no source audio and export edited video + FLAC')
     p.add_argument('--censored-dub',choices=('restore','cut','recreate'),help='Source is a censored or re-edited dub: report every scene it removed and either restore it with the original audio or cut it from the video (per scene in Preview & Edit); recreate also cuts them and rebuilds the dub freezes and repeats from the target pictures, so all dub audio is kept')
+    p.add_argument('--recreate-fill',choices=('motion','freeze'),default='motion',help='Censored-dub recreate: where the dub froze a frame, play that shot back and forth around it (motion, default) or hold the frame (freeze)')
     p.add_argument('--restored-subtitles',help='Subtitles for the original (target) version: write restored_scenes.srt with the lines inside restored scenes')
     p.add_argument('--reference-fallback',action='store_true',help='Use target soundtrack only for missing source bounds; may switch languages')
     p.add_argument('--cut-times',default='',help='Known target join times in seconds, comma separated; applies to detected cuts')

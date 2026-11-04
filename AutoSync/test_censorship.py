@@ -131,7 +131,7 @@ def recreate_episode():
     p = episode()
     p['target_video'] = 't.mkv'
     p['segments'][4]['dub_pictures'] = dict(source_length=2., pieces=[
-        dict(at=-2., length=1.5, hold=True), dict(at=-10., length=.5, hold=False)])
+        dict(at=-2., length=1.5, hold=True, sway=[-.5, .4]), dict(at=-10., length=.5, hold=False)])
     p['segments'][3]['dub_replaced'] = [dict(source=35., length=2., pieces=[dict(rel=-1., length=2., hold=True)])]
     return p
 
@@ -195,6 +195,9 @@ class Recreate(unittest.TestCase):
         counts = [int(x) for x in re.findall(r'trim=end_frame=(\d+)', graph)]
         self.assertEqual(sum(counts), round(92. * 24000 / 1001))
         self.assertIn('setpts=N/(24000/1001)/TB[v]', graph)
+        self.assertIn(',reverse,', graph)                  # the freeze plays its shot back and forth
+        frozen = remove_missing(censorship.annotate(recreate_episode(), 'recreate', 'freeze'))
+        self.assertFalse(any(k.get('sway') for k in frozen['video_edits']['kept']))
 
 
 if __name__ == '__main__':

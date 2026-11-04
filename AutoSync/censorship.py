@@ -40,7 +40,7 @@ def _source_end(s):
     return s['source_start'] + (s['target_end'] - s['target_start']) * s['speed']
 
 
-def annotate(plan, action='restore'):
+def annotate(plan, action='restore', fill='motion'):
     """Mark removed scenes with ``action`` and record a censorship summary."""
     if action not in MODES:
         raise ValueError('Censored-dub action must be restore, cut or recreate.')
@@ -50,7 +50,10 @@ def annotate(plan, action='restore'):
             s['censored_action'] = 'restore' if _outer(p, i, s) else ('cut' if action == 'recreate' else action)
             if _outer(p, i, s):
                 s['censored_outer'] = True
-    p['censorship'] = dict(default_action=action, smooth=True, recreate=action == 'recreate')
+    if fill not in ('motion', 'freeze'):
+        raise ValueError('Recreate fill must be motion or freeze.')
+    # fill: a rebuilt freeze plays its shot back and forth ("motion") or holds one frame ("freeze").
+    p['censorship'] = dict(default_action=action, smooth=True, recreate=action == 'recreate', fill=fill)
     return p
 
 

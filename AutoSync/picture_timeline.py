@@ -1216,6 +1216,26 @@ def replaced_spans(FS, FT, DS, frames, src, min_len=4, differ=.6):
     return runs, score
 
 
+def sway_window(FT, f, limit=1.5, similar=.9, cut=.8):
+    """(lo, hi) target frames around frame f that a held frame can play back and forth over.
+
+    A dub's freeze looks dead next to moving footage; playing the same shot
+    forward and backward around the frozen frame keeps mouths and hair moving
+    under the dialogue. Only frames of the same shot (no picture cut between)
+    within `limit` s that still look like frame f (similarity >= similar) are
+    used, so a pan or a big move does not visibly reverse. lo == hi means the
+    shot gives nothing to play (a true still).
+    """
+    def ok(k, step):
+        return 0 <= k < len(FT) and abs(k - f) <= limit * FPS and             float(FT[k] @ FT[k - step]) > cut and float(FT[k] @ FT[f]) >= similar
+    lo = hi = f
+    while ok(lo - 1, -1):
+        lo -= 1
+    while ok(hi + 1, 1):
+        hi += 1
+    return lo, hi
+
+
 def match_score(FT, FS, r, sec, lo, hi):
     """Median picture similarity of a matched section over target frames [lo, hi)."""
     lo, hi = max(lo, sec['first']), min(hi, sec['last'])

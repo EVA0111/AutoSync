@@ -484,3 +484,28 @@ class CensoredDubPictures(unittest.TestCase):
         self.assertLessEqual(abs(frames[runs[0][0]] - 300), 1)
         self.assertLessEqual(abs(frames[runs[0][1] - 1] + 1 - 340), 1)
         self.assertGreater(score[:50].min(), .9)
+
+
+class HeldFrameKeepsMoving(unittest.TestCase):
+    """A dub's freeze is rebuilt as its shot playing back and forth, not one dead frame."""
+    def test_sway_stays_inside_the_shot_and_near_the_frame(self):
+        rng = np.random.default_rng(7)
+        a, b = rng.normal(size=64), rng.normal(size=64)
+        drift = rng.normal(size=64)
+        rows = [a + .02 * k * drift for k in range(50)] + [b] * 50   # moving shot, then a cut
+        FT = np.array([r / np.linalg.norm(r) for r in rows], dtype=np.float32)
+        lo, hi = pt.sway_window(FT, 45)
+        self.assertEqual(hi, 49)                         # stops at the cut
+        self.assertGreater(lo, 0)                        # stops where the shot no longer looks like frame 45
+        self.assertTrue(all(float(FT[k] @ FT[45]) >= .9 for k in range(lo, hi + 1)))
+        lo, hi = pt.sway_window(FT, 75)                  # a true still: the whole (identical) shot, within 1.5 s
+        self.assertEqual((lo, hi), (50, 99))
+
+    def test_pingpong_covers_n_frames_without_repeating_the_turn(self):
+        from video_edits import pingpong
+        runs = pingpong(t=1.0, lo=0.0, hi=2.0, N=130, fr=25)
+        self.assertEqual(sum(c for _, c, _ in runs), 130)
+        self.assertEqual(runs[0], (25, 26, False))         # starts on the held frame, forward to the end
+        self.assertEqual(runs[1], (49, 50, True))          # back without showing frame 50 twice
+        self.assertEqual(runs[2][0], 1)
+        self.assertEqual(pingpong(t=1.0, lo=1.0, hi=1.02, N=10, fr=25), [(0, 10, False)])   # nothing to play: hold

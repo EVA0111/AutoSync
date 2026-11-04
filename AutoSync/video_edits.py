@@ -109,11 +109,33 @@ def replaced_spans(section):
     return out
 
 
+def sway(piece,t,fill):
+    """The shot stretch a held frame plays back and forth over ("motion" fill), if any."""
+    w=piece.get('sway')
+    if fill!='motion' or not w or w[1]-w[0]<.1:return {}
+    return dict(sway=[t+w[0],t+w[1]])
+
+
+def pingpong(t,lo,hi,N,fr):
+    """[(first, count, backward)] frame runs inside [lo, hi] (frame indices from lo) that
+    start at the held frame t and go forward, back, forward... for N frames."""
+    M=int(round((hi-lo)*fr));pos=min(M,max(0,int(round((t-lo)*fr))));runs=[];step=1
+    if M<2:return [(pos,N,False)]
+    while N>0:
+        if step>0:
+            take=min(N,M-pos+1);runs.append((pos,take,False));pos=M-1;step=-1
+        else:
+            take=min(N,pos+1);runs.append((pos,take,True));pos=1;step=1
+        N-=take
+    return runs
+
+
 def remove_missing(plan):
     if plan.get('video_edits'):return copy.deepcopy(plan)
     p=copy.deepcopy(plan);kept=[];removed=[];segments=[];cursor=0.;recreated=[]
     shift=p.get('main_trim',{}).get('target_start',0.)+p.get('input_trims',{}).get('target',{}).get('start',0.)
     rebuild=p.get('censorship',{}).get('recreate');last_audio=None
+    fill=p.get('censorship',{}).get('fill','motion')
     for section in p['segments']:
         a,b=section['target_start'],section['target_end']
         if section['kind']=='audio':
@@ -125,7 +147,7 @@ def remove_missing(plan):
                 for piece in d['pieces']:
                     n=piece['length']/sp;t=a+piece['at']+shift
                     k=dict(start=a,end=a,output_start=cursor,recreated=True,length=n)
-                    if piece['hold']:k['hold']=t
+                    if piece['hold']:k.update(hold=t,**sway(piece,t,fill))
                     else:k.update(original_start=t,original_end=t+n)
                     kept.append(k);cursor+=n
                 segments.append(dict(kind='audio',target_start=start,target_end=cursor,
@@ -147,7 +169,7 @@ def remove_missing(plan):
             for x in pieces:
                 n=x['length']*L/total;t=ta+x['rel']+shift
                 k=dict(start=ta,end=ta,output_start=o,recreated=True,length=n)
-                if x['hold']:k['hold']=t
+                if x['hold']:k.update(hold=t,**sway(x,t,fill))
                 else:k.update(original_start=t,original_end=t+n)
                 kept.append(k);o+=n
             recreated.append(dict(start=cursor+ta-a,end=cursor+ta-a+L,replaced=True))
@@ -219,6 +241,18 @@ def media_graph(plan):
     for n,k in enumerate(plan['video_edits']['kept']):
         if exact and frames(k['output_start'],k['length'] if k.get('recreated') else k['end']-k['start'] if k.get('media') else k['original_end']-k['original_start'])<=0:
             continue                         # shorter than half a frame on the output clock
+        if k.get('recreated') and k.get('sway'):
+            # Held frame, kept moving: its shot plays forward and back around it.
+            N=frames(k['output_start'],k['length']);lo,hi=k['sway'];h=.5/float(fr)
+            for m,(first,count,back) in enumerate(pingpong(k['hold'],lo,hi,N,fr)):
+                if back:
+                    a=lo+(first-count+1)/float(fr)-h;b=lo+first/float(fr)+h;rev=',reverse'
+                else:
+                    a=lo+first/float(fr)-h;b=lo+(first+count-1)/float(fr)+h;rev=''
+                chains.append(f'[0:v:0]trim=start={max(0.,a):.9f}:end={b:.9f},setpts=PTS-STARTPTS,scale={W}:{H},setsar={sar},format=yuv420p{rev},'
+                              f'tpad=stop_mode=clone:stop={count},trim=end_frame={count},setpts=N/({rate})/TB[p{n}s{m}]')
+                labels.append(f'[p{n}s{m}]')
+            continue
         if k.get('recreated'):
             N=frames(k['output_start'],k['length'])
             # Half a frame either side: a piece shorter than a target frame still holds one.
