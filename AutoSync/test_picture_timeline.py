@@ -585,6 +585,15 @@ class DubCoversARemovedScene(unittest.TestCase):
         ref = [s for s in plan(solve(D, C), len(C) / FPS) if s['kind'] == 'reference']
         self.assertEqual([(round(s['target_start'], 2), round(s['target_end'], 2)) for s in ref], [(60., 70.)])
 
+    def test_painted_patch_next_to_the_scene_is_not_dub_only(self):
+        C = unique_frames(130 * FPS, 4)
+        D = np.vstack([C[:60 * FPS], C[70 * FPS:]]).reshape(-1, 16, 24).copy()
+        D[56 * FPS:60 * FPS, 4:12, 6:18] = .15             # the dub paints over a quarter of the frame for 4 s
+        D = D.reshape(len(D), -1); D -= D.mean(axis=1, keepdims=True); D /= np.linalg.norm(D, axis=1, keepdims=True)
+        self.assertLess(float(np.mean(np.sum(D[57 * FPS:60 * FPS] * C[57 * FPS:60 * FPS], axis=1))), .6)
+        ref = [s for s in plan(solve(D, C), len(C) / FPS) if s['kind'] == 'reference']
+        self.assertEqual([(round(s['target_start'], 1), round(s['target_end'], 1)) for s in ref], [(60., 70.)])
+
     def test_frozen_run_needs_a_change_in_the_target(self):
         C = unique_frames(20 * FPS, 5)
         still = np.repeat(C[:1], 10 * FPS, axis=0)        # both editions hold one picture: no evidence

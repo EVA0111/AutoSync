@@ -382,6 +382,31 @@ def frame_scores(FT, FS, r, lo, hi, offset, tol=1):
     return out
 
 
+def block_similarity(A, B, keep=2 / 3):
+    """Per row: mean correlation of the best `keep` share of 24 picture blocks (4x4
+    feature cells each). A mosaic, blur or painted patch over part of the frame
+    lowers only its own blocks; another picture lowers nearly all of them."""
+    def blocks(X):
+        X = X.reshape(len(X), 4, 4, 6, 4).transpose(0, 1, 3, 2, 4).reshape(len(X), 24, 16)
+        X = X - X.mean(axis=2, keepdims=True)
+        return X / np.maximum(np.linalg.norm(X, axis=2, keepdims=True), 1e-6)
+    c = np.sort(np.sum(blocks(A) * blocks(B), axis=2), axis=1)[:, ::-1]
+    return c[:, :max(1, int(round(24 * keep)))].mean(axis=1)
+
+
+def block_scores(FT, FS, r, lo, hi, offset, tol=1):
+    """frame_scores with block_similarity: robust to part of the frame being altered."""
+    ti = np.arange(lo, hi)
+    out = np.full(len(ti), -1.)
+    for d in range(-tol, tol + 1):
+        sj = np.round(r * ti + offset + d).astype(int)
+        ok = (sj >= 0) & (sj < len(FS))
+        if ok.any():
+            v = np.full(len(ti), -1.); v[ok] = block_similarity(FT[ti[ok]], FS[sj[ok]])
+            out = np.maximum(out, v)
+    return out
+
+
 def place_cut(FT, FS, DT, r, lo, hi, oa, ob):
     """Switch frame from mapping a to b in [lo, hi), and the span the pictures bound it to.
 
@@ -1189,7 +1214,7 @@ def both_fit(FT, FS, r, lo, hi, oa, ob, first, last, limit=15, back=True, ahead=
 
 def uncovered_span(FT, FS, DT, r, lo, hi, f1, f2, oa, ob, outer=None, low=.6, least=FPS // 4):
     """Widen target-only frames [f1, f2) over adjacent informative frames in [lo, hi)
-    that the mapping on that side does not show (scores under `low`).
+    that the mapping on that side does not show (block scores under `low`).
 
     Source accounting gives the target-only length less any source-only material
     in the same gap; a censored dub that covers a removed scene with a shorter
@@ -1199,7 +1224,9 @@ def uncovered_span(FT, FS, DT, r, lo, hi, f1, f2, oa, ob, outer=None, low=.6, le
     """
     # Only mapping a can precede the target-only footage and only b follow it, so
     # each side asks its own mapping (a look-alike shot may fit the other one).
-    a = frame_scores(FT, FS, r, lo, hi, oa); b = frame_scores(FT, FS, r, lo, hi, ob)
+    # Block scores: a dub's mosaic or painted patch next to the scene is still
+    # its own mapping's picture, not dub-only material.
+    a = block_scores(FT, FS, r, lo, hi, oa); b = block_scores(FT, FS, r, lo, hi, ob)
     inf = DT[lo:hi] > 6
     i, j = f1 - lo, f2 - lo
     while i > 0 and inf[i - 1] and a[i - 1] < low:
