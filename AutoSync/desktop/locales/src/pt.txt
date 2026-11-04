@@ -1,0 +1,1021 @@
+Tarefas de sincronização
+Plano salvo
+Escolha a saída
+Áudio completo do destino
+Sincronizar o áudio com todo o destino. Exportar FLAC.
+Somente o episódio principal
+Remover abertura e encerramento diferentes. Exportar vídeo + FLAC.
+Manter abertura e encerramento
+Manter o áudio de abertura/encerramento do destino. Sincronizar o episódio principal.
+Seus arquivos
+Origem = áudio desejado · Destino = vídeo a corresponder
+Pareie seus episódios
+Origem = áudio a usar · Destino = vídeo a corresponder. Subpastas são incluídas.
+Vídeo de origem
+Adicionar pasta
+Adicionar arquivos
+Vídeos de origem
+Solte aqui arquivos de origem ou uma pasta
+Selecione um arquivo
+Subir uma linha (Alt+Cima)
+↑ Subir
+Mover para a primeira linha
+⇈ Topo
+Número da linha
+Mover para o número da linha
+Mover para
+Mover para a última linha
+⇊ Fim
+Descer uma linha (Alt+Baixo)
+↓ Descer
+Remover o arquivo selecionado (Delete)
+× Remover
+Vídeo de destino
+Vídeos de destino
+Solte aqui arquivos de destino ou uma pasta
+Parear por número de episódio
+Limpar as duas colunas
+Adicione vídeos às duas colunas.
+A linha 1 de origem pareia com a linha 1 de destino, e assim por diante. Selecione um arquivo em uma das listas e use os controles do meio. Alt + ↑ / ↓ reordena; Delete remove.
+Usar um CSV existente
+Usar lote CSV
+Selecione um CSV com origem, destino, áudio e uma pasta de saída própria para cada episódio.
+Abrir CSV de exemplo
+Números de faixa e atrasos vêm de cada linha do CSV. Limites manuais e tempos de corte valem para todos os episódios do lote. Lotes por pasta usam as faixas e atrasos escolhidos para todos os pares.
+Renderizar um plano salvo
+Usar o mapa de tempo existente sem analisar o episódio de novo.
+O modo e os caminhos originais do plano são usados. Retire mídias exportadas antes da pasta de saída antes de renderizar de novo.
+Referência de tempo
+1 · Outra legenda já sincronizada
+2 · Codificação de origem → codificação de destino
+3 · Apenas áudio do destino (reconhecimento de fala)
+Sushi — correspondência de áudio (ASS / SRT)
+Reutilizar um mapa de tempo salvo
+O Sushi precisa de legendas sincronizadas com a origem e de áudio correspondente nas duas versões. Suporta ASS / SRT. Os estilos são preservados; confira placas sem som e o typesetting quadro a quadro na saída RASCUNHO.
+Opções de legenda
+Idiomas diferentes / diálogos traduzidos (correspondência multilíngue com IA)
+Para correspondência por fala ou multilíngue, instale a IA de legendas nas Configurações. Os modelos são baixados no primeiro uso.
+Formatos de texto sem perdas: ASS/SSA, SRT, VTT, SBV, MicroDVD SUB, MPL2, SAMI e TTML/DFXP plano. PGS SUP funciona com correspondência de codificações ou um mapa salvo. VobSub e outros formatos binários exigem conversão; OCR não está incluído. Faixas ASS/SRT/VTT/PGS embutidas podem ser extraídas de MKV.
+O áudio não consegue sincronizar diretamente placas sem som. Typesetting sem prova na imagem, falas não mapeadas e cortes incertos são sinalizados. Um RASCUNHO mantém o tempo original das falas não mapeadas; revise-o antes de multiplexar. As posições são preservadas, sem redimensionar para outros recortes/proporções.
+Faixas de áudio
+Configurações avançadas
+Ajustes de tempo e exportação
+Correspondência só por áudio (modo destino completo)
+Usar a referência onde faltar áudio de origem (pode trocar o idioma)
+Remover trechos do destino sem áudio de origem (exportar vídeo editado + FLAC)
+Permitir cortes incertos — junções estimadas precisam de revisão manual
+Todos os tempos em segundos. O recorte só afeta a correspondência.
+Apenas analisar
+Pronto quando você estiver
+Parar
+Visualizar e editar
+Iniciar sincronização →
+Atividade
+Abrir relatório
+Abrir saída
+Escolha seus arquivos, selecione um modo e comece. O progresso e os avisos de revisão aparecerão aqui.
+Instalação
+O aplicativo portátil inclui Python e FFmpeg. A IA de legendas e a sincronização assistida por IA, opcionais, baixam pacotes e modelos adicionais.
+Verificar / configurar o mecanismo
+Instalar IA de legendas
+Instalar modelos do AI Sync
+Revise os trechos sinalizados e as junções antes de usar o resultado. As pontuações de correspondência não garantem sincronia labial.
+AutoSync v1.3.0 · Visualizar e editar
+Abrindo um plano de alinhamento…
+— para revisar
+Sem alterações
+Desfazer · Ctrl+Z
+↶ Desfazer
+Refazer · Ctrl+Y
+↷ Refazer
+Salvar o plano editado em qualquer pasta · Ctrl+S
+Salvar como…
+Exportar áudio corrigido (salve antes)
+Exportar áudio corrigido
+Atalhos de teclado · ?
+Foram encontradas alterações não salvas de uma sessão anterior.
+Restaurar alterações
+Descartar
+Pontos de revisão e mídia
+Painel esquerdo
+Junções e pontos a revisar
+Revisão
+Vídeo, áudio e imagens importados
+Mídia
+Ocultar este painel
+Filtrar a lista de revisão
+Tudo
+Somente pontos que a análise marcou como incertos ou dignos de atenção
+Sinalizados
+Somente pontos ainda não conferidos
+Não conferidos
+Cenas que uma dublagem censurada ou reeditada removeu ou recortou
+Censura
+Pontos de revisão
+Esta cena:
+Manter esta cena com o áudio original
+Restaurar (áudio original)
+Remover esta cena do vídeo exportado, como fez a dublagem
+Cortar do vídeo
+Ponto anterior · J
+◀ Ant.
+Marcar o ponto atual como conferido · R
+✓ Conferido
+Próximo ponto · L
+Próx. ▶
+Adicionar arquivos de vídeo, áudio ou imagem · Ctrl+I
+＋ Importar mídia…
+Mídia importada
+Importe vídeo, áudio ou imagens e coloque-os no cursor de reprodução. Edições de imagem deslocam tudo o que vem depois junto com o áudio sincronizado.
+Inserir o arquivo selecionado (imagem e som) no cursor; tudo o que vem depois é adiado · B
+Inserir no cursor
+Tocar o áudio do arquivo selecionado sobre o intervalo marcado ou o clipe selecionado; a imagem fica
+Usar o áudio dele aqui
+Mostrar a lista de revisão
+Revisão ⟩
+Comparação de vídeo
+Modo de comparação
+Origem e destino lado a lado
+Lado a lado
+Origem a 50 % sobre o destino
+Sobreposição
+Claro onde as imagens diferem; escuro e parado significa sincronizado
+Diferença
+Arraste o controle para alternar entre origem e destino
+Cortina
+Posição da cortina
+Origem à esquerda · destino à direita
+Origem
+Reprodução do vídeo de origem
+Quadro de origem
+Carregando o vídeo de origem…
+Destino
+Reprodução do vídeo de destino
+Quadro de destino
+Clipe importado
+Imagem importada
+Carregando o vídeo de destino…
+Reprodução
+Voltar 10 quadros · Shift+←
+Voltar um quadro · ←
+Reproduzir / pausar · Espaço
+▶ Reproduzir
+Avançar um quadro · →
+Avançar 10 quadros · Shift+→
+Tempo de saída
+Ouvir
+A saída editada
+Saída
+O áudio de origem original
+O próprio áudio do destino
+Saída editada
+Áudio de origem
+Áudio de destino
+Alternar entre áudio de saída e de destino · A
+Tocar de 2 s antes até 2 s depois da junção selecionada · P
+▶ Pela junção
+Repetir o clipe selecionado
+⟳ Repetir
+Velocidade
+Velocidade de reprodução
+Clipe selecionado
+Selecione um clipe na linha do tempo.
+Tempo
+Início na saída
+Fim na saída
+A origem começa em
+Aplicar os valores digitados acima (Enter)
+Aplicar valores
+Mover o áudio deste clipe
+Mover áudio
+Um quadro antes · ,
+10 ms antes · Alt+,
+10 ms depois · Alt+.
+Um quadro depois · .
+Edição
+Dividir o clipe no cursor · S
+✂ Dividir (S)
+Unir ao clipe anterior; ele segue o tempo anterior
+⇤ Unir ao anterior
+Aparar o início até o cursor; o espaço usa áudio de destino · Q
+Aparar início (Q)
+Aparar o fim até o cursor; o espaço usa áudio de destino · W
+Aparar fim (W)
+Remover da saída o intervalo marcado ou o clipe selecionado: imagem e som. Tudo o que vem depois é adiantado · Shift+Delete
+⌫ Excluir e fechar espaço (imagem + som)
+Áudio deste clipe
+Usar aqui o áudio de origem
+Usar aqui o próprio áudio do destino
+Área de transferência
+Marcar entrada no cursor · I
+Entrada (I)
+Marcar saída no cursor · O
+Saída (O)
+Usar o clipe inteiro
+Limpar
+Copiar o áudio · Ctrl+C
+Copiar
+Recortar; o espaço usa áudio de destino · Ctrl+X
+Recortar
+Sobrescrever o áudio no cursor; a imagem não se move · Ctrl+V
+Colar
+Área de transferência vazia
+Ponto de revisão
+Nenhum ponto de revisão perto do cursor.
+Nota para este ponto (guardada com suas edições)
+Mostrar o painel do clipe
+⟨ Clipe
+Redimensionar a linha do tempo
+Arraste para redimensionar a linha do tempo (↑/↓ com foco)
+Linha do tempo
+Ferramentas da linha do tempo
+Seleção: arrastar clipes, arrastar bordas para aparar · V
+↖ Seleção
+Lâmina: clique em um clipe para cortá-lo · C
+✂ Lâmina
+Deslizar: mover o áudio dentro do clipe · Y
+↔ Deslizar
+Encaixe · N (segure Shift ao arrastar para ignorar)
+◈ Encaixe: ligado
+Ir para o início · Home
+⇤ Início
+Ampliar no clipe selecionado · F
+Ajustar ao clipe
+Mostrar o episódio inteiro · Shift+F
+Ajustar tudo
+Zoom
+Ctrl+rolagem na linha do tempo também amplia
+Visão geral do episódio: clique ou arraste para navegar
+Linha do tempo: vídeo de destino, áudio de origem, áudio de destino e saída editada
+Pronto.
+Requer revisão
+Registro de exportação ▴
+Abrir pasta de saída
+Registro de exportação
+Fechar
+Atalhos de teclado
+Reproduzir / pausar
+Um quadro
+Dez quadros
+Início / fim
+Tocar pela junção selecionada
+Alternar saída ↔ áudio de destino
+Parar ou cancelar um arraste
+Ponto de revisão anterior / próximo
+Marcar o ponto como conferido
+Ampliar no clipe
+Mostrar tudo
+Ampliar a linha do tempo
+Aproximar / afastar
+Edição
+Seleção / Lâmina / Deslizar
+Encaixe ligado / desligado
+Dividir no cursor
+Aparar início / fim até o cursor
+Áudio 1 quadro antes / depois
+Áudio 10 ms antes / depois
+Marcar entrada / saída
+Copiar / recortar / colar áudio
+Desfazer / refazer
+Excluir intervalo / clipe e fechar espaço
+Importar mídia
+Inserir a mídia selecionada no cursor
+Edições de áudio nunca movem a imagem. Edições de imagem (excluir e fechar espaço, mídia inserida) movem juntos tudo o que vem depois, assim o áudio sincronizado fica com sua imagem. As alterações são mantidas automaticamente até você salvar.
+Desfeito. Ctrl+Y refaz.
+Refeito.
+Exportar vídeo editado
+Salve antes as alterações (Salvar como…) e depois exporte
+Exportando…
+Salvo · pronto para exportar
+Alterações não salvas
+Silêncio (o arquivo inserido não tem som).
+Este clipe toca o próprio áudio do destino. Escolha “Áudio de origem” para mapear áudio de origem aqui.
+Coloque o cursor dentro do clipe selecionado para dividi-lo · S
+Decodificador de vídeo indisponível; mostrando quadros estáticos.
+Origem não usada neste ponto
+Não há áudio de origem mapeado aqui. Ouça Saída ou Destino.
+Não é possível deslocar a origem antes de zero.
+Limites de clipe inválidos.
+Posição de origem ou velocidade inválida.
+O primeiro clipe deve começar em zero.
+O último clipe deve terminar na duração da saída.
+Clipe curto demais ou posição de origem negativa.
+Clipe atualizado.
+Clipes unidos. Ouça pela junção.
+Usando áudio de origem; ajuste o início e ouça.
+Este clipe usa o próprio áudio do destino.
+Lâmina: clique em qualquer clipe de áudio para cortá-lo.
+Deslizar: arraste o áudio de origem dentro do clipe.
+Seleção: arraste um clipe para movê-lo; arraste as bordas para aparar.
+Deslizar só funciona em clipes de áudio de origem.
+Arraste um clipe de A1 ou A2 até MIX para colocá-lo na saída editada.
+Copiado
+Movido
+O clipe de origem passaria do fim do seu áudio.
+⟳ Repetir: ligado
+Removida · cortada
+Removida · restaurada
+Ela é cortada do vídeo exportado.
+Ela mantém a imagem e o áudio originais.
+Material só da dublagem
+Imagens do destino
+Junção
+Limite de clipe
+Junção editada ou calculada entre clipes.
+Tudo aqui está conferido.
+Nada para mostrar.
+Todos os pontos sinalizados conferidos
+Nenhum ponto de revisão no cursor. Use J / L ou clique na lista.
+Nenhum ponto de revisão nesta lista.
+Vá antes a um ponto de revisão (J / L ou clique na lista).
+Marcado como conferido.
+Marcado como não conferido.
+Esta cena será cortada do vídeo exportado, como na dublagem.
+Esta cena mantém a imagem e o áudio originais.
+No início: confira se a música e a imagem de abertura foram mantidas.
+Coloque o cursor dentro do clipe selecionado.
+Áudio recortado para a área de transferência. O intervalo liberado usa áudio de destino (nada se desloca).
+Salvamento cancelado.
+Registro de exportação ▾
+Salve as alterações antes de exportar.
+Exportando…\n
+Exportando o áudio corrigido e as edições de vídeo necessárias…
+A exportação falhou. Veja o registro de exportação.
+Origem a 50 % sobre o destino
+Imagens iguais ficam escuras. Bordas que pulam com o movimento indicam tempo errado; contornos parados são diferenças de enquadramento
+Origem à esquerda da linha · destino à direita
+Arraste cancelado.
+Este plano corta as cenas censuradas na exportação. Restaure essas cenas (Revisão → Censura) antes de editar a imagem.
+Selecione antes um clipe ou marque entrada e saída.
+Selecione antes um arquivo na aba Mídia.
+Selecione um clipe ou marque entrada e saída para o novo áudio.
+Importação cancelada.
+Nenhum clipe editável no plano selecionado.
+Suas alterações não salvas foram restauradas. Desfazer (Ctrl+Z) volta ao plano analisado.
+As alterações não salvas anteriores foram descartadas.
+Carregando formas de onda… Você já pode começar a revisar.
+Pronto. J / L percorrem as junções, P toca uma, ? mostra todos os atalhos.
+Configurações
+Salvar relatórios e planos de tempo
+Ativar configurações avançadas de áudio
+Ativar configurações avançadas de legendas
+Ativar importação de tarefas CSV
+Ativar renderização de planos salvos
+Mostrar registro de atividade
+Pasta de relatórios (opcional)
+AutoSync Reports ao lado do aplicativo · ou escolha qualquer pasta
+Pasta de trabalho temporária (opcional)
+Automático — AutoSync Temp ao lado do vídeo de destino
+Deixe em branco para usar uma pasta AutoSync Temp ao lado do vídeo de destino. Arquivos temporários de cada execução são removidos ao terminar ou falhar.
+Pasta (opcional)
+Automático — ao lado do vídeo de destino · ou escolha qualquer pasta
+Usar a pasta do destino
+Salvar ao lado do arquivo de destino (sem sobrescrever o vídeo)
+AutoSync Outputs
+Escolha primeiro um vídeo de destino.
+Escolha um arquivo de origem ou destino para definir a pasta de saída padrão, ou Procurar para escolher uma.
+Não foi possível localizar a pasta de relatórios do aplicativo. Escolha uma nas Configurações.
+Fila gerenciada
+Não definido
+Visualizar o vídeo e aparar antes de sincronizar
+Visualização indisponível
+Carregando quadro…
+Quadro indisponível
+Clique em Salvar recorte para remover estas marcas.
+Marque os dois pontos, com o fim depois do início.
+Preparando…
+Processando
+Parado
+Concluído · resultados a revisar
+Concluído
+Concluído com erros · veja a atividade
+Lendo arquivos e faixas…
+Escolha mídias de origem/destino ou selecione uma pasta de saída.
+Defina uma pasta de relatórios ou reinicie o aplicativo para obter a pasta padrão.
+Escolha um plano de tempo salvo.
+Ative Áudio, Legendas ou ambos.
+Sincronizar o áudio completo do destino
+A correspondência só por áudio exige o modo destino completo.
+Escolha o CSV de tarefas.
+Adicione vídeos de origem à coluna Origem.
+As duas colunas de áudio precisam do mesmo número de vídeos.
+Adicione arquivos correspondentes a cada coluna de legendas.
+Use um único arquivo de legenda com um mapa de tempo salvo.
+Escolha o mapa de tempo salvo.
+Confira os pares de legendas e a escolha de faixas.
+Processando as tarefas selecionadas…
+Pronto para sincronizar as tarefas selecionadas.
+Exportar vídeo editado + FLAC correspondente. Trechos só do destino são removidos.
+Áudio
+Legendas
+Tarefas
+Solte um episódio ou uma pasta inteira
+Escolha uma referência de tempo e adicione seus arquivos
+Áudio a transferir
+Vídeo a corresponder
+As linhas pareiam em ordem. Selecione um arquivo para reordená-lo. Alt + ↑ / ↓ move uma linha; Delete a remove.
+Usa embeddings de som AST pré-treinados, além do DINOv2 para cenas difíceis. Instale antes o AI Sync na Instalação; os downloads são opcionais e a primeira análise é mais lenta.
+A correspondência padrão usa impressões digitais de áudio e cenas do vídeo.
+Iniciar tarefas selecionadas
+Faixa de áudio de origem
+Áudio de referência do destino
+Detectando faixas…
+Nenhuma faixa de áudio encontrada
+Falhou
+Abrir relatórios
+Configurações da tarefa
+Correspondência
+Método
+Dublagem censurada ou reeditada
+Legendas para cenas restauradas (opcional)
+Legendas da versão original: as falas das cenas restauradas são salvas separadamente
+As cenas removidas mantêm a imagem original e tocam o áudio original, nivelado ao volume da dublagem. Os pontos recortados são listados para revisão.
+As cenas removidas são cortadas do vídeo exportado, como na dublagem. Mude qualquer cena em Visualizar e editar.
+Lista no relatório e em Visualizar e editar cada cena que a dublagem removeu ou recortou, onde você pode mudar cada uma.
+Salvar em
+Cada linha de arquivo tem seu menu de faixas; abra isto para editar em detalhe o par selecionado.
+Faixas do par selecionado
+Avançado
+Reordenar linhas
+Legenda
+Recursos
+Ferramentas opcionais. Opções avançadas desligadas usam seus valores padrão.
+Pastas
+Mecanismo e modelos de IA
+Episódio único
+Edição original
+Opcional · usar o áudio do vídeo de origem
+Áudio de referência
+Opcional · usar o áudio do vídeo de destino
+Nova pasta de saída
+Escolha uma pasta pai para uma nova execução
+Procurar
+Usar arquivos de áudio separados (opcional)
+CSV do lote
+Selecionar jobs.csv
+Pasta de saída do lote
+Escolha uma pasta pai para este lote
+Atraso do áudio de origem (s)
+Atraso da referência (s)
+Início do principal (segundos do destino, opcional)
+Fim do principal (segundos do destino, opcional)
+Tempos de corte manuais (separados por vírgula)
+Recorte da origem para correspondência (w:h:x:y)
+Recorte do destino para correspondência (w:h:x:y)
+Limiar de cena
+Codec do vídeo aparado
+Processando…
+A instalação falhou · veja a atividade
+Parado · podem restar arquivos parciais
+Falhou · veja o registro de atividade
+As quantidades diferem. Adicione ou remova vídeos antes de começar.
+Solte suas pastas para começar.
+Os números de episódio coincidem. Revise os pares abaixo de cada título.
+O pareamento segue a ordem das linhas. Use Revisar pareamento e reordenar para mudá-lo.
+Lendo vídeos das pastas…
+Nenhum arquivo de vídeo compatível nessa seleção.
+Números de episódio ausentes, duplicados ou diferentes. Pareie os arquivos manualmente com as setas.
+Não foi possível ler os caminhos soltos. Tente Adicionar arquivos ou Escolher pasta.
+Solte um arquivo aqui ou use Tarefas em lote para vários arquivos.
+Legenda a sincronizar
+Arquivo de legenda ou MKV que contém a faixa
+Legenda de referência sincronizada
+Legenda que já corresponde ao destino
+Codificação de origem
+Vídeo que corresponde ao tempo original da legenda
+Vídeo / áudio de destino
+Vídeo ou áudio a corresponder
+Mapa de tempo salvo
+Escolha uma pasta pai
+Codificação do texto
+FPS de origem (MicroDVD)
+FPS de destino (MicroDVD)
+Recorte da origem (opcional w:h:x:y)
+Recorte do destino (opcional w:h:x:y)
+Janela de busca do Sushi (segundos)
+Janela máxima do Sushi (segundos)
+Modelo do Whisper
+Idioma falado no destino (opcional, ex.: en)
+Abertura / encerramento do destino
+Faixa de legenda
+Faixa de legenda de referência
+Faixa de áudio de destino
+Escolha primeiro um arquivo
+Não foi possível detectar as faixas — veja a atividade
+Manter abertura / encerramento do destino
+Instalando dependências…
+Preparando a visualização…
+Analisando o par selecionado para Visualizar e editar…
+Abrindo Visualizar e editar…
+Visualizar e editar aberto
+Visualização cancelada
+Legendas a sincronizar
+Codificações de origem
+Legendas de referência
+Não é possível parear todos os números de episódio. Reordene as listas manualmente.
+Limpar listas
+Nenhum arquivo de legenda/mídia compatível nessa seleção.
+Remover este arquivo
+Áudio / vídeo de origem
+Legendas de referência sincronizadas
+Áudio / vídeos de destino
+Codificações de destino
+Confira os pares de legendas e marque a caixa de confirmação.
+Um mapa de tempo salvo aceita um arquivo de legenda por vez.
+Todas as colunas do lote de legendas precisam do mesmo número de arquivos.
+Aguarde o fim da detecção de arquivos e faixas.
+Iniciando…
+⚙ Configurações
+Assistida por IA (experimental)
+A sincronização de áudio está desligada nesta execução.
+Cancelar
+Limpar marcas
+Fechar visualização
+Tarefas concluídas e avisos de revisão aparecerão aqui.
+Criando uma visualização fluida do destino em segundo plano…
+Cortar do vídeo
+Primeiro quadro
+Quadro
+Quadro →
+Ir para o fim
+Ir para o número do quadro
+Ir para o início
+Ir para o instante
+Predefinição H.264
+Conferi os pares de legendas e a escolha de faixas.
+Incluir tarefas de áudio
+Incluir tarefas de legenda
+Tarefa
+Manter só o intervalo marcado antes de sincronizar. Vídeo e áudio são aparados juntos; os arquivos originais não mudam. O início é incluído e o fim não. Use “Fim do vídeo” para incluir o último quadro. Os recortes de origem e destino são independentes. Os quadros começam em 1. A visualização é sem som.
+Último quadro
+Detalhes do modo
+Próximo quadro (seta direita)
+Desligado (a origem está completa)
+Progresso geral
+Quadro anterior (seta esquerda)
+Lendo os carimbos de tempo do vídeo…
+Pronto
+Relatórios
+Restaurar com o áudio original
+Resultados da execução atual
+Salvar recorte
+Navegar no vídeo
+Mostrar
+Padrão (recomendado)
+Status
+A sincronização de legendas está desligada nesta execução.
+Modo de sincronização
+Tempo
+Aparar antes de sincronizar
+Aparar fim
+Aparar início
+Ligar sincronização de áudio
+Ligar sincronização de legendas
+Fim do vídeo
+Quando a dublagem removeu cenas
+subtitle_map.json ou um plano do AutoSync
+← Quadro
+Faixas do par {0}. Selecione uma linha para editar outro par. Pares sem alteração usam a primeira faixa de áudio.
+{0} arquivos
+{0} exibidos
+{0} / {1} conferidos
+{0} sinalizados para conferir
+Clipe {0} de {1}
+Foram encontradas alterações não salvas de {0} para este plano.
+Automático — {0}
+Deslocamento do áudio: a origem {0} toca na saída em {1} · velocidade {2}
+Deslocamento do áudio: a origem {0} toca na saída em {1}
+· áudio de origem · {0}
+· áudio de destino · {0}
+Abrir github.com/EVA0111
+GitHub · EVA0111 ↗
+Menu
+Arquivo
+Importar mídia…
+Salvar quadro como PNG
+Desfazer
+Refazer
+Recortar áudio
+Copiar áudio
+Colar áudio
+Dividir no cursor de reprodução
+Juntar com o anterior
+Excluir intervalo com deslocamento
+Marcar entrada
+Marcar saída
+Limpar entrada/saída
+Imagem
+Inserir mídia na V1 (com deslocamento)
+Colocar a mídia na faixa de vídeo selecionada
+Remover o clipe de faixa selecionado
+Preencher o intervalo com movimento
+Preencher o intervalo com preto
+Duplicar a V1 (cópia acima)
+Duplicar a faixa selecionada
+Adicionar faixa de vídeo vazia
+Excluir a faixa selecionada
+Bloquear / desbloquear a faixa selecionada
+Bloquear / desbloquear a V1
+Bloquear / desbloquear o MIX
+Mostrar / ocultar a faixa selecionada
+Marcadores
+Adicionar / remover marcador
+Ponto anterior
+Próximo ponto
+Exibir
+Ajustar ao clipe ou intervalo
+Ajuda
+Seus marcadores (K adiciona ou remove um no cursor de reprodução)
+Arraste arquivos do Explorador para a janela para importá-los. Arraste um item do acervo para a V1 (inserir), a V2 (sobrepor) ou o MIX (som).
+Inserir o arquivo selecionado (imagem e som) na V1 no cursor de reprodução; tudo depois se desloca · B
+Inserir na V1
+Colocar a imagem selecionada na faixa de vídeo selecionada no cursor de reprodução: ela cobre as faixas abaixo, o som não muda · Shift+B
+Colocar na faixa
+Usar o som dela
+Salvar a imagem de saída no cursor de reprodução como PNG · Ctrl+Shift+S
+📷 Quadro
+Tela cheia (clique duplo na imagem) · Alt+Enter
+Reproduzir o intervalo de entrada/saída marcado · Shift+Space
+▶ Entrada→Saída
+Repetir o intervalo de entrada/saída ou o clipe selecionado
+Adicionar ou remover um marcador no cursor de reprodução · K
+◆ Marcador
+−1 quadro
+−10 ms
++10 ms
++1 quadro
+Editar áudio
+Imagem (intervalo de entrada/saída ou clipe)
+◫ Preencher com movimento (M)
+Deixar preta a imagem do intervalo marcado (ou do clipe selecionado); o som não muda · Shift+M
+■ Preencher com preto
+Volume
+Ganho (dB)
+Fade de entrada (ms)
+Fade de saída (ms)
+Aplicar volume
+Entrada — · Saída —
+Reproduzir o intervalo de entrada/saída
+Adicionar / remover um marcador
+Salvar o quadro como PNG
+Ampliar para o clipe (ou o intervalo de entrada/saída)
+Preencher o intervalo com movimento a partir do quadro na entrada
+Preencher o intervalo com preto
+Inserir a mídia selecionada na V1 no cursor de reprodução
+Colocar a mídia selecionada na faixa de vídeo selecionada
+Remover o clipe de faixa selecionado
+Duplicar a faixa selecionada (V1 por padrão)
+Edições de áudio nunca movem a imagem. Edições de imagem (excluir com deslocamento, mídia inserida) movem tudo o que vem depois juntas; um preenchimento com movimento só substitui a imagem do seu intervalo, então o áudio sincronizado continua sobre a sua imagem. As edições são mantidas automaticamente até você salvar.
+A V{0} está bloqueada. Clique no 🔒 dela no cabeçalho da faixa para desbloquear.
+{0} está bloqueado. Clique no 🔒 dele no cabeçalho da faixa para desbloquear.
+Forma de onda de alta resolução indisponível: {0}
+Não foi possível reproduzir a prévia do vídeo de {0}.
+Falha ao gerar o proxy de {0}: {1}
+Falha na prévia de áudio: {0}
+Prévia de áudio: {0}
+Marque primeiro a entrada e a saída (I / O).
+Ouvindo o áudio próprio do destino.
+Ouvindo a saída editada.
+O áudio do clipe {0} foi movido {1} ms para depois. Ouça a junção para conferir.
+O áudio do clipe {0} foi movido {1} ms para antes. Ouça a junção para conferir.
+O ganho deve ficar entre −60 e +24 dB.
+Os fades devem ser positivos e caber no clipe ({0} ms).
+Clipe {0}: +{1} dB, fade de entrada {2} ms.
+Clipe {0}: +{1} dB, fade de saída {2} ms.
+Clipe {0}: +{1} dB.
+Clipe {0}: {1} dB, fade de entrada {2} ms.
+Clipe {0}: {1} dB, fade de saída {2} ms.
+Clipe {0}: {1} dB.
+Clipe dividido em {0}.
+Encaixe ativado. Segure Shift ao arrastar para ignorar.
+Encaixe desativado. Segure Shift ao arrastar para ignorar.
+Não é possível cortar aqui: {0}
+Deslizar: imagens +{0} s
+Deslizar: imagens {0} s
+Deslizar: +{0} ms
+Deslizar: {0} ms
+Edição da linha do tempo recusada: {0}
+Velocidade de reprodução {0}×.
+Repetindo o intervalo de entrada/saída.
+Repetindo o clipe selecionado.
+Repetição desativada.
+Marcador removido.
+Marcador adicionado em {0}. Escreva uma nota para ele no inspetor.
+{0} em {1}. Pressione P para reproduzir por ele, A para comparar com o áudio de destino, R quando conferido.
+Reproduzindo 2 s de cada lado de {0}. Pressione A para comparar com o áudio de destino.
+O intervalo marcado não se sobrepõe ao clipe selecionado.
+{0} s copiados. Mova o cursor de reprodução e cole para substituir só o áudio.
+Falha ao copiar: {0}
+{0} s colados sem mover a imagem. Desfazer: Ctrl+Z.
+Falha ao colar: {0}
+Início aparado até o cursor de reprodução. O intervalo liberado usa o áudio de destino; a imagem não muda.
+Fim aparado até o cursor de reprodução. O intervalo liberado usa o áudio de destino; a imagem não muda.
+Falha ao aparar: {0}
+Falha ao recortar: {0}
+Salvo: {0}. A exportação grava a saída corrigida nessa pasta.
+Falha ao salvar: {0}
+Falha na exportação: {0}
+Exportação concluída: {0}. Salve de novo para criar outra exportação.
+Falha ao excluir com deslocamento: {0}
+Falha ao preencher com preto: {0}
+Falha ao preencher com movimento: {0}
+A imagem está preta aqui.
+Quadro salvo: {0}
+Quadro não salvo.
+Não foi possível salvar o quadro: {0}
+Tela cheia indisponível: {0}
+Edição de faixa recusada: {0}
+{0} bloqueado: os clipes não podem ser alterados.
+{0} desbloqueado.
+V{0} bloqueada.
+V{0} desbloqueada.
+V{0} oculta: não é mostrada nem exportada.
+V{0} visível.
+Até 12 faixas de vídeo.
+Não foi possível duplicar: {0}
+Selecione primeiro uma faixa de vídeo acima da V1.
+Não foi possível colocar na V{0}: {1}
+{0} arquivo(s) soltos não puderam ser lidos como vídeo, áudio ou imagens.
+{0} não tem imagem; solte-o no MIX para usar o som dele.
+{0} não tem som; solte-o em uma faixa de vídeo.
+Falha ao soltar: {0}
+Falha na importação: {0}
+Falha ao inserir: {0}
+O intervalo marcado agora reproduz {0}. A imagem não muda.
+Não foi possível usar esse áudio: {0}
+{0} arquivos importados. Insira-os no cursor de reprodução (B) ou use o áudio em um intervalo.
+{0} arquivo importado. Insira-o no cursor de reprodução (B) ou use o áudio em um intervalo.
+Algumas mídias importadas não foram encontradas: {0}
+Forma de onda de {0} indisponível: {1}
+{0} pontos marcados para revisão. Pressione L para o próximo, P para reproduzir por ele, ? para todos os atalhos.
+{0} ponto marcado para revisão. Pressione L para o próximo, P para reproduzir por ele, ? para todos os atalhos.
+Não foi possível carregar o editor: {0}
+Reproduz {0} a partir de {1}.
+não usado aqui
+Nenhum vídeo de {0} disponível
+Criando uma prévia fluida de {0} em segundo plano…
+Prévia indisponível: {0}
+Arquivo importado não encontrado: {0}
+❚❚ Pausar
+{0} junções
+{0} em {1} ({2}). {3}
+{0} em {1}. {2}
+{0} s copiados
+Aguardando a imagem de {0}: {1}
+Imagem · inserida por {0} s
+{0} · arraste para a V1, a V2 ou o MIX
+◇ Encaixe: desativado
+Só na dublagem · reconstruído
+Plano substituído · reconstruído
+Plano substituído
+A dublagem removeu esta cena de {0} s. Ela é cortada do vídeo exportado.
+A dublagem removeu esta cena de {0} s. Ela mantém a imagem e o áudio originais.
+A dublagem mostra aqui {0} s de imagens congeladas ou repetidas; elas são reconstruídas com os quadros do original e o áudio da dublagem é mantido.
+A dublagem mostra aqui outro plano por {0} s; o vídeo exportado também o mostra, reconstruído com os quadros do original.
+A dublagem mostra aqui outro plano por {0} s.
+Seu marcador (K adiciona ou remove um no cursor de reprodução).
+Início do clipe aparado.
+Fim do clipe aparado.
+Inserir na V1 (com deslocamento)
+Usar o som dela no MIX
+Configuração interrompida
+Configuração concluída
+Origem · linha {0}
+Destino · linha {0}
+{0} de origem · {1} de destino — As quantidades são diferentes. Adicione ou remova vídeos antes de começar.
+{0} de origem · {1} de destino — Solte suas pastas para começar.
+{0} de origem · {1} de destino — Os números dos episódios coincidem. Revise os pares abaixo de cada título.
+{0} de origem · {1} de destino — O pareamento segue a ordem das linhas. Use “Revisar pareamento e reordenar” para mudar.
+Digite uma linha entre 1 e {0}.
+Selecionar plan.json
+Lote de pastas
+Relatórios e opções avançadas estão em Configurações.
+A sincronização {0} está desativada nesta execução.
+Ativar a sincronização {0}
+{0} para revisar
+Revisar pareamento e reordenar
+Método de correspondência
+Configurações de faixas do par selecionado
+Recriar a versão da dublagem (cortá-las; reconstruir congelamentos e repetições a partir do original)
+Aparar {0} – {1}
+Origem · {0}
+Destino · {0}
+Duração {0}
+Quadro {0} / {1}
+Digite segundos ou HH:MM:SS.mmm dentro deste vídeo.
+Digite um número de quadro inteiro de 1 a {0}.
+Intervalo de corte: {0} – {1}. Clique para editar.
+Escolha um intervalo de corte de {0} válido.
+Prévia {0}: {1}
+Quadro de vídeo selecionado
+{0} / {1} tarefas concluídas · {2}%
+{0} / {1} tarefas concluídas
+Concluído · {0} resultado(s) para revisar
+{0} vídeo(s) serão aparados antes da sincronização. Vídeo e áudio usam exatamente o mesmo intervalo. Os modos de sincronização valem dentro desse intervalo.
+As saídas não podem ser salvas dentro da pasta de relatórios. Escolha um local de saída separado.
+Escolha quais recursos opcionais mostrar e usar. Opções avançadas desativadas usam seus padrões.
+Salvar saída
+Deixe em branco para salvar ao lado do destino, ou escolha qualquer pasta ou unidade. Arquivos existentes nunca são sobrescritos.
+{0}. Opções de faixa mostradas para a linha {1}. Clique em um nome de arquivo para selecionar outra linha; reordene com as setas. As demais linhas usam a primeira faixa.
+Mover este arquivo
+Lote de legendas
+Essa faixa de vídeo não existe.
+Não há clipe nessa faixa ali.
+Só imagens e vídeos podem ir para uma faixa de vídeo.
+Coloque o cursor de reprodução dentro do clipe para dividi-lo.
+Um preenchimento não tem imagens para deslizar.
+Uma imagem estática não tem nada para deslizar.
+O clipe começaria antes do seu arquivo.
+O clipe começaria antes do vídeo de destino.
+Marque um intervalo (entrada e saída) ou selecione um clipe para preencher.
+Preenchimento desconhecido.
+A imagem na entrada é um clipe importado; o preenchimento precisa de imagens do destino ali.
+Marque um intervalo (entrada e saída) ou selecione um clipe para excluir.
+A saída inteira não pode ser excluída.
+Só clipes com imagem podem ser inseridos no vídeo.
+Este arquivo não tem áudio.
+Marque um intervalo (entrada e saída) ou selecione um clipe para o novo áudio.
+A parte escolhida do clipe está vazia ou é maior que o arquivo.
+A edição criou um vão ou uma sobreposição no áudio.
+O áudio não cobre o vídeo editado.
+A edição criou um vão ou uma sobreposição no vídeo.
+O vídeo não cobre a saída.
+A edição criou clipes sobrepostos ou fora do intervalo na V{0}.
+Segmentos de áudio ou duração de saída inválidos.
+Região inválida {0}
+As regiões devem ser contíguas, ordenadas, não vazias e estar dentro da linha do tempo de saída (região {0}).
+Tipo de região inválido {0}
+Mídia importada inválida na região {0}
+Fluxo de áudio importado inválido na região {0}
+Ganho ou fades inválidos na região {0}
+Tempo de origem ou velocidade inválidos na região {0}
+As regiões devem cobrir toda a linha do tempo de saída.
+Linha do tempo do vídeo editado inválida.
+Os trechos de vídeo devem ser contíguos e não vazios (trecho {0}).
+Posição de clipe importado inválida (trecho {0}).
+Preenchimento com movimento inválido (trecho {0}).
+O trecho de vídeo {0} está fora do vídeo de destino.
+Os trechos de vídeo devem cobrir a saída editada.
+Faixas de vídeo inválidas.
+Faixa de vídeo V{0} inválida.
+Os clipes devem estar ordenados e dentro da saída{0}
+Clipe importado inválido{0}
+Preenchimento inválido{0}
+Imagens fora do vídeo de destino{0}
+Solicitação do editor não confiável.
+Nenhum plano carregado.
+Tempo de reprodução inválido.
+Faixa de áudio desconhecida.
+Não é possível ler a duração de {0}
+{0} não tem imagem nem som.
+Mídia importada desconhecida.
+O plano de alinhamento não existe: {0}
+O arquivo selecionado não contém um alinhamento do AutoSync.
+O arquivo de áudio de origem original está faltando: {0}
+O arquivo de destino original está faltando. Abra um plano com caminhos de mídia válidos.
+A análise de prévia já está em andamento.
+Escolha um par de origem e destino antes da prévia.
+A solicitação de prévia é grande demais.
+Escolha um vídeo de {0} válido.
+Escolha uma pasta de saída existente.
+Não foi possível iniciar o analisador do AutoSync: {0}
+Falha na análise de alinhamento (saída {0}). Revise o registro no AutoSync. {1}
+O analisador terminou sem salvar plan.json em {0}
+O intervalo da forma de onda deve ficar entre 0 e 120 segundos.
+Faixa de vídeo inválida.
+O vídeo original está faltando.
+Falha no proxy de vídeo: {0}
+Faixa de captura inválida.
+O arquivo de vídeo está faltando.
+Edição de clipe inválida.
+Duração de saída inválida.
+Operação de clipe desconhecida.
+Faixa de prévia inválida.
+Duração de prévia ou taxa de reprodução inválida.
+Não há áudio neste instante.
+Lista de mídias inválida.
+Não é possível salvar durante a exportação.
+Escolha um nome de pasta de saída válido.
+Já existe uma pasta de saída aqui. Escolha outro nome: {0}
+A exportação já está em andamento.
+Salve primeiro seu alinhamento editado.
+Salve primeiro o plano editado.
+Gerando um proxy reproduzível de {0} (só uma vez por arquivo)…
+Plano de sincronização editado pelo usuário. Confira as junções da saída.
+Visualizar e editar analisa o destino inteiro sem aparar automaticamente a abertura/o encerramento nem remover vídeo.
+O alinhamento será salvo em {0}
+Alinhamento salvo em {0}
+Tipo de arquivo desconhecido
+Termine a tarefa de sincronização em andamento antes de abrir Visualizar e editar.
+Solicitação de Visualizar e editar inválida.
+Uma sincronização ou análise de Visualizar e editar já está em andamento.
+Tarefa inválida.
+Fila inválida.
+Opção de configuração inválida.
+Ainda não há pasta de saída disponível.
+Os relatórios não foram salvos. Ative “Salvar relatórios” em Configurações para as próximas execuções.
+Este arquivo ou pasta ainda não foi criado.
+Nenhuma pasta de relatórios disponível.
+A pasta de relatórios está fora desta execução.
+A pasta de relatórios está faltando.
+Legendas ou contêiner
+Solte arquivos ou pastas locais.
+A pasta é grande demais. Escolha a pasta de um episódio.
+Adicione pelo menos um par de episódios.
+Cada linha precisa de um vídeo de origem e um de destino existentes.
+Um vídeo está sendo usado mais de uma vez. Remova as linhas duplicadas.
+Escolha uma nova pasta de saída para o lote.
+Escolha um arquivo de mídia local existente.
+O FFprobe não foi encontrado. Instale o FFmpeg ou coloque ffprobe.exe ao lado do AutoSync.
+Resposta do FFprobe inválida: {0}
+Prévia cancelada.
+Escolha um arquivo de vídeo local.
+Escolha um arquivo de vídeo.
+Nenhum carimbo de tempo de vídeo utilizável encontrado.
+Quadro de prévia inválido.
+Não foi possível decodificar este quadro. Tente um quadro próximo.
+Posicionamento inválido.
+O mapeamento de áudio copiado é inválido.
+Clipe de áudio não suportado.
+Escolha primeiro um clipe de áudio.
+Defina um ponto de entrada e um de saída dentro da região selecionada.
+Selecione um clipe.
+Coloque o cursor de reprodução dentro do clipe selecionado.
+Borda de corte inválida.
+Copie um clipe antes de colar.
+Selecione primeiro um clipe de áudio.
+Este clipe não pode ser arrastado.
+Deslizar está disponível para clipes de áudio de origem.
+Deslocamento de origem inválido.
+Selecione um clipe para aparar.
+Escolha uma borda do clipe.
+Não há áudio de origem anterior disponível.
+Clique dentro de um clipe para cortar.
+Configurações de prévia inválidas.
+O diretório temporário deve ser um caminho de pasta.
+Escolha um caminho absoluto para a pasta temporária.
+Escolha um arquivo de destino ou uma pasta temporária personalizada.
+O local temporário não é um diretório.
+Entrada {0} · Saída {1}
+{0} · imagem + som
+{0} · só imagem
+{0} · só som
+Clipe {0}: ganho neutro.
+Clipe {0}: ganho neutro, fade de entrada {1} ms.
+Clipe {0}: ganho neutro, fade de saída {1} ms.
+Clipe {0}: {1} dB, fade de entrada {2} ms, fade de saída {3} ms.
+Clipe {0}: ganho neutro, fade de entrada {1} ms, fade de saída {2} ms.
+Clipe removido; ali aparece a faixa de baixo.
+Clipe {1} da V{0} · {2}–{3}. Arraste para mover, arraste uma borda para aparar, Razor (C) divide, Slip (Y) muda as imagens, Delete remove.
+Clipe da V{0} dividido.
+Clipe da V{0} dividido em {1}.
+Clipe movido para {0}.
+Imagens deslizadas {0} s.
+V{0} adicionada.
+V{0} excluída; os clipes dela se foram (Desfazer: Ctrl+Z).
+{0} copiada para a V{1} acima, corte por corte. Bloqueie o original para protegê-lo; edite a cópia livremente — o clipe visível mais alto é o que toca e é exportado.
+{0} está na V{1} a partir de {2}. Ele cobre as faixas abaixo; o som não muda. Desfazer: Ctrl+Z.
+Colocar na V{0} em {1}
+Inserir na V1 (com deslocamento) em {0}
+Usar o som dela no MIX em {0}
+V{0}: {1}–{2} está preto. Desfazer: Ctrl+Z.
+V{0}: {1}–{2} mantém o quadro da entrada, em movimento. Desfazer: Ctrl+Z.
+A imagem em {0}–{1} agora está preta. Som inalterado. Desfazer: Ctrl+Z.
+A imagem em {0}–{1} agora é o quadro da entrada, mantido em movimento (gerado na exportação; a prévia mostra o quadro). Som inalterado. Desfazer: Ctrl+Z.
+{0} s de imagem e som removidos; tudo depois foi adiantado. Desfazer: Ctrl+Z.
+{0} ({1} s) inserido em {2}. Tudo depois foi atrasado.
+Corte com lâmina em {0}. Ctrl+Z para desfazer.
+Áudio de origem movido {0} ms para depois (deslizar).
+Áudio de origem movido {0} ms para antes (deslizar).
+Início do clipe aparado até {0}. O intervalo liberado usa o áudio de destino.
+Fim do clipe aparado até {0}. O intervalo liberado usa o áudio de destino.
+Clipe movido para {0}. A imagem não muda.
+Clipe copiado para {0}. A imagem não muda.
+Ouvindo {0}.
+Clipe {0} de {1} · áudio importado · {2}
+Duplicar
+Excluir faixa
+Exportar
+Faixas
+Tela cheia
+Idioma da interface
+Aplicar ganho e fades ao clipe selecionado (Enter); ouvidos na prévia e aplicados na exportação
+Mudança de tempo; {0}; confira a junção
+Trecho só na origem: {0} s pulados; {1}; confira a junção
+junção localizada pela imagem
+junção localizada pelo áudio dentro do trecho limitado pela imagem
+ponto mais silencioso do áudio de origem dentro do trecho limitado pela imagem
+junção estimada em um trecho de pouco movimento de {0} s
+Imagens só do destino verificadas pela imagem ({0} s): {1}; áudio de destino usado; confira
+sem imagem de origem
+plano parado mostrado por mais tempo, colocado no áudio de destino mais silencioso
+Imagens só do destino verificadas pela imagem; use o áudio de destino selecionado
+Vinheta/cartela só do destino verificada pela imagem; use o áudio de destino selecionado
+Vídeo só do destino removido; confira a nova junção
+Trechos do destino sem áudio de origem foram removidos. Revise o vídeo editado, incluindo início e fim.
+Material só da dublagem ({0} s) reconstruído com quadros do destino congelados/repetidos; áudio da dublagem mantido; confira
+Planos substituídos pela dublagem ({0} s) reconstruídos com os quadros do destino que ela mostra no lugar; confira
+áudio de origem indisponível; é preciso recorrer à referência
+Música de abertura compartilhada: use o áudio de origem alinhado, não o de destino
+dispersão do ajuste {0} s; confira a sincronia
+poucas correspondências; tempo estimado mantendo o áudio de origem

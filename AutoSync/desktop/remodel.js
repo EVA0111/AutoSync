@@ -1,10 +1,10 @@
-localStorage.removeItem('autosync-language');
-document.documentElement.lang='en';document.documentElement.dir='ltr';
 // Presentation only: existing engine payloads and file identities stay unchanged.
 const topbar=document.createElement('div');topbar.className='topbar';
 const brand=document.querySelector('.brand');const github=$('github-profile');
 const settingsButton=document.createElement('button');settingsButton.id='open-settings';settingsButton.textContent='⚙ Settings';settingsButton.onclick=()=>{workspace=workspace==='Settings'?'Sync jobs':'Settings';applyWorkspace();};
 topbar.append(brand,settingsButton,github);document.body.prepend(topbar);
+// Interface language (i18n.js loads after this file).
+document.addEventListener('DOMContentLoaded',()=>{if(globalThis.I18N)settingsButton.before(I18N.picker());});
 const nav=document.querySelector('nav');nav.className='workspace-tabs';topbar.after(nav);
 const syncNav=nav.querySelector('[data-task="Sync jobs"]');syncNav.classList.add('hidden');settingsNav.classList.add('hidden');
 for(const [key,label] of [['audio','Audio'],['subtitles','Subtitles'],['jobs','Jobs']]){const b=document.createElement('button');b.className='tab';b.dataset.tab=key;b.textContent=label;b.onclick=()=>{activeTab=key;workspace='Sync jobs';applyWorkspace();};nav.append(b);}

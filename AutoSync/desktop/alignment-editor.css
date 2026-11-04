@@ -195,6 +195,10 @@ dialog .small-note{margin-top:12px}
 #media-empty{padding:0 12px}
 .media-foot{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 #ripple-delete{margin-top:6px;width:100%}
+
+/* Right-to-left languages: time and pictures still run left to right. */
+[dir=rtl] canvas,[dir=rtl] #timeline-area,[dir=rtl] .transport,[dir=rtl] #pictures,[dir=rtl] .ltr,[dir=rtl] input[type=number],[dir=rtl] output{direction:ltr}
+.ui-language{max-width:150px}
 /* Review filters: the row lives inside its pane and wraps when the panel is narrow. */
 #review-pane>.segmented{margin:0 10px;display:flex;flex-wrap:wrap}#review-pane>.segmented button{flex:1 1 auto;padding:4px 6px}
 /* Menu bar */

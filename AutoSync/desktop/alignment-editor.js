@@ -1634,6 +1634,7 @@ $('pictures').addEventListener('dblclick',toggleFullscreen);
 $('play-range').onclick=playRange;
 $('add-marker').onclick=toggleMarker;
 
+document.addEventListener('DOMContentLoaded',()=>{if(globalThis.I18N)$('help').before(I18N.picker());});
 // ---------- start ----------
 (async()=>{
  try{
