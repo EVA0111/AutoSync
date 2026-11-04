@@ -8,7 +8,8 @@
  * piece {start,end,output_start,original_start,original_end} (start/end in
  * the plan's own target time, as video_edits.py writes them) or an imported
  * clip {start,end,output_start,media,media_start} (start/end only give its
- * length). Edits ripple: later picture AND audio move together, so the
+ * length), or a motion fill {..., fill:'motion', hold} that shows target
+ * picture `hold` kept moving (built at export; video_edits.py). Edits ripple: later picture AND audio move together, so the
  * source audio stays on the picture it was synced to.
  *
  * Pure functions: no Electron, FFmpeg or DOM. Every result is a new object.
@@ -35,6 +36,7 @@ function pictureAt(kept,t){
   const a=Number(k.output_start),b=a+len(k);
   if(t>=a-1e-3&&t<b-1e-9||k===kept[kept.length-1]&&t<=b+1e-3){
    if(k.media)return {media:k.media,time:Number(k.media_start||0)+t-a,piece:k};
+   if(k.fill)return {target:Number(k.hold),piece:k};          // previewed as the held frame
    return {target:Number(k.original_start)+t-a,piece:k};
   }
  }
@@ -67,6 +69,7 @@ function splitKept(kept,t){
   if(!(a<t-EPS&&t<b-EPS)){out.push(k);continue;}
   const d=t-a,first={...k,end:Number(k.start)+d},second={...k,start:Number(k.start)+d,output_start:t};
   if(k.media)second.media_start=Number(k.media_start||0)+d;
+  else if(k.fill){first.original_end=Number(k.original_start)+d;second.original_end=Number(k.original_start)+len(second);}
   else{first.original_end=Number(k.original_start)+d;second.original_start=Number(k.original_start)+d;}
   out.push(first,second);
  }
@@ -124,6 +127,20 @@ function replaceAudio(tl,a,b,item,inPoint=0){
  return check({segments,kept:copy(tl.kept),duration:tl.duration});
 }
 
+/** Fill output [a,b) with the target picture shown at a, kept moving; the audio does not change. */
+function fillRange(tl,a,b){
+ a=Math.max(0,a);b=Math.min(tl.duration,b);
+ if(!(b-a>EPS))throw Error('Mark a range (In and Out) or select a clip to fill.');
+ const at=pictureAt(tl.kept,a);
+ if(!at||at.target===undefined)throw Error('The picture at In is an imported clip; fill needs target footage there.');
+ const hold=at.target;
+ let kept=splitKept(splitKept(copy(tl.kept),a),b);
+ kept=kept.filter(k=>!(Number(k.output_start)>=a-EPS&&Number(k.output_start)+len(k)<=b+EPS));
+ kept.push({start:a,end:b,output_start:a,original_start:hold,original_end:hold+(b-a),fill:'motion',hold});
+ kept.sort((x,y)=>Number(x.output_start)-Number(y.output_start));
+ return check({segments:copy(tl.segments),kept,duration:tl.duration});
+}
+
 function clipLength(item,inPoint,length){
  const available=item.image?Infinity:Number(item.duration)-inPoint;
  const L=length??(item.image?Number(item.stillSeconds||5):available);
@@ -157,6 +174,6 @@ function editsPicture(plan,kept){
   Math.abs(Number(kept[0].original_start)-Number(base[0].original_start))>1e-3;
 }
 
-const api={fromPlan,baseKept,pictureAt,rippleDelete,insertClip,replaceAudio,check,editsPicture,splitSegments,splitKept};
+const api={fromPlan,baseKept,pictureAt,rippleDelete,insertClip,replaceAudio,fillRange,check,editsPicture,splitSegments,splitKept};
 // Node (tests) and the editor page (plain script) share this file.
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else globalThis.VideoTimeline=api;

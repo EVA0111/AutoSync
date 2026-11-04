@@ -200,6 +200,48 @@ class Recreate(unittest.TestCase):
         self.assertFalse(any(k.get('sway') for k in frozen['video_edits']['kept']))
 
 
+
+class EditorMotionFill(unittest.TestCase):
+    """Preview & Edit "Fill motion" ranges, laid on after censored-dub cuts and rebuilds."""
+    def test_fill_lands_on_the_cut_output_and_keeps_the_sound(self):
+        from autosync import censored_render_plan
+        p = censorship.annotate(recreate_episode(), 'recreate')
+        p['video_edits'] = dict(original_target_duration=100., removed=[], kept=[
+            dict(start=0., end=60., output_start=0., original_start=0., original_end=60.),
+            dict(start=60., end=64., output_start=60., original_start=58., original_end=62., fill='motion', hold=58.),
+            dict(start=64., end=100., output_start=64., original_start=64., original_end=100.)])
+        with tempfile.TemporaryDirectory() as d:
+            r = censored_render_plan(p, d)
+        self.assertAlmostEqual(r['duration'], 92.)                       # the cut and the rebuild still apply
+        fill = [k for k in r['video_edits']['kept'] if k.get('fill')]
+        self.assertEqual(len(fill), 1)
+        # Analysed 60-64 s sits after the 10 s cut and the 2 s rebuilt replacement offset: output 50-54 s.
+        self.assertAlmostEqual(fill[0]['output_start'], 50.)
+        self.assertAlmostEqual(fill[0]['end'] - fill[0]['start'], 4.)
+        self.assertAlmostEqual(fill[0]['hold'], 58.)
+        audio = [s for s in r['segments'] if s['kind'] == 'audio']
+        plain = [s for s in remove_missing(censorship.annotate(recreate_episode(), 'recreate'))['segments'] if s['kind'] == 'audio']
+        self.assertEqual([(s['target_start'], s['source_start']) for s in audio], [(s['target_start'], s['source_start']) for s in plain])
+
+    def test_fill_motion_stops_at_a_camera_move(self):
+        import video_edits
+        p = dict(target_video='t.mkv', video_edits=dict(kept=[
+            dict(start=0., end=2., output_start=0., original_start=5., original_end=7., fill='motion', hold=5.)]))
+        import picture_timeline as pt
+        old = pt.stream_info, pt.fine_decode
+        frames = np.zeros((31, pt.FH, pt.FW), np.uint8); frames[:, :, ::7] = 200
+        frames[16:] = np.roll(frames[16:], 3, axis=2)                     # a camera move right after the frame
+        pt.stream_info = lambda path, ffprobe=None: dict(origin=0., start=0., file_start=0.)
+        pt.fine_decode = lambda *a, **k: frames
+        try:
+            got = video_edits.fill_pieces(p)
+        finally:
+            pt.stream_info, pt.fine_decode = old
+        self.assertTrue(got[0]['recreated'])
+        self.assertAlmostEqual(got[0]['length'], 2.)
+        self.assertLessEqual(got[0].get('sway', [5., 5.])[1], 5.)          # stops where the camera move starts
+
+
 if __name__ == '__main__':
     unittest.main()
 

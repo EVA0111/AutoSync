@@ -232,11 +232,11 @@ function draw(){
    for(const k of pieces){
     const a=xFor(Number(k.output_start)),b=xFor(Number(k.output_start)+Number(k.end)-Number(k.start));
     if(b<left||a>w)continue;
-    ctx.fillStyle=k.media?'#5a4520':'#21506f';ctx.fillRect(a+1,y+2,Math.max(1,b-a-2),inner);
-    ctx.strokeStyle=k.media?'#e0aa5a':'#5fa9d8';ctx.lineWidth=1;ctx.strokeRect(a+1,y+2,Math.max(1,b-a-2),inner);
+    ctx.fillStyle=k.media?'#5a4520':k.fill?'#3d2f5c':'#21506f';ctx.fillRect(a+1,y+2,Math.max(1,b-a-2),inner);
+    ctx.strokeStyle=k.media?'#e0aa5a':k.fill?'#a98be0':'#5fa9d8';ctx.lineWidth=1;ctx.strokeRect(a+1,y+2,Math.max(1,b-a-2),inner);
     if(b-a>70){
-     ctx.fillStyle=k.media?'#ffe3b8':'#d6eafd';ctx.font='12px Segoe UI';
-     const label=k.media?'▶ '+(k.label||baseName(k.media)):'Target '+trimTime(Number(k.original_start));
+     ctx.fillStyle=k.media?'#ffe3b8':k.fill?'#e6dcfb':'#d6eafd';ctx.font='12px Segoe UI';
+     const label=k.media?'▶ '+(k.label||baseName(k.media)):k.fill?'◫ Motion fill · '+trimTime(Number(k.hold)):'Target '+trimTime(Number(k.original_start));
      ctx.fillText(label,Math.max(left+6,a+6),y+16,Math.max(10,Math.min(b,w-12)-Math.max(left+6,a+6)-4));
     }
    }
@@ -398,6 +398,9 @@ function syncVideos(force=false){
    videoLastSync[track]=now;
    try{v.currentTime=desired;}catch{}
   }
+  // A motion fill previews as its held frame: the target viewer stays on it.
+  const held=track==='target'&&plan.video_edits?.kept?.length&&VT.pictureAt(plan.video_edits.kept,playhead)?.piece?.fill;
+  if(held){if(!v.paused)v.pause();if(Math.abs(v.currentTime-desired)>.02)try{v.currentTime=desired;}catch{}continue;}
   if(playing&&v.paused)v.play().catch(()=>{});
   if(!playing&&!v.paused)v.pause();
  }
@@ -1100,6 +1103,7 @@ window.addEventListener('keydown',e=>{
  if(mod&&k==='v'){handled();pasteSelected();return;}
  if(mod&&k==='i'){handled();importMedia();return;}
  if(e.key==='Delete'&&e.shiftKey&&!mod){handled();rippleDelete();return;}
+ if(k==='f'&&e.shiftKey&&!mod&&!e.altKey){handled();fillMotion();return;}
  if(mod&&k==='x'){handled();cutSelected();return;}
  if(e.key==='?'){handled();$('shortcuts').showModal();return;}
  if(e.key===','){handled();offset(e.altKey?-.01:-frame);return;}
@@ -1123,9 +1127,10 @@ window.addEventListener('resize',draw);
 // ---------- picture edits and imported media ----------
 const baseName=p=>String(p||'').split(/[\\/]/).pop();
 const escapeHtml=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function pictureLocked(){
+function pictureLocked(fill=false){
  // Censored-dub scene choices are applied at export from the original timeline.
- if(plan.censorship&&segments.some(s=>s.censored_action==='cut')){
+ // A motion fill keeps every time in place, so it is laid on after those cuts.
+ if(!fill&&plan.censorship&&segments.some(s=>s.censored_action==='cut')){
   report('This plan cuts censored scenes at export. Restore those scenes (Review → Censorship) before editing the picture.',true);return true;}
  return exporting;
 }
@@ -1151,6 +1156,17 @@ function rippleDelete(){
   const tl=VT.rippleDelete(currentTimeline(),r[0],r[1]);
   applyPictureEdit(tl,'Removed '+(r[1]-r[0]).toFixed(2)+' s of picture and sound; everything after moved earlier. Undo: Ctrl+Z.',r[0]);
  }catch(e){report('Ripple delete failed: '+e.message,true);}
+}
+// Censored dubs freeze or repeat a frame over a cut; a motion fill replaces the
+// picture in a range with the frame at In, kept moving where only small parts
+// of it move (built at export, video_edits.py). The sound is unchanged.
+function fillMotion(){
+ if(pictureLocked(true))return;
+ const r=editRange();if(!r){report('Select a clip or mark In and Out first.',true);return;}
+ try{
+  const tl=VT.fillRange(currentTimeline(),r[0],r[1]);
+  applyPictureEdit(tl,'The picture in '+trimTime(r[0])+'–'+trimTime(r[1])+' is now the frame at In, kept moving (built at export; the preview shows the frame). Sound unchanged. Undo: Ctrl+Z.',r[0]);
+ }catch(e){report('Fill motion failed: '+e.message,true);}
 }
 function selectedMedia(){return imports.find(x=>x.path===mediaSel)||null;}
 function insertMedia(){
@@ -1212,6 +1228,7 @@ $('import-media').onclick=importMedia;
 $('media-insert').onclick=insertMedia;
 $('media-audio').onclick=useMediaAudio;
 $('ripple-delete').onclick=rippleDelete;
+$('fill-motion').onclick=fillMotion;
 
 // ---------- start ----------
 (async()=>{

@@ -81,6 +81,12 @@ function validateTimeline(timeline,plan,knownMedia){
    return {start,end,output_start:out,media:String(k.media),media_start:ms,label:String(k.label||'').slice(0,200)};
   }
   const a=Number(k.original_start),b=Number(k.original_end);
+  if(k.fill){                      // motion fill: one target picture, kept moving at export
+   if(k.fill!=='motion'||!Number.isFinite(Number(k.hold))||Number(k.hold)<-.05||Number(k.hold)>limit)
+    throw Error('Invalid motion fill (piece '+(i+1)+').');
+   const h=Number(k.hold);
+   return {start,end,output_start:out,original_start:h,original_end:h+end-start,fill:'motion',hold:h};
+  }
   if(!Number.isFinite(a)||!Number.isFinite(b)||a<-.05||b>limit||Math.abs(b-a-(end-start))>1e-3)
    throw Error('Video piece '+(i+1)+' is outside the target video.');
   return {start,end,output_start:out,original_start:a,original_end:b};

@@ -93,6 +93,7 @@
   <fieldset><legend>Edit</legend>
    <div class="grid2"><button id="split" title="Split the clip at the playhead · S">✂ Split (S)</button><button id="join" title="Merge with the clip before; it continues the earlier timing">⇤ Join previous</button><button id="trim-left" title="Trim the start to the playhead; the gap uses target audio · Q">Trim start (Q)</button><button id="trim-right" title="Trim the end to the playhead; the gap uses target audio · W">Trim end (W)</button></div>
    <button id="ripple-delete" class="wide" title="Remove the marked range, or the selected clip, from the output: picture and sound. Everything after moves earlier · Shift+Delete">⌫ Ripple delete (picture + sound)</button>
+   <button id="fill-motion" class="wide" title="Replace the picture in the marked range (or the selected clip) with the frame at In, kept moving: only small motion inside the picture (mouths, eyes); anything bigger holds still. The sound does not change · Shift+F">◫ Fill motion (picture only)</button>
   </fieldset>
   <fieldset><legend>Audio for this clip</legend>
    <div class="segmented wide"><button id="source-mode" title="Use the source audio here">Source audio</button><button id="target-mode" title="Use the target's own audio here">Target audio</button></div>
@@ -141,9 +142,9 @@
  <div class="keys">
   <section><h3>Playback</h3><dl><dt>Space</dt><dd>Play / pause</dd><dt>← →</dt><dd>One frame</dd><dt>Shift+← →</dt><dd>Ten frames</dd><dt>Home / End</dt><dd>Start / end</dd><dt>P</dt><dd>Play across the selected join</dd><dt>A</dt><dd>Swap output ↔ target audio</dd><dt>Esc</dt><dd>Stop, or cancel a drag</dd></dl></section>
   <section><h3>Review</h3><dl><dt>J / L</dt><dd>Previous / next review point</dd><dt>R</dt><dd>Mark the point as checked</dd><dt>F</dt><dd>Zoom to the clip</dd><dt>Shift+F</dt><dd>Show everything</dd><dt>Ctrl+scroll</dt><dd>Zoom the timeline</dd><dt>+ / −</dt><dd>Zoom in / out</dd></dl></section>
-  <section><h3>Editing</h3><dl><dt>V / C / Y</dt><dd>Select / Razor / Slip</dd><dt>N</dt><dd>Snapping on / off</dd><dt>S</dt><dd>Split at the playhead</dd><dt>Q / W</dt><dd>Trim start / end to the playhead</dd><dt>, / .</dt><dd>Audio 1 frame earlier / later</dd><dt>Alt+, / Alt+.</dt><dd>Audio 10 ms earlier / later</dd><dt>I / O</dt><dd>Mark In / Out</dd><dt>Ctrl+C / X / V</dt><dd>Copy / cut / paste audio</dd><dt>Ctrl+Z / Y</dt><dd>Undo / redo</dd><dt>Ctrl+S</dt><dd>Save As…</dd><dt>Shift+Delete</dt><dd>Ripple delete range / clip</dd><dt>Ctrl+I</dt><dd>Import media</dd><dt>B</dt><dd>Insert the selected media at the playhead</dd></dl></section>
+  <section><h3>Editing</h3><dl><dt>V / C / Y</dt><dd>Select / Razor / Slip</dd><dt>N</dt><dd>Snapping on / off</dd><dt>S</dt><dd>Split at the playhead</dd><dt>Q / W</dt><dd>Trim start / end to the playhead</dd><dt>, / .</dt><dd>Audio 1 frame earlier / later</dd><dt>Alt+, / Alt+.</dt><dd>Audio 10 ms earlier / later</dd><dt>I / O</dt><dd>Mark In / Out</dd><dt>Ctrl+C / X / V</dt><dd>Copy / cut / paste audio</dd><dt>Ctrl+Z / Y</dt><dd>Undo / redo</dd><dt>Ctrl+S</dt><dd>Save As…</dd><dt>Shift+Delete</dt><dd>Ripple delete range / clip</dd><dt>Shift+F</dt><dd>Fill the range with motion from the frame at In</dd><dt>Ctrl+I</dt><dd>Import media</dd><dt>B</dt><dd>Insert the selected media at the playhead</dd></dl></section>
  </div>
- <p class="small-note">Audio edits never move the picture. Picture edits (ripple delete, inserted media) move everything after them together, so synced audio stays on its picture. Edits are kept automatically until you save.</p>
+ <p class="small-note">Audio edits never move the picture. Picture edits (ripple delete, inserted media) move everything after them together; a motion fill only replaces the picture in its range, so synced audio stays on its picture. Edits are kept automatically until you save.</p>
  <form method="dialog"><button class="primary">Close</button></form>
 </dialog>
 <audio id="audio-player" preload="auto"></audio>

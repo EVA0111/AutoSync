@@ -68,3 +68,13 @@ test('edited video timeline is validated before saving',()=>{
  assert.throws(()=>validateTimeline({duration:10,kept:[{start:0,end:10,output_start:0,media:'C:/other.mp4'}]},plan,media),/Unknown imported/);
  assert.throws(()=>validateTimeline({duration:20,kept:[{start:0,end:10,output_start:0,original_start:0,original_end:10},{start:10,end:20,output_start:11,original_start:10,original_end:20}]},plan,media),/contiguous/);
 });
+
+test('motion fills pass validation with their held frame',()=>{
+ const {validateTimeline}=require('./alignment-model.cjs');
+ const plan={duration:100,segments:[]},media=()=>{};
+ const ok=validateTimeline({duration:100,kept:[{start:0,end:20,output_start:0,original_start:0,original_end:20},
+  {start:20,end:24,output_start:20,original_start:20,original_end:24,fill:'motion',hold:20},
+  {start:24,end:100,output_start:24,original_start:24,original_end:100}]},plan,media);
+ assert.equal(ok.kept[1].fill,'motion');assert.equal(ok.kept[1].hold,20);
+ assert.throws(()=>validateTimeline({duration:100,kept:[{start:0,end:100,output_start:0,original_start:0,original_end:100,fill:'blur',hold:3}]},plan,media),/motion fill/);
+});

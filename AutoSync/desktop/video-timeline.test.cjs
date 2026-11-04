@@ -64,3 +64,15 @@ test('refuses bad edits',()=>{
  assert.throws(()=>vt.insertClip(vt.fromPlan(plan),5,clip,10,5),/longer than the file/);
  assert.throws(()=>vt.replaceAudio(vt.fromPlan(plan),5,8,{...clip,hasAudio:false}),/no audio/);
 });
+
+test('motion fill replaces only the picture in the range, holding the frame at In',()=>{
+ const tl=vt.fillRange(vt.fromPlan(plan),20,24);
+ assert.equal(tl.duration,plan.duration);
+ assert.deepEqual(JSON.parse(JSON.stringify(tl.segments)),JSON.parse(JSON.stringify(vt.fromPlan(plan).segments)));   // sound unchanged
+ const fill=tl.kept.find(k=>k.fill);
+ near(fill.hold,20,'held frame');near(vt.pictureAt(tl.kept,23).target,20,'previewed as the held frame');
+ near(vt.pictureAt(tl.kept,25).target,25,'after the fill');
+ const split=vt.splitKept(tl.kept,22).filter(k=>k.fill);
+ assert.equal(split.length,2);assert.ok(split.every(k=>Math.abs(k.hold-20)<1e-9));
+ assert.throws(()=>vt.fillRange(vt.fromPlan(plan),5,5),/Mark a range/);
+});

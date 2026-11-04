@@ -249,11 +249,18 @@ def requires_explicit_reference_fallback(segments):
 
 
 def censored_render_plan(plan,out):
-    """The plan to render: scenes a censored dub removed and marked "cut" are removed."""
+    """The plan to render: scenes a censored dub removed and marked "cut" are removed.
+
+    Preview & Edit allows only motion fills on such a plan (they keep every
+    time in place); they are laid on after the cuts and rebuilds.
+    """
     import censorship
-    if not plan.get('censorship') or plan.get('video_edits') or not censorship.needs_cut(plan):return plan
-    from video_edits import remove_missing
-    edited=remove_missing(plan)
+    if not plan.get('censorship') or not censorship.needs_cut(plan):return plan
+    kept=(plan.get('video_edits') or {}).get('kept') or []
+    if any(k.get('media') or abs(float(k['start'])-float(k['output_start']))>1e-3 for k in kept):return plan   # other picture edits
+    from video_edits import remove_missing,apply_fills
+    base={k:v for k,v in plan.items() if k!='video_edits'}
+    edited=apply_fills(remove_missing(base),[k for k in kept if k.get('fill')])
     (Path(out)/'edited_plan.json').write_text(json.dumps(edited,indent=2),encoding='utf-8')
     (Path(out)/'video_edits.json').write_text(json.dumps(edited['video_edits'],indent=2),encoding='utf-8')
     return edited

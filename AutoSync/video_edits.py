@@ -207,7 +207,7 @@ def map_anchors(anchors,plan):
     rows=[]
     for row in anchors:
         for k in plan['video_edits']['kept']:
-            if k.get('media') or k.get('recreated'):continue
+            if k.get('media') or k.get('recreated') or k.get('fill'):continue
             if k['start']<=row[0]<k['end']:
                 q=row.copy();q[0]+=k['output_start']-k['start'];rows.append(q);break
     return np.asarray(rows,dtype=float).reshape((-1,anchors.shape[1]))
@@ -225,6 +225,56 @@ def target_picture(path):
     return int(v['width']),int(v['height']),sar.replace(':','/'),rate
 
 
+def fill_pieces(plan):
+    """Motion fills from Preview & Edit ({fill:'motion', hold}) as held pieces with their safe sway.
+
+    The frames around the held one are looked at here, at export: it plays back
+    and forth only over frames that differ from it in small interior parts
+    (picture_timeline.sway_fine); otherwise it holds still.
+    """
+    kept=plan['video_edits']['kept']
+    if not any(k.get('fill') and not k.get('recreated') for k in kept):return kept
+    import picture_timeline as pt
+    info=pt.stream_info(plan['target_video'],vc.binary('ffprobe'));out=[]
+    for k in kept:
+        if not k.get('fill') or k.get('recreated'):out.append(k);continue
+        h=float(k['hold']);f=int(round((h-(info['origin']-info['start']))*pt.FPS))
+        first=max(0,f-15);k=dict(k,recreated=True,length=float(k['end'])-float(k['start']))
+        try:
+            lo,hi=pt.sway_fine(pt.fine_decode(plan['target_video'],first,31,info,ffmpeg=vc.binary('ffmpeg')),f-first)
+            if hi-lo>=3:k['sway']=[h+lo/pt.FPS,h+hi/pt.FPS]
+        except (RuntimeError,ValueError,OSError):pass   # no frames to look at: hold still
+        out.append(k)
+    return out
+
+
+def apply_fills(edited,fills):
+    """Lay Preview & Edit motion fills (ranges in the analysed plan's time) onto an edited
+    plan's video pieces, after censored-dub cuts and rebuilds: each target piece the fill
+    overlaps is split and the overlap shows the fill."""
+    if not fills:return edited
+    e=copy.deepcopy(edited);out=[]
+    for k in e['video_edits']['kept']:
+        if k.get('media') or k.get('recreated') or k.get('fill'):out.append(k);continue
+        u,end=float(k['start']),float(k['end']);pieces=[]
+        for f in sorted(fills,key=lambda f:float(f['start'])):
+            lo,hi=max(u,float(f['start'])),min(end,float(f['end']))
+            if hi-lo<=1e-6:continue
+            if lo>u:pieces.append((u,lo,None))
+            pieces.append((lo,hi,float(f['hold'])));u=hi
+        if not pieces:out.append(k);continue
+        if end>u:pieces.append((u,end,None))
+        for lo,hi,h in pieces:
+            o=float(k['output_start'])+lo-float(k['start'])
+            if h is None:
+                a=float(k['original_start'])+lo-float(k['start'])
+                out.append(dict(start=lo,end=hi,output_start=o,original_start=a,original_end=a+hi-lo))
+            else:
+                out.append(dict(start=lo,end=hi,output_start=o,original_start=h,original_end=h+hi-lo,fill='motion',hold=h))
+    e['video_edits']['kept']=out
+    return e
+
+
 def media_graph(plan):
     """Inputs and filter graph for an output made of target ranges, imported clips and
     rebuilt dub material (held or repeated target frames), in output order."""
@@ -234,11 +284,12 @@ def media_graph(plan):
     inputs=[['-i',plan['target_video']]];index={};chains=[];labels=[]
     # With rebuilt dub material (many short pieces) every target piece gets its
     # exact frame count from the output clock, so rounding cannot accumulate.
-    exact=any(k.get('recreated') for k in plan['video_edits']['kept'])
+    kept=fill_pieces(plan)
+    exact=any(k.get('recreated') for k in kept)
     def frames(start,length):
         o=Fraction(start).limit_denominator(10**6);e=o+Fraction(length).limit_denominator(10**6)
         return round(e*fr)-round(o*fr)
-    for n,k in enumerate(plan['video_edits']['kept']):
+    for n,k in enumerate(kept):
         if exact and frames(k['output_start'],k['length'] if k.get('recreated') else k['end']-k['start'] if k.get('media') else k['original_end']-k['original_start'])<=0:
             continue                         # shorter than half a frame on the output clock
         if k.get('recreated') and k.get('sway'):
@@ -290,7 +341,7 @@ def media_graph(plan):
 def export_video(plan,audio,out,codec='h264',preset='veryfast'):
     out=Path(out);dest=out/'edited_episode.mkv';tmp=out/'edited_episode.partial.mkv'
     if dest.exists():raise RuntimeError('Edited video already exists; use a new output folder.')
-    if any(k.get('media') or k.get('recreated') for k in plan['video_edits']['kept']):
+    if any(k.get('media') or k.get('recreated') or k.get('fill') for k in plan['video_edits']['kept']):
         return export_with_media(plan,audio,dest,tmp,codec,preset,out)
     intervals=[]
     for k in plan['video_edits']['kept']:
