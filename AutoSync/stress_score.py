@@ -113,7 +113,14 @@ def score_censorship(plan, truth):
                          edge_max_ms=round(max(edges) * 1000, 1) if edges else None,
                          edge_median_ms=round(float(np.median(edges)) * 1000, 1) if edges else None,
                          edges_ok=round(float(np.mean(np.array(edges) <= CENSOR_EDGE)), 3) if edges else None)
-    rep = [(x['source_start'], x['source_end']) for x in found if x['kind'] == 'dub_only']
+    # Dub-only material is every forward source skip between consecutive audio
+    # segments (the report lists one next to a removed scene with that scene).
+    audio = [s for s in plan['segments'] if s['kind'] == 'audio']
+    rep = []
+    for x, y in zip(audio, audio[1:]):
+        end = x['source_start'] + (x['target_end'] - x['target_start']) * x.get('speed', 1.)
+        if y['source_start'] - end > .25:
+            rep.append((end, y['source_start']))
     edges, missed = [], 0
     for t in c['dub_only']:
         hit = [r for r in rep if _overlap(r, t) > 0]
