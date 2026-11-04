@@ -1498,7 +1498,7 @@ def replaced_candidates(FS, FT, DS, frames, src, window=60, margin=.08, low=.85,
 
 
 def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place_cut, audio_cut=None, target_shift=0.,
-                     quiet=None):
+                     quiet=None, audio_place=None):
     """Convert sections into contiguous AutoSync segments in target seconds.
 
     Internally times are decoded-frame seconds (frame k = k/FPS).
@@ -1506,6 +1506,9 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
     target_shift: target time (video-relative) = target frame seconds + target_shift.
     quiet(starts, length): mean target-audio loudness of windows starting at the
     given frame seconds, or None; places inserts inside held shots.
+    audio_place(p, m, starts, length): index of the start (frame seconds) the
+    audio singles out for target-only footage between sections p and m, or
+    None; tried before `quiet`.
     Returns (segments, models, notes).
     """
     d = tl.diagnostics; FT, FS, DT = d['FT'], d['FS'], d['DT']; r = tl.ratio
@@ -1591,7 +1594,12 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
                 # the pictures. Put the extra time where the target audio, which
                 # fills it, is quietest, so no audible sound is doubled or cut.
                 tied = np.flatnonzero(vals >= vals[x] - .5)
-                if quiet is not None and len(tied) >= FPS // 2:
+                # Audio first: the source stops matching the target where the
+                # extra footage starts and matches again where it ends.
+                got = audio_place(p, m, (lo + tied) / FPS, n / FPS) if audio_place is not None and                     len(tied) >= FPS // 2 else None
+                if got is not None:
+                    x = int(tied[got]); how = 'held shot shown longer, placed where the source audio stops and resumes matching'
+                elif quiet is not None and len(tied) >= FPS // 2:
                     loud = quiet((lo + tied) / FPS, n / FPS)
                     if loud is not None:
                         x = int(tied[int(np.argmin(loud))]); how = 'held shot shown longer, placed at the quietest target audio'
