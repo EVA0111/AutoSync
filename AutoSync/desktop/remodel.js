@@ -100,7 +100,8 @@ const censorCard=sideCard('censor-card','Censored or edited dub');
 censorCard.insertAdjacentHTML('beforeend','<label class="field-stack" for="censored_dub">When the dub removed scenes<select id="censored_dub">'+
  '<option value="">Off (the source is complete)</option>'+
  '<option value="restore">Restore with the original audio</option>'+
- '<option value="cut">Cut from the video</option></select></label>'+
+ '<option value="cut">Cut from the video</option>'+
+ '<option value="recreate">Recreate the dub&rsquo;s version (cut them; rebuild its freezes and repeats from the original)</option></select></label>'+
  '<p class="card-note" id="censor-help">Lists every scene the dub removed or re-cut in the report and in Preview &amp; Edit, where you can change each one.</p>'+
  '<div id="censor-fields" class="hidden"></div>');
 fileField('censor-fields',['restored_subtitles','Subtitles for restored scenes (optional)','subtitle','Original-version subtitles: lines inside restored scenes are saved separately']);

@@ -99,18 +99,60 @@ def protect_opening(plan, source_features, target_features, source_length):
     return p
 
 
+def replaced_spans(section):
+    """[(target_start, length, pieces)] of a segment's dub_replaced spans that still lie inside it."""
+    out=[];a,b=section['target_start'],section['target_end'];u=a
+    for x in section.get('dub_replaced') or []:
+        ta=a+(x['source']-section['source_start'])/section['speed']
+        if ta>=u-1e-6 and ta+x['length']<=b+1e-6:
+            out.append((max(ta,u),x['length'],x['pieces']));u=ta+x['length']
+    return out
+
+
 def remove_missing(plan):
     if plan.get('video_edits'):return copy.deepcopy(plan)
-    p=copy.deepcopy(plan);kept=[];removed=[];segments=[];cursor=0.
+    p=copy.deepcopy(plan);kept=[];removed=[];segments=[];cursor=0.;recreated=[]
     shift=p.get('main_trim',{}).get('target_start',0.)+p.get('input_trims',{}).get('target',{}).get('start',0.)
+    rebuild=p.get('censorship',{}).get('recreate');last_audio=None
     for section in p['segments']:
         a,b=section['target_start'],section['target_end']
+        if section['kind']=='audio':
+            import censorship
+            if rebuild and last_audio is not None and censorship.recreatable(last_audio,section):
+                # Censored-dub "recreate": the dub's freeze or repeat, rebuilt from target
+                # frames, carrying the dub audio the plan would otherwise skip.
+                d=section['dub_pictures'];sp=section['speed'];start=cursor
+                for piece in d['pieces']:
+                    n=piece['length']/sp;t=a+piece['at']+shift
+                    k=dict(start=a,end=a,output_start=cursor,recreated=True,length=n)
+                    if piece['hold']:k['hold']=t
+                    else:k.update(original_start=t,original_end=t+n)
+                    kept.append(k);cursor+=n
+                segments.append(dict(kind='audio',target_start=start,target_end=cursor,
+                                     source_start=section['source_start']-d['source_length'],speed=sp,
+                                     dub_recreated=True,reference_target_start=a))
+                recreated.append(dict(start=start,end=cursor,source_seconds=d['source_length']))
+            last_audio=section
         # Censored-dub scenes marked "restore" keep their picture with target audio.
         if section['kind'] in ('reference','verified_gap') and section.get('censored_action')!='restore':
             removed.append(dict(start=a,end=b,reason=section.get('reason','No corresponding source audio')))
             continue
         if section['kind'] not in ('audio','target_outer','reference','verified_gap'):raise ValueError('Unknown segment kind.')
-        kept.append(dict(start=a,end=b,output_start=cursor,original_start=a+shift,original_end=b+shift))
+        u=a
+        for ta,L,pieces in (replaced_spans(section) if rebuild else []):
+            # Shots the dub replaced by a freeze or repeat, at the same length: the
+            # picture is rebuilt from target frames, the audio is unchanged.
+            if ta>u:kept.append(dict(start=u,end=ta,output_start=cursor+u-a,original_start=u+shift,original_end=ta+shift))
+            o=cursor+ta-a;total=sum(x['length'] for x in pieces)
+            for x in pieces:
+                n=x['length']*L/total;t=ta+x['rel']+shift
+                k=dict(start=ta,end=ta,output_start=o,recreated=True,length=n)
+                if x['hold']:k['hold']=t
+                else:k.update(original_start=t,original_end=t+n)
+                kept.append(k);o+=n
+            recreated.append(dict(start=cursor+ta-a,end=cursor+ta-a+L,replaced=True))
+            u=ta+L
+        kept.append(dict(start=u,end=b,output_start=cursor+u-a,original_start=u+shift,original_end=b+shift))
         segments.append(dict(section,target_start=cursor,target_end=cursor+b-a,reference_target_start=a))
         cursor+=b-a
     if not segments:raise ValueError('No video with usable source audio remains.')
@@ -130,7 +172,11 @@ def remove_missing(plan):
             reviews.append(dict(start=max(0,t-1),end=min(cursor,t+1),splice=t,confidence='supported',reason='Target-only video removed; inspect the new join'))
     if removed:
         reviews.append(dict(start=0.,end=cursor,confidence='estimated',reason='Target sections without source audio were removed. Review edited video, including start/end.'))
-    p.update(segments=segments,duration=cursor,review=reviews,video_edits=dict(original_target_duration=p['duration'],kept=kept,removed=removed))
+    for x in recreated:
+        reviews.append(dict(start=x['start'],end=x['end'],splice=x['start'],confidence='supported',
+                            reason=(f"Shots the dub replaced ({x['end']-x['start']:.2f}s) rebuilt from the target frames it shows instead; preview" if x.get('replaced') else
+                                    f"Dub-only material ({x['source_seconds']:.2f}s) rebuilt from held/repeated target frames; dub audio kept; preview")))
+    p.update(segments=segments,duration=cursor,review=reviews,video_edits=dict(original_target_duration=p['duration'],kept=kept,removed=removed,recreated=recreated))
     p['source_cuts']=source_cuts(segments)
     return p
 
@@ -139,7 +185,7 @@ def map_anchors(anchors,plan):
     rows=[]
     for row in anchors:
         for k in plan['video_edits']['kept']:
-            if k.get('media'):continue
+            if k.get('media') or k.get('recreated'):continue
             if k['start']<=row[0]<k['end']:
                 q=row.copy();q[0]+=k['output_start']-k['start'];rows.append(q);break
     return np.asarray(rows,dtype=float).reshape((-1,anchors.shape[1]))
@@ -158,11 +204,31 @@ def target_picture(path):
 
 
 def media_graph(plan):
-    """Inputs and filter graph for an output made of target ranges and imported clips (in output order)."""
+    """Inputs and filter graph for an output made of target ranges, imported clips and
+    rebuilt dub material (held or repeated target frames), in output order."""
+    from fractions import Fraction
     W,H,sar,rate=target_picture(plan['target_video'])
+    fr=Fraction(rate)
     inputs=[['-i',plan['target_video']]];index={};chains=[];labels=[]
+    # With rebuilt dub material (many short pieces) every target piece gets its
+    # exact frame count from the output clock, so rounding cannot accumulate.
+    exact=any(k.get('recreated') for k in plan['video_edits']['kept'])
+    def frames(start,length):
+        o=Fraction(start).limit_denominator(10**6);e=o+Fraction(length).limit_denominator(10**6)
+        return round(e*fr)-round(o*fr)
     for n,k in enumerate(plan['video_edits']['kept']):
-        if k.get('media'):
+        if exact and frames(k['output_start'],k['length'] if k.get('recreated') else k['end']-k['start'] if k.get('media') else k['original_end']-k['original_start'])<=0:
+            continue                         # shorter than half a frame on the output clock
+        if k.get('recreated'):
+            N=frames(k['output_start'],k['length'])
+            # Half a frame either side: a piece shorter than a target frame still holds one.
+            h=.5/float(fr)
+            a,b=(k['hold']-h,k['hold']+h) if 'hold' in k else (k['original_start']-h,k['original_end']+h)
+            # The target's own frames, renumbered at its rate (an fps filter would
+            # drop a lone frame at end of stream), then padded/cut to exactly N.
+            chains.append(f'[0:v:0]trim=start={max(0.,a):.9f}:end={b:.9f},setpts=PTS-STARTPTS,scale={W}:{H},setsar={sar},format=yuv420p,'
+                          f'tpad=stop_mode=clone:stop={N},trim=end_frame={N},setpts=N/({rate})/TB[p{n}]')
+        elif k.get('media'):
             m=str(k['media'])
             if m not in index:
                 index[m]=len(inputs)
@@ -174,16 +240,20 @@ def media_graph(plan):
             chains.append(f'[{i}:v:0]trim=start={a:.9f}:end={b:.9f},setpts=PTS-STARTPTS,{fit},setsar={sar},fps={rate},format=yuv420p[p{n}]')
         else:
             a,b=k['original_start'],k['original_end']
-            chains.append(f'[0:v:0]trim=start={a:.9f}:end={b:.9f},setpts=PTS-STARTPTS,scale={W}:{H},setsar={sar},fps={rate},format=yuv420p[p{n}]')
+            fit=f',tpad=stop_mode=clone:stop=1,trim=end_frame={frames(k["output_start"],b-a)}' if exact else ''
+            chains.append(f'[0:v:0]trim=start={a:.9f}:end={b:.9f},setpts=PTS-STARTPTS,scale={W}:{H},setsar={sar},fps={rate},format=yuv420p{fit}[p{n}]')
         labels.append(f'[p{n}]')
-    chains.append(''.join(labels)+f'concat=n={len(labels)}:v=1:a=0[v]')
+    # Every piece is at the target rate; one-frame rebuilt pieces carry no frame
+    # duration, so concat would stack them on one timestamp. Renumber the output.
+    renumber=f',setpts=N/({rate})/TB' if exact else ''
+    chains.append(''.join(labels)+f'concat=n={len(labels)}:v=1:a=0{renumber}[v]')
     return inputs,';\n'.join(chains)
 
 
 def export_video(plan,audio,out,codec='h264',preset='veryfast'):
     out=Path(out);dest=out/'edited_episode.mkv';tmp=out/'edited_episode.partial.mkv'
     if dest.exists():raise RuntimeError('Edited video already exists; use a new output folder.')
-    if any(k.get('media') for k in plan['video_edits']['kept']):
+    if any(k.get('media') or k.get('recreated') for k in plan['video_edits']['kept']):
         return export_with_media(plan,audio,dest,tmp,codec,preset,out)
     intervals=[]
     for k in plan['video_edits']['kept']:

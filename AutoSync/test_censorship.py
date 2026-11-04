@@ -124,6 +124,79 @@ class SmoothSwitch(unittest.TestCase):
         self.assertAlmostEqual(rms(5, 7) / rms(1, 3), .5, delta=.05)          # 10x = +20 dB at most
 
 
+
+def recreate_episode():
+    """episode() with the engine's findings: the 2 s dub-only spot is a 1.5 s freeze of
+    target 68.0 s then 0.5 s of target 60.0-60.5 s; the dub replaced 52-54 s with a hold."""
+    p = episode()
+    p['target_video'] = 't.mkv'
+    p['segments'][4]['dub_pictures'] = dict(source_length=2., pieces=[
+        dict(at=-2., length=1.5, hold=True), dict(at=-10., length=.5, hold=False)])
+    p['segments'][3]['dub_replaced'] = [dict(source=35., length=2., pieces=[dict(rel=-1., length=2., hold=True)])]
+    return p
+
+
+class Recreate(unittest.TestCase):
+    """Censored-dub "recreate": the dub's own edit, rebuilt from the original's pictures."""
+    def test_removed_scenes_are_cut_and_dub_material_is_rebuilt(self):
+        p = censorship.annotate(recreate_episode(), 'recreate')
+        self.assertEqual(p['segments'][2]['censored_action'], 'cut')
+        self.assertTrue(censorship.needs_cut(p))
+        found = {x['kind']: x for x in censorship.scenes(p)}
+        self.assertEqual(found['dub_only']['action'], 'recreate')
+        self.assertEqual(found['replaced']['action'], 'recreate')
+        self.assertAlmostEqual(found['replaced']['start'], 52.)
+        self.assertTrue(any('rebuilt from held' in line for line in censorship.report(p)))
+        edited = remove_missing(p)
+        # 10 s removed scene cut, 2 s of dub-only material added: every dub second plays.
+        self.assertAlmostEqual(edited['duration'], 92.)
+        audio = [s for s in edited['segments'] if s['kind'] == 'audio']
+        for a, b in zip(audio, audio[1:]):
+            self.assertAlmostEqual(b['target_start'], a['target_end'])
+        ends = [(a['source_start'] + (a['target_end'] - a['target_start']) * a['speed'], b['source_start'])
+                for a, b in zip(audio, audio[1:])]
+        self.assertTrue(all(abs(x - y) < 1e-6 for x, y in ends[1:]))   # only the cut scene's own jump remains
+        rebuilt = [k for k in edited['video_edits']['kept'] if k.get('recreated')]
+        self.assertEqual([k.get('hold') for k in rebuilt], [51., 68., None])
+        self.assertAlmostEqual(rebuilt[0]['output_start'], 42.)     # replaced shot inside the dub's segment
+        self.assertAlmostEqual(rebuilt[1]['output_start'], 60.)     # dub-only freeze before the dub resumes
+        self.assertAlmostEqual(rebuilt[2]['output_start'], 61.5)
+        self.assertAlmostEqual(rebuilt[2]['original_start'], 60.)
+
+    def test_restore_and_cut_ignore_the_rebuild_data(self):
+        for action, duration in (('restore', 100.), ('cut', 90.)):
+            p = censorship.annotate(recreate_episode(), action)
+            if action == 'cut':
+                edited = remove_missing(p)
+                self.assertAlmostEqual(edited['duration'], duration)
+                self.assertFalse(any(k.get('recreated') for k in edited['video_edits']['kept']))
+            self.assertEqual({x['action'] for x in censorship.scenes(p) if x['kind'] == 'dub_only'}, {'skip'})
+
+    def test_trimmed_segment_is_not_rebuilt(self):
+        p = recreate_episode()
+        p['segments'][4].update(target_start=71., source_start=56.)   # its start moved: the skip no longer matches
+        p = censorship.annotate(p, 'recreate')
+        self.assertEqual([x['action'] for x in censorship.scenes(p) if x['kind'] == 'dub_only'], ['skip'])
+
+    def test_export_graph_has_exact_frame_counts(self):
+        import video_edits
+        p = remove_missing(censorship.annotate(recreate_episode(), 'recreate'))
+        kept = p['video_edits']['kept']
+        kept.insert(3, dict(start=0., end=0., output_start=kept[3]['output_start'], recreated=True,
+                            length=.01, hold=5.))          # rounds to no frame: left out
+        old = video_edits.target_picture
+        video_edits.target_picture = lambda path: (64, 48, '1/1', '24000/1001')
+        try:
+            _, graph = video_edits.media_graph(p)
+        finally:
+            video_edits.target_picture = old
+        import re
+        self.assertNotIn('trim=start=4.979', graph)
+        counts = [int(x) for x in re.findall(r'trim=end_frame=(\d+)', graph)]
+        self.assertEqual(sum(counts), round(92. * 24000 / 1001))
+        self.assertIn('setpts=N/(24000/1001)/TB[v]', graph)
+
+
 if __name__ == '__main__':
     unittest.main()
 

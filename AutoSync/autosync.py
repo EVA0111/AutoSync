@@ -523,6 +523,7 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
         i1=np.clip(i0+max(1,int(round(length*50))),0,len(energy_t))
         return (c[i1]-c[i0])/np.maximum(i1-i0,1)
     segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut,target_shift=ti['origin']-ti['start'],quiet=quiet)
+    dub_only_pictures(tl,segments,shift,ti['origin']-ti['start'])
     rows=[[t,m['speed']*t+m['offset'],1.] for m in models for t in np.arange(m['first'],m['last']+1e-6,2.)]
     anchors=np.asarray(rows,dtype=float).reshape(-1,3)
     visual=anchors.copy();visual[:,1]-=shift+delay
@@ -534,6 +535,53 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
         return f'{cw}:{ch}:{int(round(x0*w))}:{int(round(y0*h))}'
     say(f'Picture timeline: {len(models)} timed sections; '+', '.join(f"{n['start']:.2f}s" for n in notes if 'splice' in n)[:600])
     return segments,models,notes,anchors,visual,tl.ratio,crop(tl.geometry['source'],si),crop(tl.geometry['target'],ti),ref_t,energy_t
+
+def dub_only_pictures(tl,segments,shift,ts):
+    """Attach to audio segments the target pictures a censored dub shows instead of the target's own.
+
+    A censored dub covers a removed scene with a freeze or a repeat of nearby
+    shots: either as extra material (a forward source skip; ``dub_pictures``
+    on the segment after it) or in place of the censored shots at the same
+    length (``dub_replaced`` spans inside a segment). Censored-dub "recreate"
+    rebuilds both from the target's own pictures so the exported video shows
+    what the dub shows and none of its audio is skipped (see censorship.py).
+    """
+    import picture_timeline as pt
+    d=tl.diagnostics;FS,FT,DS=d['FS'],d['FT'],d['DS'];F=pt.FPS;r=tl.ratio
+    for s in segments:
+        if s['kind']!='audio':continue
+        f=np.arange(int(np.ceil((s['target_start']-ts)*F)),int(np.floor((s['target_end']-ts)*F)))
+        f=f[(f>=0)&(f<len(FT))]
+        if len(f)<4:continue
+        src=np.round((s['source_start']+(f/F+ts-s['target_start'])*s['speed']-shift)*F).astype(int)
+        runs,score=pt.replaced_spans(FS,FT,DS,f,src)
+        good=score[score>=.6];ref=float(np.median(good)) if len(good) else pt.MATCH
+        spans=[]
+        for i0,i1 in runs:
+            got=pt.dub_pictures(FS,FT,src[i0],src[i1-1]+1,int(f[i0]),ref)
+            if got:
+                # Located by source time, pieces relative to the span: both survive trims of the segment.
+                spans.append(dict(source=round(s['source_start']+(f[i0]/F+ts-s['target_start'])*s['speed'],6),
+                                  length=round((i1-i0)/F,6),pieces=[
+                    dict(rel=round((g-f[i0])/F,6),length=round(n/F,6),hold=bool(h)) for g,n,h in got]))
+        if spans:s['dub_replaced']=spans
+    matched=[x for x in tl.sections if x['kind']=='match']
+    prev=None
+    for s in segments:
+        if s['kind']!='audio':continue
+        if prev is not None:
+            end=prev['source_start']+(prev['target_end']-prev['target_start'])*prev['speed']
+            skip=s['source_start']-end
+            if skip>.25:
+                near=int(round((s['target_start']-ts)*F))
+                p=next((x for x in reversed(matched) if x['first']<near),None);m=next((x for x in matched if x['last']>near),None)
+                ref=min(pt.match_score(FT,FS,r,x,near-10*F,near+10*F) for x in (p,m) if x is not None) if (p or m) else pt.MATCH
+                got=pt.dub_pictures(FS,FT,(end-shift)*F,(s['source_start']-shift)*F,near,ref)
+                if got:
+                    s['dub_pictures']=dict(source_length=round(skip,6),pieces=[
+                        dict(at=round(f/F+ts-s['target_start'],6),length=round(n/F,6),hold=bool(h)) for f,n,h in got])
+        prev=s
+
 
 def run_job(job,args):
     from input_trims import prepare
@@ -863,7 +911,7 @@ def main():
     p.add_argument('--timing',choices=['picture','audio'],default='picture',help='picture: map target pictures to source pictures (default when both videos are given); audio: legacy cross-soundtrack anchors')
     p.add_argument('--sync-method',choices=['standard','ai_assisted'],default='standard',help='Optional pretrained AST audio features and DINOv2 visual rescue; install AI Sync in Settings first')
     p.add_argument('--remove-unmatched-video',action='store_true',help='Remove target sections with no source audio and export edited video + FLAC')
-    p.add_argument('--censored-dub',choices=('restore','cut'),help='Source is a censored or re-edited dub: report every scene it removed and either restore it with the original audio or cut it from the video (per scene in Preview & Edit)')
+    p.add_argument('--censored-dub',choices=('restore','cut','recreate'),help='Source is a censored or re-edited dub: report every scene it removed and either restore it with the original audio or cut it from the video (per scene in Preview & Edit); recreate also cuts them and rebuilds the dub freezes and repeats from the target pictures, so all dub audio is kept')
     p.add_argument('--restored-subtitles',help='Subtitles for the original (target) version: write restored_scenes.srt with the lines inside restored scenes')
     p.add_argument('--reference-fallback',action='store_true',help='Use target soundtrack only for missing source bounds; may switch languages')
     p.add_argument('--cut-times',default='',help='Known target join times in seconds, comma separated; applies to detected cuts')

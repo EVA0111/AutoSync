@@ -1142,6 +1142,88 @@ def held_span(FT, FS, r, lo, hi, oa, ob, limit=30):
     return lo, hi
 
 
+def dub_pictures(FS, FT, src_lo, src_hi, near, ref_score, window=60):
+    """The target pictures a stretch of dub-only source frames shows, or None.
+
+    Censored dubs often cover a removed scene by freezing a frame or repeating
+    shots from around it while the dub's dialogue goes on. Every source frame
+    in [src_lo, src_hi) is looked up among target frames within +-window s of
+    target frame `near`. A run of identical source frames (a freeze) is one
+    held target frame; moving frames follow consecutive target frames. Returns
+    [(target_frame, source_frames, hold)] when every piece matches about as
+    well as the neighbouring matched sections do (ref_score), else None: then
+    the material is the dub's own and cannot be rebuilt from the target.
+    """
+    src = np.arange(max(0, int(round(src_lo))), min(len(FS), int(round(src_hi))))
+    if not len(src):
+        return None
+    lo, hi = max(0, near - window * FPS), min(len(FT), near + window * FPS)
+    if hi - lo < 1:
+        return None
+    S = FS[src].astype(np.float32); T = FT[lo:hi].astype(np.float32)
+    sim = S @ T.T
+    pieces, got, i = [], [], 0
+    while i < len(src):
+        j = i + 1
+        while j < len(src) and float(S[j] @ S[i]) > .99:
+            j += 1                                   # a freeze: identical source frames
+        if j - i >= 3:
+            k = int(np.argmax(sim[i:j].mean(0)))
+            pieces.append((lo + k, j - i, True)); got += list(sim[i:j, k])
+        else:
+            k = int(np.argmax(sim[i])); j = i + 1
+            while j < len(src) and k + j - i < len(T) and sim[j, k + j - i] >= sim[j].max() - .02 and                     float(S[j] @ S[j - 1]) <= .99:
+                j += 1                               # follows consecutive target frames
+            pieces.append((lo + k, j - i, False)); got += [sim[i + n, k + n] for n in range(j - i)]
+        i = j
+    if np.percentile(got, 10) < max(MATCH, ref_score - .06):
+        return None
+    out = []
+    for f, n, hold in pieces:                         # one-frame runs inside a hold are compression noise
+        if out and out[-1][2] == hold and (hold and abs(out[-1][0] - f) <= 1 or
+                                           not hold and out[-1][0] + out[-1][1] == f):
+            out[-1] = (out[-1][0], out[-1][1] + n, hold)
+        else:
+            out.append((f, n, hold))
+    return out
+
+
+def replaced_spans(FS, FT, DS, frames, src, min_len=4, differ=.6):
+    """[(i0, i1)] runs in `frames` where the dub shows a different shot than the target.
+
+    frames: target frames; src: the source (dub) frame each one is mapped to.
+    Censored dubs often replace a shot with a repeat of another, keeping the
+    length, so the timing holds while the picture differs. A run counts when
+    informative dub frames score below `differ` (true matches score ~0.9;
+    another shot ~0.1-0.3) for at least min_len frames; gaps of two frames
+    inside a run are bridged.
+    """
+    ok = (src >= 1) & (src < len(FS) - 1) & (frames < len(FT))
+    score = np.ones(len(frames))
+    if ok.any():
+        f, j = frames[ok], src[ok]
+        score[ok] = np.max([np.sum(FT[f] * FS[j + k], axis=1) for k in (-1, 0, 1)], axis=0)
+    bad = ok & (score < differ) & (DS[np.clip(src, 0, len(DS) - 1)] > 6)
+    runs, i = [], 0
+    idx = np.flatnonzero(bad)
+    while i < len(idx):
+        j = i
+        while j + 1 < len(idx) and idx[j + 1] - idx[j] <= 3:
+            j += 1
+        if idx[j] + 1 - idx[i] >= min_len:
+            runs.append((int(idx[i]), int(idx[j]) + 1))
+        i = j + 1
+    return runs, score
+
+
+def match_score(FT, FS, r, sec, lo, hi):
+    """Median picture similarity of a matched section over target frames [lo, hi)."""
+    lo, hi = max(lo, sec['first']), min(hi, sec['last'])
+    if hi - lo < 2:
+        return MATCH
+    return float(np.median(frame_scores(FT, FS, r, lo, hi, offset_at(sec, (lo + hi) / 2))))
+
+
 def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place_cut, audio_cut=None, target_shift=0.,
                      quiet=None):
     """Convert sections into contiguous AutoSync segments in target seconds.

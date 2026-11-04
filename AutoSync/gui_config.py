@@ -105,7 +105,7 @@ def build_command(values, job_type):
         if v.get(key):cmd.append('--'+key.replace('_','-'))
     censored=str(v.get('censored_dub','')).strip();subtitles=str(v.get('restored_subtitles','')).strip()
     if censored:
-        if censored not in ('restore','cut'):raise ValueError('Unknown censored-dub choice.')
+        if censored not in ('restore','cut','recreate'):raise ValueError('Unknown censored-dub choice.')
         if v.get('remove_unmatched_video'):raise ValueError('Censored-dub "cut" already removes the scenes the dub removed; turn off Remove target sections with no source audio.')
         cmd+=['--censored-dub',censored]
         if subtitles:cmd+=['--restored-subtitles',check_file(subtitles,'Subtitles for restored scenes')]

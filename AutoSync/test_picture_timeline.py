@@ -451,3 +451,36 @@ class RateFromSections(unittest.TestCase):
             got = next(s['source_start'] + (x - s['target_start']) * s['speed'] for s in segs
                        if s['kind'] == 'audio' and s['target_start'] <= x < s['target_end'])
             self.assertAlmostEqual(got, 120 + (x - 90) * 25 / 24, delta=.04)
+
+
+class CensoredDubPictures(unittest.TestCase):
+    """A censored dub's freezes and repeats are found among the original's frames."""
+    def setUp(self):
+        rng = np.random.default_rng(3)
+        shots = rng.normal(size=(40, 64))                # 40 shots of 25 frames, slight motion inside
+        T = np.repeat(shots, 25, axis=0) + .15 * rng.normal(size=(1000, 64))
+        self.FT = (T / np.linalg.norm(T, axis=1, keepdims=True)).astype(np.float32)
+        self.DS = np.full(2000, 30.)
+
+    def test_freeze_and_repeat_become_pieces(self):
+        frozen = np.repeat(self.FT[437:438], 30, axis=0)   # a held frame
+        repeat = self.FT[500:510]                          # a repeated stretch
+        FS = np.vstack([self.FT[:400], frozen, repeat, self.FT[400:]])
+        got = pt.dub_pictures(FS, self.FT, 400, 440, 400, ref_score=.95)
+        self.assertEqual(got, [(437, 30, True), (500, 10, False)])
+
+    def test_dub_own_footage_is_not_rebuilt(self):
+        rng = np.random.default_rng(5)
+        own = rng.normal(size=(30, 64)); own /= np.linalg.norm(own, axis=1, keepdims=True)
+        FS = np.vstack([self.FT[:400], own.astype(np.float32), self.FT[400:]])
+        self.assertIsNone(pt.dub_pictures(FS, self.FT, 400, 430, 400, ref_score=.95))
+
+    def test_same_length_replacement_is_found(self):
+        FS = self.FT.copy()
+        FS[300:340] = self.FT[600]                         # 1.6 s of the dub shows another shot, held
+        frames = np.arange(250, 400)
+        runs, score = pt.replaced_spans(FS, self.FT, self.DS, frames, frames.copy())
+        self.assertEqual(len(runs), 1)                     # ends within the +-1 frame match tolerance
+        self.assertLessEqual(abs(frames[runs[0][0]] - 300), 1)
+        self.assertLessEqual(abs(frames[runs[0][1] - 1] + 1 - 340), 1)
+        self.assertGreater(score[:50].min(), .9)
