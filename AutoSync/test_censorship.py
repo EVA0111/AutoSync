@@ -260,6 +260,26 @@ class EditorBlackFill(unittest.TestCase):
         self.assertEqual(sum(int(x) for x in re.findall(r'trim=end_frame=(\d+)', graph)), 250)
 
 
+
+class EditorTrackFootage(unittest.TestCase):
+    def test_footage_from_a_video_track_lands_after_the_cuts(self):
+        from autosync import censored_render_plan
+        p = censorship.annotate(recreate_episode(), 'recreate')
+        # A duplicated, slipped track: analysed 20-25 s shows target footage from 70-75 s.
+        p['video_edits'] = dict(original_target_duration=100., removed=[], kept=[
+            dict(start=0., end=20., output_start=0., original_start=0., original_end=20.),
+            dict(start=20., end=25., output_start=20., original_start=70., original_end=75.),
+            dict(start=25., end=100., output_start=25., original_start=25., original_end=100.)])
+        with tempfile.TemporaryDirectory() as d:
+            r = censored_render_plan(p, d)
+        self.assertAlmostEqual(r['duration'], 92.)
+        moved = [k for k in r['video_edits']['kept'] if not k.get('recreated') and abs(k.get('original_start', -1) - 70.) < 1e-6
+                 and abs(k['output_start'] - 20.) < 1e-6]
+        self.assertEqual(len(moved), 1)
+        self.assertAlmostEqual(moved[0]['output_start'], 20.)            # before the cut scene: same output time
+        self.assertAlmostEqual(moved[0]['original_end'] - moved[0]['original_start'], 5.)
+
+
 if __name__ == '__main__':
     unittest.main()
 

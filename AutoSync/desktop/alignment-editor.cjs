@@ -5,7 +5,7 @@ const path=require('node:path');
 const {execFile,spawn}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
 const {randomUUID,createHash}=require('node:crypto');
-const {validateSegments,validateTimeline,validateOverlays}=require('./alignment-model.cjs');
+const {validateSegments,validateTimeline,validateTracks}=require('./alignment-model.cjs');
 const clips=require('./audio-clip-tools.cjs');
 const timelineGestures=require('./timeline-gestures.cjs');
 const {preparePreviewValues}=require('./preview-request.cjs');
@@ -75,7 +75,7 @@ function createAlignmentEditor(root,python){
  }
  async function registerPlanMedia(){
   project.imports=new Map();
-  const files=new Set([...(project.plan.segments||[]),...(project.plan.video_edits?.kept||[]),...(project.plan.video_edits?.v1||[]),...(project.plan.video_overlays||[])].filter(x=>x.media).map(x=>String(x.media)));
+  const files=new Set([...(project.plan.segments||[]),...(project.plan.video_edits?.kept||[]),...(project.plan.video_edits?.v1||[]),...(project.plan.video_overlays||[]),...(project.plan.video_tracks||[]).flatMap(t=>t.clips||[])].filter(x=>x.media).map(x=>String(x.media)));
   for(const file of files){
    if(!fs.existsSync(file))continue;
    try{project.imports.set(file,await probeMedia(file));}catch{}
@@ -403,10 +403,12 @@ function createAlignmentEditor(root,python){
    // renders `kept`, the flattened picture.
    if(Array.isArray(timeline.v1))value.video_edits.v1=validateTimeline({duration:edit.duration,kept:timeline.v1},project.plan,file=>importedFile(file)).kept;
   }
-  const overlays=validateOverlays(extras?.overlays,value.duration,file=>importedFile(file));
-  if(overlays.length)value.video_overlays=overlays;else delete value.video_overlays;
-  const tracks=extras?.tracks;
-  if(tracks&&typeof tracks==='object')value.editor_tracks={locks:Object.fromEntries(['V2','V1','MIX'].map(k=>[k,!!tracks.locks?.[k]])),hidden:{V2:!!tracks.hidden?.V2}};
+  // Video tracks above V1 (V2, V3 ...) as edited; export renders the flattened `kept`.
+  const vtracks=validateTracks(extras?.videoTracks,project.plan,value.duration,file=>importedFile(file));
+  delete value.video_overlays;
+  if(vtracks.length)value.video_tracks=vtracks;else delete value.video_tracks;
+  const locks=extras?.locks;
+  if(locks&&typeof locks==='object')value.editor_tracks={locks:{V1:!!locks.V1,MIX:!!locks.MIX}};
   // The previous cut-review annotations describe old boundaries, not the edited timeline.
   value.review=[{start:0,end:Math.min(1,value.duration),confidence:'manual',reason:'User-edited sync plan. Verify output joins.'}];
   await fs.promises.writeFile(project.outputPlan,JSON.stringify(value,null,2)+'\n','utf8');

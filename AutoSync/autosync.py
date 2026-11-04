@@ -257,10 +257,13 @@ def censored_render_plan(plan,out):
     import censorship
     if not plan.get('censorship') or not censorship.needs_cut(plan):return plan
     kept=(plan.get('video_edits') or {}).get('kept') or []
-    if any(k.get('media') or abs(float(k['start'])-float(k['output_start']))>1e-3 for k in kept):return plan   # other picture edits
+    if any(abs(float(k['start'])-float(k['output_start']))>1e-3 for k in kept):return plan   # ripple edits: not combinable
+    shift=plan.get('main_trim',{}).get('target_start',0.)+plan.get('input_trims',{}).get('target',{}).get('start',0.)
+    # Edits that keep every time in place: fills, imported clips, footage from video tracks.
+    laid=[k for k in kept if k.get('fill') or k.get('media') or abs(float(k['original_start'])-shift-float(k['start']))>1e-3]
     from video_edits import remove_missing,apply_fills
     base={k:v for k,v in plan.items() if k!='video_edits'}
-    edited=apply_fills(remove_missing(base),[k for k in kept if k.get('fill')])
+    edited=apply_fills(remove_missing(base),laid)
     (Path(out)/'edited_plan.json').write_text(json.dumps(edited,indent=2),encoding='utf-8')
     (Path(out)/'video_edits.json').write_text(json.dumps(edited['video_edits'],indent=2),encoding='utf-8')
     return edited

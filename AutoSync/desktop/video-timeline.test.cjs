@@ -83,19 +83,41 @@ test('black fill needs no target picture and keeps the sound',()=>{
  assert.throws(()=>vt.fillRange(vt.fromPlan(plan),10,12,'blur'),/Unknown fill/);
 });
 
-test('V2 clips cover V1 where they sit and ripple with the timeline',()=>{
+test('video tracks: imported clips cover V1 where they sit and ripple with the timeline',()=>{
  const pic={path:'C:/media/logo.png',name:'logo.png',image:true,hasVideo:true,hasAudio:false,stillSeconds:5};
- let tl=vt.placeOverlay(vt.fromPlan(plan),10,pic,0,4);
- assert.equal(tl.overlays.length,1);near(vt.overlayAt(tl.overlays,12).time,2,'clip time');
- const flat=vt.flatten(tl.kept,tl.overlays);
+ let tl=vt.addTrack(vt.fromPlan(plan));
+ tl=vt.placeMedia(tl,0,10,pic,0,4);
+ assert.equal(vt.clipAt(tl,0,12),0);
+ const flat=vt.flatten(tl.kept,tl.tracks);
  assert.equal(flat.filter(k=>k.media).length,1);near(vt.pictureAt(flat,11).time,1,'covers V1');near(vt.pictureAt(flat,15).target,15,'V1 after');
- tl=vt.placeOverlay(tl,12,clip,0,3);                       // overwrites the end of the first one
- assert.deepEqual(tl.overlays.map(o=>[o.at,o.length]),[[10,2],[12,3]]);
+ tl=vt.placeMedia(tl,0,12,clip,0,3);                       // overwrites the end of the first one
+ assert.deepEqual(tl.tracks[0].clips.map(o=>[o.at,o.length]),[[10,2],[12,3]]);
  tl=vt.rippleDelete(tl,0,5);                                // everything after 5 s moves 5 s earlier
- assert.deepEqual(tl.overlays.map(o=>[o.at,o.length]),[[5,2],[7,3]]);
- tl=vt.moveOverlay(tl,1,20);near(tl.overlays[1].at,20,'moved');
- tl=vt.trimOverlay(tl,1,'end',21);near(tl.overlays[1].length,1,'trimmed');
- tl=vt.removeOverlay(tl,0);assert.equal(tl.overlays.length,1);
- const ins=vt.insertClip(vt.placeOverlay(vt.fromPlan(plan),10,pic,0,4),12,clip,0,2);
- assert.deepEqual(ins.overlays.map(o=>[o.at,o.length]),[[10,2],[14,2]]);   // split at the insert point
+ assert.deepEqual(tl.tracks[0].clips.map(o=>[o.at,o.length]),[[5,2],[7,3]]);
+ tl=vt.moveClip(tl,0,1,20);near(tl.tracks[0].clips[1].at,20,'moved');
+ tl=vt.trimClip(tl,0,1,'end',21);near(tl.tracks[0].clips[1].length,1,'trimmed');
+ tl=vt.removeClip(tl,0,0);assert.equal(tl.tracks[0].clips.length,1);
+ const ins=vt.insertClip(vt.placeMedia(vt.addTrack(vt.fromPlan(plan)),0,10,pic,0,4),12,clip,0,2);
+ assert.deepEqual(ins.tracks[0].clips.map(o=>[o.at,o.length]),[[10,2],[14,2]]);   // split at the insert point
+});
+
+test('duplicating V1 gives an editable copy above it; the top visible clip wins',()=>{
+ const len=k=>k.end-k.start;
+ let tl=vt.fillRange(vt.fromPlan(plan),30,32,'black');
+ tl=vt.duplicateTrack(tl);                                   // V2 = copy of V1, cut for cut
+ assert.equal(tl.tracks.length,1);
+ assert.deepEqual(vt.flatten(tl.kept,tl.tracks).map(k=>[k.output_start,len(k)]),vt.flatten(tl.kept,[]).map(k=>[k.output_start,len(k)]));
+ const i=vt.clipAt(tl,0,50);
+ tl=vt.splitClip(tl,0,i,50);tl=vt.slipClip(tl,0,vt.clipAt(tl,0,55),20);   // the part after 50 s shows footage 20 s later
+ near(vt.pictureAt(vt.flatten(tl.kept,tl.tracks),55).target,75,'slipped footage');
+ near(vt.pictureAt(vt.flatten(tl.kept,tl.tracks),45).target,45,'unchanged before the split');
+ tl=vt.removeClip(tl,0,vt.clipAt(tl,0,55));                 // V1 shows through where the copy is removed
+ near(vt.pictureAt(vt.flatten(tl.kept,tl.tracks),55).target,55,'V1 through the hole');
+ tl={...tl,tracks:tl.tracks.map(t=>({...t,hidden:true}))};
+ near(vt.pictureAt(vt.flatten(tl.kept,tl.tracks),31).target,30,'hidden track: V1 (its black fill holds 30 s)');
+ tl=vt.duplicateTrack(tl,0);assert.equal(tl.tracks.length,2);   // a copy of the copy, above it
+ tl=vt.fillTrack({...tl,tracks:tl.tracks.map(t=>({...t,hidden:false}))},1,60,62,'motion');
+ assert.equal(vt.flatten(tl.kept,tl.tracks).find(k=>Math.abs(k.output_start-60)<1e-9).fill,'motion');
+ tl=vt.deleteTrack(tl,1);assert.equal(tl.tracks.length,1);
+ assert.throws(()=>vt.splitClip(tl,0,0,0),/inside the clip/);
 });

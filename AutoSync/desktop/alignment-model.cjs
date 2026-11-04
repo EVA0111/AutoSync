@@ -98,17 +98,33 @@ function validateTimeline(timeline,plan,knownMedia){
  if(Math.abs(at-duration)>1e-3)throw Error('Video pieces must cover the edited output.');
  return {duration,kept:result};
 }
-/** V2 clips from Preview & Edit: ordered, non-overlapping, inside the output, imported files only. */
-function validateOverlays(rows,duration,knownMedia){
+/** Video tracks above V1 from Preview & Edit: ordered, non-overlapping clips inside the output;
+ * each shows target footage (inside the target video), an imported file, or a fill. */
+function validateTracks(rows,plan,duration,knownMedia){
  if(rows===undefined||rows===null)return [];
- if(!Array.isArray(rows)||rows.length>2000)throw Error('Invalid V2 clips.');
- let end=0;
- return rows.map((o,i)=>{
-  const at=Number(o?.at),length=Number(o?.length),ms=Number(o?.media_start||0);
-  if(![at,length,ms].every(Number.isFinite)||at<end-1e-3||length<=0||at+length>Number(duration)+1e-3||ms<0||typeof o.media!=='string')
-   throw Error('Invalid clip on V2 (clip '+(i+1)+').');
-  knownMedia(o.media);end=at+length;
-  return {at,length,media:o.media,media_start:ms,label:String(o.label||'').slice(0,200),image:!!o.image};
+ if(!Array.isArray(rows)||rows.length>16)throw Error('Invalid video tracks.');
+ const shift=Number(plan.main_trim?.target_start||0)+Number(plan.input_trims?.target?.start||0);
+ const limit=Number(plan.video_edits?.original_target_duration??plan.duration)+shift+.05;
+ return rows.map((t,n)=>{
+  if(!t||!Array.isArray(t.clips)||t.clips.length>5000)throw Error('Invalid video track V'+(n+2)+'.');
+  let end=0;
+  const clips=t.clips.map((c,i)=>{
+   const at=Number(c?.at),length=Number(c?.length),where=' (V'+(n+2)+', clip '+(i+1)+').';
+   if(![at,length].every(Number.isFinite)||at<end-1e-3||length<=0||at+length>Number(duration)+1e-3)throw Error('Clips must be ordered and inside the output'+where);
+   end=at+length;
+   if(c.media!==undefined){
+    const ms=Number(c.media_start||0);if(typeof c.media!=='string'||!Number.isFinite(ms)||ms<0)throw Error('Invalid imported clip'+where);
+    knownMedia(c.media);return {at,length,media:c.media,media_start:ms,label:String(c.label||'').slice(0,200),image:!!c.image};
+   }
+   if(c.fill!==undefined){
+    const h=Number(c.hold);if(!['motion','black'].includes(c.fill)||!Number.isFinite(h)||h<-.05||h>limit)throw Error('Invalid fill'+where);
+    return {at,length,fill:c.fill,hold:h};
+   }
+   const tg=Number(c.target);
+   if(!Number.isFinite(tg)||tg<-.05||tg+length>limit)throw Error('Footage outside the target video'+where);
+   return {at,length,target:tg};
+  });
+  return {clips,locked:!!t.locked,hidden:!!t.hidden};
  });
 }
-module.exports={validateSegments,validateTimeline,validateOverlays,findRegion,sourceTime,originalTargetTime};
+module.exports={validateSegments,validateTimeline,validateTracks,findRegion,sourceTime,originalTargetTime};

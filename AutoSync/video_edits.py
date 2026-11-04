@@ -250,9 +250,10 @@ def fill_pieces(plan):
 
 
 def apply_fills(edited,fills):
-    """Lay Preview & Edit motion fills (ranges in the analysed plan's time) onto an edited
-    plan's video pieces, after censored-dub cuts and rebuilds: each target piece the fill
-    overlaps is split and the overlap shows the fill."""
+    """Lay Preview & Edit picture edits that keep every time in place (fills, imported
+    clips and footage from video tracks; ranges in the analysed plan's time) onto an
+    edited plan's video pieces, after censored-dub cuts and rebuilds: each target piece
+    an edit overlaps is split and the overlap shows the edit."""
     if not fills:return edited
     e=copy.deepcopy(edited);out=[]
     for k in e['video_edits']['kept']:
@@ -262,17 +263,21 @@ def apply_fills(edited,fills):
             lo,hi=max(u,float(f['start'])),min(end,float(f['end']))
             if hi-lo<=1e-6:continue
             if lo>u:pieces.append((u,lo,None))
-            pieces.append((lo,hi,(float(f['hold']),f.get('fill','motion'))));u=hi
+            pieces.append((lo,hi,f));u=hi
         if not pieces:out.append(k);continue
         if end>u:pieces.append((u,end,None))
-        for lo,hi,h in pieces:
+        for lo,hi,f in pieces:
             o=float(k['output_start'])+lo-float(k['start'])
-            if h is not None:h,kind=h
-            if h is None:
+            if f is None:
                 a=float(k['original_start'])+lo-float(k['start'])
                 out.append(dict(start=lo,end=hi,output_start=o,original_start=a,original_end=a+hi-lo))
-            else:
-                out.append(dict(start=lo,end=hi,output_start=o,original_start=h,original_end=h+hi-lo,fill=kind,hold=h))
+            elif f.get('fill'):
+                h=float(f['hold']);out.append(dict(start=lo,end=hi,output_start=o,original_start=h,original_end=h+hi-lo,fill=f['fill'],hold=h))
+            elif f.get('media'):
+                out.append(dict(start=lo,end=hi,output_start=o,media=f['media'],media_start=float(f.get('media_start',0))+lo-float(f['start']),label=f.get('label','')))
+            else:                                    # footage from another moment of the target
+                a=float(f['original_start'])+lo-float(f['start'])
+                out.append(dict(start=lo,end=hi,output_start=o,original_start=a,original_end=a+hi-lo))
     e['video_edits']['kept']=out
     return e
 
@@ -350,7 +355,10 @@ def media_graph(plan):
 def export_video(plan,audio,out,codec='h264',preset='veryfast'):
     out=Path(out);dest=out/'edited_episode.mkv';tmp=out/'edited_episode.partial.mkv'
     if dest.exists():raise RuntimeError('Edited video already exists; use a new output folder.')
-    if any(k.get('media') or k.get('recreated') or k.get('fill') for k in plan['video_edits']['kept']):
+    kept=plan['video_edits']['kept']
+    # Footage out of time order (video tracks, slipped clips) needs per-piece trims too.
+    ordered=all(b.get('original_start',0)>=a.get('original_end',0)-1e-6 for a,b in zip(kept,kept[1:]))
+    if not ordered or any(k.get('media') or k.get('recreated') or k.get('fill') for k in kept):
         return export_with_media(plan,audio,dest,tmp,codec,preset,out)
     intervals=[]
     for k in plan['video_edits']['kept']:
