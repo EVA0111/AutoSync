@@ -523,7 +523,7 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
         i1=np.clip(i0+max(1,int(round(length*50))),0,len(energy_t))
         return (c[i1]-c[i0])/np.maximum(i1-i0,1)
     segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut,target_shift=ti['origin']-ti['start'],quiet=quiet)
-    dub_only_pictures(tl,segments,shift,ti['origin']-ti['start'])
+    dub_only_pictures(tl,segments,shift,ti['origin']-ti['start'],source_video,target)
     rows=[[t,m['speed']*t+m['offset'],1.] for m in models for t in np.arange(m['first'],m['last']+1e-6,2.)]
     anchors=np.asarray(rows,dtype=float).reshape(-1,3)
     visual=anchors.copy();visual[:,1]-=shift+delay
@@ -536,56 +536,67 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
     say(f'Picture timeline: {len(models)} timed sections; '+', '.join(f"{n['start']:.2f}s" for n in notes if 'splice' in n)[:600])
     return segments,models,notes,anchors,visual,tl.ratio,crop(tl.geometry['source'],si),crop(tl.geometry['target'],ti),ref_t,energy_t
 
-def dub_only_pictures(tl,segments,shift,ts):
+def dub_only_pictures(tl,segments,shift,ts,source_video,target):
     """Attach to audio segments the target pictures a censored dub shows instead of the target's own.
 
     A censored dub covers a removed scene with a freeze or a repeat of nearby
     shots: either as extra material (a forward source skip; ``dub_pictures``
     on the segment after it) or in place of the censored shots at the same
     length (``dub_replaced`` spans inside a segment). Censored-dub "recreate"
-    rebuilds both from the target's own pictures so the exported video shows
-    what the dub shows and none of its audio is skipped (see censorship.py).
+    rebuilds both from the target's own pictures (see censorship.py).
+
+    Coarse features only propose where; the dub's frames are matched to the
+    target's at 160x120 along a coherent path (pt.FineDub), so a freeze holds
+    the frame it froze, a repeat plays forward, and a replacement counts only
+    where the dub shows a clearly different picture (not the same shot a few
+    frames off) that the target has. Material the target lacks stays skipped.
     """
     import picture_timeline as pt
-    d=tl.diagnostics;FS,FT,DS=d['FS'],d['FT'],d['DS'];F=pt.FPS;r=tl.ratio
-    def held(g,n,h):
-        # A held frame also records the stretch of its shot it can play back and forth over.
-        x=dict(length=round(n/F,6),hold=bool(h))
-        if h:
-            lo,hi=pt.sway_window(FT,int(g));x['sway']=[round((lo-g)/F,6),round((hi-g)/F,6)]
-        return x
-    for s in segments:
-        if s['kind']!='audio':continue
-        f=np.arange(int(np.ceil((s['target_start']-ts)*F)),int(np.floor((s['target_end']-ts)*F)))
-        f=f[(f>=0)&(f<len(FT))]
-        if len(f)<4:continue
-        src=np.round((s['source_start']+(f/F+ts-s['target_start'])*s['speed']-shift)*F).astype(int)
-        runs,score=pt.replaced_spans(FS,FT,DS,f,src)
-        good=score[score>=.6];ref=float(np.median(good)) if len(good) else pt.MATCH
-        spans=[]
-        for i0,i1 in runs:
-            got=pt.dub_pictures(FS,FT,src[i0],src[i1-1]+1,int(f[i0]),ref)
-            if got:
-                # Located by source time, pieces relative to the span: both survive trims of the segment.
-                spans.append(dict(source=round(s['source_start']+(f[i0]/F+ts-s['target_start'])*s['speed'],6),
-                                  length=round((i1-i0)/F,6),pieces=[
-                    dict(rel=round((g-f[i0])/F,6),**held(g,n,h)) for g,n,h in got]))
-        if spans:s['dub_replaced']=spans
-    matched=[x for x in tl.sections if x['kind']=='match']
+    d=tl.diagnostics;FS,FT,DS=d['FS'],d['FT'],d['DS'];F=pt.FPS
+    fd=pt.FineDub(source_video,d['s_info'],tl.geometry['source'],target,d['t_info'],tl.geometry['target'],FS,FT,vc.binary('ffmpeg'))
+    def pieces(path,D,tidx,T):
+        out=[]
+        for f,g,n,sway in fd.pieces(path,D,tidx,T):
+            x=dict(frame=f,length=round(n/F,6),hold=g-f<=2)
+            if not x['hold']:x['span']=round((g-f+1)/F,6)
+            if sway:x['sway']=[round(sway[0]/F,6),round(sway[1]/F,6)]
+            out.append(x)
+        return out
     prev=None
     for s in segments:
         if s['kind']!='audio':continue
-        if prev is not None:
-            end=prev['source_start']+(prev['target_end']-prev['target_start'])*prev['speed']
-            skip=s['source_start']-end
-            if skip>.25:
-                near=int(round((s['target_start']-ts)*F))
-                p=next((x for x in reversed(matched) if x['first']<near),None);m=next((x for x in matched if x['last']>near),None)
-                ref=min(pt.match_score(FT,FS,r,x,near-10*F,near+10*F) for x in (p,m) if x is not None) if (p or m) else pt.MATCH
-                got=pt.dub_pictures(FS,FT,(end-shift)*F,(s['source_start']-shift)*F,near,ref)
-                if got:
-                    s['dub_pictures']=dict(source_length=round(skip,6),pieces=[
-                        dict(at=round(f/F+ts-s['target_start'],6),**held(f,n,h)) for f,n,h in got])
+        try:
+            if prev is not None:
+                end=prev['source_start']+(prev['target_end']-prev['target_start'])*prev['speed'];skip=s['source_start']-end
+                if skip>.25:
+                    near=int(round((s['target_start']-ts)*F))
+                    src=np.arange(int(round((end-shift)*F)),int(round((s['source_start']-shift)*F)))
+                    src=src[(src>=0)&(src<len(FS))]
+                    if len(src):
+                        path,ps,D,tidx,T,_=fd.align(src,near)
+                        if np.percentile(ps,10)>=.7:       # the target has these pictures
+                            got=pieces(path,D,tidx,T)
+                            for x in got:x['at']=round(x.pop('frame')/F+ts-s['target_start'],6)
+                            s['dub_pictures']=dict(source_length=round(skip,6),pieces=got)
+            f=np.arange(int(np.ceil((s['target_start']-ts)*F)),int(np.floor((s['target_end']-ts)*F)))
+            f=f[(f>=0)&(f<len(FT))]
+            src=np.round((s['source_start']+(f/F+ts-s['target_start'])*s['speed']-shift)*F).astype(int)
+            spans=[]
+            for i0,i1 in pt.replaced_candidates(FS,FT,DS,f,src):
+                a,b=max(0,i0-12),min(len(f),i1+12)
+                ok=(src[a:b]>=0)&(src[a:b]<len(FS))
+                if not ok.all():continue
+                path,ps,D,tidx,T,ms=fd.align(src[a:b],int(f[i0]),mapped=f[a:b])
+                # Replaced: the dub shows another target picture, clearly unlike the mapped one.
+                dev=(np.abs(path-f[a:b])>2)&(ms<.6)&(ps>=.7)&(ps>ms+.1)
+                for r0,r1 in pt.runs_of(dev,gap=12,min_len=10):
+                    got=pieces(path[r0:r1],D[r0:r1],tidx,T)
+                    for x in got:x['rel']=round((x.pop('frame')-f[a+r0])/F,6)
+                    spans.append(dict(source=round(s['source_start']+(f[a+r0]/F+ts-s['target_start'])*s['speed'],6),
+                                      length=round((r1-r0)/F,6),pieces=got))
+            if spans:s['dub_replaced']=sorted(spans,key=lambda x:x['source'])
+        except (RuntimeError,ValueError,OSError) as e:
+            say(f'Censored-dub pictures unavailable near {s["target_start"]:.1f}s: {e}')
         prev=s
 
 

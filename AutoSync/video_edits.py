@@ -148,7 +148,7 @@ def remove_missing(plan):
                     n=piece['length']/sp;t=a+piece['at']+shift
                     k=dict(start=a,end=a,output_start=cursor,recreated=True,length=n)
                     if piece['hold']:k.update(hold=t,**sway(piece,t,fill))
-                    else:k.update(original_start=t,original_end=t+n)
+                    else:k.update(original_start=t,original_end=t+piece.get('span',n))
                     kept.append(k);cursor+=n
                 segments.append(dict(kind='audio',target_start=start,target_end=cursor,
                                      source_start=section['source_start']-d['source_length'],speed=sp,
@@ -170,7 +170,7 @@ def remove_missing(plan):
                 n=x['length']*L/total;t=ta+x['rel']+shift
                 k=dict(start=ta,end=ta,output_start=o,recreated=True,length=n)
                 if x['hold']:k.update(hold=t,**sway(x,t,fill))
-                else:k.update(original_start=t,original_end=t+n)
+                else:k.update(original_start=t,original_end=t+x.get('span',n))
                 kept.append(k);o+=n
             recreated.append(dict(start=cursor+ta-a,end=cursor+ta-a+L,replaced=True))
             u=ta+L
@@ -258,9 +258,12 @@ def media_graph(plan):
             # Half a frame either side: a piece shorter than a target frame still holds one.
             h=.5/float(fr)
             a,b=(k['hold']-h,k['hold']+h) if 'hold' in k else (k['original_start']-h,k['original_end']+h)
+            # A repeat the dub played at another speed: stretch it over N frames.
+            M=0 if 'hold' in k else max(1,round((k['original_end']-k['original_start'])*fr))
+            stretch=f',setpts=PTS*{N/M:.6f},fps={rate}' if M and abs(N/M-1)>.08 else ''
             # The target's own frames, renumbered at its rate (an fps filter would
             # drop a lone frame at end of stream), then padded/cut to exactly N.
-            chains.append(f'[0:v:0]trim=start={max(0.,a):.9f}:end={b:.9f},setpts=PTS-STARTPTS,scale={W}:{H},setsar={sar},format=yuv420p,'
+            chains.append(f'[0:v:0]trim=start={max(0.,a):.9f}:end={b:.9f},setpts=PTS-STARTPTS{stretch},scale={W}:{H},setsar={sar},format=yuv420p,'
                           f'tpad=stop_mode=clone:stop={N},trim=end_frame={N},setpts=N/({rate})/TB[p{n}]')
         elif k.get('media'):
             m=str(k['media'])

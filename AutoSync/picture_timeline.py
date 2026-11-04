@@ -1142,106 +1142,238 @@ def held_span(FT, FS, r, lo, hi, oa, ob, limit=30):
     return lo, hi
 
 
-def dub_pictures(FS, FT, src_lo, src_hi, near, ref_score, window=60):
-    """The target pictures a stretch of dub-only source frames shows, or None.
+# --- Censored dubs: fine (160x120) picture matching -------------------------
+# The 24x16 timing features cannot tell a mouth movement from a hand entering,
+# or one expression from the next; rebuilding what a censored dub shows needs
+# real pictures. Only the spans involved are decoded.
+FW, FH = 160, 120
 
-    Censored dubs often cover a removed scene by freezing a frame or repeating
-    shots from around it while the dub's dialogue goes on. Every source frame
-    in [src_lo, src_hi) is looked up among target frames within +-window s of
-    target frame `near`. A run of identical source frames (a freeze) is one
-    held target frame; moving frames follow consecutive target frames. Returns
-    [(target_frame, source_frames, hold)] when every piece matches about as
-    well as the neighbouring matched sections do (ref_score), else None: then
-    the material is the dub's own and cannot be rebuilt from the target.
+
+def fine_decode(path, first, n, info, rect=(0., 0., 1., 1.), ffmpeg='ffmpeg'):
+    """uint8 (n, FH, FW) gray frames for decoded-grid frames [first, first + n)."""
+    first = max(0, int(first)); n = max(1, int(n))
+    start = info['origin'] + first / FPS - info.get('file_start', 0.)
+    x0, y0, x1, y1 = rect
+    crop = '' if (x0, y0, x1, y1) == (0., 0., 1., 1.) else         f'crop=iw*{x1 - x0:.6f}:ih*{y1 - y0:.6f}:iw*{x0:.6f}:ih*{y0:.6f},'
+    out = _run([ffmpeg, '-v', 'error', '-nostdin', '-ss', f'{max(0., start):.6f}', '-i', str(path),
+                '-frames:v', str(n), '-map', '0:v:0', '-an', '-sn',
+                '-vf', f'fps={FPS},{crop}scale={FW}:{FH}:flags=area,format=gray', '-f', 'rawvideo', '-pix_fmt', 'gray', '-'])
+    f = np.frombuffer(out, np.uint8).reshape(-1, FH, FW)
+    if len(f) < n:                                    # end of file: repeat the last frame
+        f = np.concatenate([f, np.repeat(f[-1:], n - len(f), axis=0)]) if len(f) else np.zeros((n, FH, FW), np.uint8)
+    return f
+
+
+def _fine_mask():
+    m = np.ones((FH, FW), bool)
+    m[:int(FH * .22), int(FW * .7):] = False          # broadcaster logos (top right)
+    m[int(FH * .82):, int(FW * .72):] = False         # watermarks (bottom right)
+    m[int(FH * .85):, :] = False                      # burnt-in subtitles
+    return m
+
+
+FINE_MASK = _fine_mask()
+
+
+def fine_vectors(frames):
+    """Zero-mean unit-norm vectors of lightly blurred gray frames, logo corners masked."""
+    f = ndimage.uniform_filter(frames.astype(np.float32), size=(1, 3, 3))[:, FINE_MASK]
+    f -= f.mean(axis=1, keepdims=True)
+    return f / np.maximum(np.linalg.norm(f, axis=1, keepdims=True), 1e-6)
+
+
+def _border():
+    m = np.zeros((FH, FW), bool); k = max(2, int(FW * .08))
+    m[:k], m[-k:], m[:, :k], m[:, -k:] = True, True, True, True
+    return m & FINE_MASK
+
+
+FINE_BORDER = _border()
+
+
+def changed_share(a, b, level=24., region=None):
+    """Share of (unmasked, blurred) pixels in `region` (default all) differing by more than `level`."""
+    d = np.abs(ndimage.uniform_filter(a.astype(np.float32), 3) - ndimage.uniform_filter(b.astype(np.float32), 3)) > level
+    return float(np.mean(d[FINE_MASK if region is None else region]))
+
+
+def global_shift(a, b):
+    """Translation (pixels) best aligning frame b to frame a: phase correlation of gradients."""
+    def grad(x):
+        x = ndimage.uniform_filter(x.astype(np.float32), 3)
+        return np.hypot(ndimage.sobel(x, 0), ndimage.sobel(x, 1)) * FINE_MASK
+    A, B = np.fft.rfft2(grad(a)), np.fft.rfft2(grad(b))
+    R = A * np.conj(B); R /= np.maximum(np.abs(R), 1e-9)
+    c = np.fft.irfft2(R, s=a.shape)
+    y, x = np.unravel_index(int(np.argmax(c)), c.shape)
+    y = y - a.shape[0] if y > a.shape[0] // 2 else y
+    x = x - a.shape[1] if x > a.shape[1] // 2 else x
+    return float(np.hypot(x, y))
+
+
+def align_frames(D, T, tidx, jump=.3, near=None, pull=.004):
+    """Target frame (from tidx) for each dub vector in D: a coherent path.
+
+    Viterbi over candidate target frames: holding a frame or playing on to the
+    next costs nothing, any other jump costs `jump`; emission 1 - similarity.
+    A freeze stays on one frame and a repeat plays forward, instead of
+    flickering between look-alike drawings. Between near-equal candidates the
+    one closer to target frame `near` wins (`pull` per second): a dub freezes
+    or repeats footage next to its cut. Returns (path, similarity).
     """
-    src = np.arange(max(0, int(round(src_lo))), min(len(FS), int(round(src_hi))))
-    if not len(src):
-        return None
-    lo, hi = max(0, near - window * FPS), min(len(FT), near + window * FPS)
-    if hi - lo < 1:
-        return None
-    S = FS[src].astype(np.float32); T = FT[lo:hi].astype(np.float32)
-    sim = S @ T.T
-    pieces, got, i = [], [], 0
-    while i < len(src):
-        j = i + 1
-        while j < len(src) and float(S[j] @ S[i]) > .99:
-            j += 1                                   # a freeze: identical source frames
-        if j - i >= 3:
-            k = int(np.argmax(sim[i:j].mean(0)))
-            pieces.append((lo + k, j - i, True)); got += list(sim[i:j, k])
-        else:
-            k = int(np.argmax(sim[i])); j = i + 1
-            while j < len(src) and k + j - i < len(T) and sim[j, k + j - i] >= sim[j].max() - .02 and                     float(S[j] @ S[j - 1]) <= .99:
-                j += 1                               # follows consecutive target frames
-            pieces.append((lo + k, j - i, False)); got += [sim[i + n, k + n] for n in range(j - i)]
-        i = j
-    if np.percentile(got, 10) < max(MATCH, ref_score - .06):
-        return None
+    tidx = np.asarray(tidx); pos = {int(t): j for j, t in enumerate(tidx)}
+    prev_play = np.array([pos.get(int(t) - 1, -1) for t in tidx])
+    S = D @ T.T
+    E = 1 - S + (0 if near is None else pull * np.abs(tidx - near)[None, :] / FPS)
+    dp = E[0].copy(); back = []
+    for i in range(1, len(D)):
+        play = np.where(prev_play >= 0, dp[np.maximum(prev_play, 0)], np.inf)
+        best = int(np.argmin(dp))
+        cand = np.vstack([dp, play, np.full(len(dp), dp[best] + jump)])
+        k = np.argmin(cand, axis=0)
+        src = np.where(k == 0, np.arange(len(dp)), np.where(k == 1, prev_play, best))
+        back.append(src); dp = cand[k, np.arange(len(dp))] + E[i]
+    j = int(np.argmin(dp)); path = [j]
+    for src in reversed(back):
+        j = int(src[j]); path.append(j)
+    path = path[::-1]
+    return tidx[path], S[np.arange(len(D)), path]
+
+
+def path_pieces(path):
+    """[(first_frame, last_frame, count)] chunks of a frame path split at jumps (hold: first == last)."""
     out = []
-    for f, n, hold in pieces:                         # one-frame runs inside a hold are compression noise
-        if out and out[-1][2] == hold and (hold and abs(out[-1][0] - f) <= 1 or
-                                           not hold and out[-1][0] + out[-1][1] == f):
-            out[-1] = (out[-1][0], out[-1][1] + n, hold)
+    for i, f in enumerate(path):
+        f = int(f)
+        if out and 0 <= f - out[-1][1] <= 1:
+            out[-1] = (out[-1][0], f, out[-1][2] + 1)
         else:
-            out.append((f, n, hold))
+            out.append((f, f, 1))
     return out
 
 
-def replaced_spans(FS, FT, DS, frames, src, min_len=4, differ=.6):
-    """[(i0, i1)] runs in `frames` where the dub shows a different shot than the target.
-
-    frames: target frames; src: the source (dub) frame each one is mapped to.
-    Censored dubs often replace a shot with a repeat of another, keeping the
-    length, so the timing holds while the picture differs. A run counts when
-    informative dub frames score below `differ` (true matches score ~0.9;
-    another shot ~0.1-0.3) for at least min_len frames; gaps of two frames
-    inside a run are bridged.
-    """
-    ok = (src >= 1) & (src < len(FS) - 1) & (frames < len(FT))
-    score = np.ones(len(frames))
-    if ok.any():
-        f, j = frames[ok], src[ok]
-        score[ok] = np.max([np.sum(FT[f] * FS[j + k], axis=1) for k in (-1, 0, 1)], axis=0)
-    bad = ok & (score < differ) & (DS[np.clip(src, 0, len(DS) - 1)] > 6)
-    runs, i = [], 0
-    idx = np.flatnonzero(bad)
-    while i < len(idx):
-        j = i
-        while j + 1 < len(idx) and idx[j + 1] - idx[j] <= 3:
-            j += 1
-        if idx[j] + 1 - idx[i] >= min_len:
-            runs.append((int(idx[i]), int(idx[j]) + 1))
-        i = j + 1
-    return runs, score
-
-
-def sway_window(FT, f, limit=1.5, similar=.9, cut=.8):
-    """(lo, hi) target frames around frame f that a held frame can play back and forth over.
-
-    A dub's freeze looks dead next to moving footage; playing the same shot
-    forward and backward around the frozen frame keeps mouths and hair moving
-    under the dialogue. Only frames of the same shot (no picture cut between)
-    within `limit` s that still look like frame f (similarity >= similar) are
-    used, so a pan or a big move does not visibly reverse. lo == hi means the
-    shot gives nothing to play (a true still).
-    """
+def sway_fine(T, center, share=.025, cut=.5, limit=15):
+    """(lo, hi) offsets from `center` in fine target frames T (index center = the held frame)
+    over which the held frame may play back and forth: contiguous frames that differ from it
+    in under `share` of the picture (mouths, eyes), within `limit` frames, with no camera move
+    (rocking a pan back and forth looks wrong), nothing changing along the frame border (a hand
+    or a person coming into view) and no picture cut in between."""
+    ref = T[center]; v = fine_vectors(T)
     def ok(k, step):
-        return 0 <= k < len(FT) and abs(k - f) <= limit * FPS and             float(FT[k] @ FT[k - step]) > cut and float(FT[k] @ FT[f]) >= similar
-    lo = hi = f
+        return 0 <= k < len(T) and abs(k - center) <= limit and float(v[k] @ v[k - step]) > cut and             changed_share(T[k], ref) < share and global_shift(ref, T[k]) < 1 and             changed_share(T[k], ref, region=FINE_BORDER) < .01   # no camera move, nothing entering
+    lo = hi = center
     while ok(lo - 1, -1):
         lo -= 1
     while ok(hi + 1, 1):
         hi += 1
-    return lo, hi
+    return lo - center, hi - center
 
 
-def match_score(FT, FS, r, sec, lo, hi):
-    """Median picture similarity of a matched section over target frames [lo, hi)."""
-    lo, hi = max(lo, sec['first']), min(hi, sec['last'])
-    if hi - lo < 2:
-        return MATCH
-    return float(np.median(frame_scores(FT, FS, r, lo, hi, offset_at(sec, (lo + hi) / 2))))
+class FineDub:
+    """Fine pictures of a censored dub (source) and its original (target), decoded on demand."""
+    def __init__(self, src, s_info, s_rect, tgt, t_info, t_rect, FS, FT, ffmpeg='ffmpeg'):
+        self.src, self.si, self.sr, self.tgt, self.ti, self.tr = src, s_info, s_rect, tgt, t_info, t_rect
+        self.FS, self.FT, self.ffmpeg = FS, FT, ffmpeg
+
+    def dub(self, first, n):
+        return fine_decode(self.src, first, n, self.si, self.sr, self.ffmpeg)
+
+    def orig(self, frames):
+        """Fine target frames for sorted frame indices (decoded in merged runs)."""
+        frames = np.asarray(sorted(set(int(f) for f in frames if 0 <= f < len(self.FT))))
+        out = np.zeros((len(frames), FH, FW), np.uint8); i = 0
+        while i < len(frames):
+            j = i
+            while j + 1 < len(frames) and frames[j + 1] - frames[j] <= 25:
+                j += 1
+            run = fine_decode(self.tgt, frames[i], frames[j] - frames[i] + 1, self.ti, self.tr, self.ffmpeg)
+            out[i:j + 1] = run[frames[i:j + 1] - frames[i]]; i = j + 1
+        return frames, out
+
+    def align(self, src, near, mapped=None, window=60, top=6):
+        """Coherent target path for source frames `src` (see align_frames).
+
+        Candidates: each dub frame's best coarse matches within +-window s of
+        target frame `near`, the frames around `near`, and (for a replaced
+        span) the target frames the plan maps there, so the path keeps them
+        wherever the dub really shows them. Returns (path, sim, dub fine
+        frames, candidate frames, their fine frames, mapped sims or None).
+        """
+        lo, hi = max(0, near - window * FPS), min(len(self.FT), near + window * FPS)
+        sim = self.FS[src] @ self.FT[lo:hi].T
+        cand = set(range(max(0, near - 50), min(len(self.FT), near + 51)))
+        for row in sim:
+            for k in np.argpartition(-row, min(top, len(row) - 1))[:top]:
+                cand.update(range(lo + int(k) - 6, lo + int(k) + 7))
+        if mapped is not None:
+            for m in mapped:
+                cand.update(range(int(m) - 12, int(m) + 13))
+        tidx, T = self.orig(cand)
+        D = self.dub(src[0], src[-1] - src[0] + 1)[src - src[0]]
+        Dv, Tv = fine_vectors(D), fine_vectors(T)
+        path, ps = align_frames(Dv, Tv, tidx, near=near)
+        ms = None
+        if mapped is not None:
+            pos = {int(t): j for j, t in enumerate(tidx)}
+            ms = np.array([max(float(Dv[i] @ Tv[pos[int(m) + d]]) for d in (-1, 0, 1) if int(m) + d in pos)
+                           if any(int(m) + d in pos for d in (-1, 0, 1)) else -1. for i, m in enumerate(mapped)])
+        return path, ps, D, tidx, T, ms
+
+    def pieces(self, path, D, tidx, T, still=.985, min_hold=12):
+        """[(target_frame, last_frame, count, sway)] from a path; a held frame the dub
+        shows still for at least min_hold frames gets its safe sway (lo, hi) offsets."""
+        out, i = [], 0
+        Dv = fine_vectors(D)
+        for f, g, n in path_pieces(path):
+            sway = None
+            if g - f > 2 and (g - f + 1) / n < .3:
+                # Crawling through a few look-alike frames: the dub holds; take its most used frame.
+                vals, counts = np.unique(path[i:i + n], return_counts=True)
+                f = g = int(vals[int(np.argmax(counts))])
+            if g - f <= 2 and n >= min_hold and np.median(np.sum(Dv[i + 1:i + n] * Dv[i:i + n - 1], axis=1)) > still:
+                wf, W = self.orig(range(f - FPS, f + FPS + 1))
+                lo, hi = sway_fine(W, int(np.searchsorted(wf, f)))
+                if hi - lo >= 3:
+                    sway = (lo, hi)
+            out.append((f, g, n, sway)); i += n
+        return out
+
+
+def runs_of(flag, gap=12, min_len=10):
+    """[(i0, i1)] runs of True in `flag`, bridging gaps of up to `gap`, at least min_len long."""
+    idx, out, a = np.flatnonzero(flag), [], 0
+    while a < len(idx):
+        b = a
+        while b + 1 < len(idx) and idx[b + 1] - idx[b] <= gap + 1:
+            b += 1
+        if idx[b] + 1 - idx[a] >= min_len:
+            out.append((int(idx[a]), int(idx[b]) + 1))
+        a = b + 1
+    return out
+
+
+def replaced_candidates(FS, FT, DS, frames, src, window=60, margin=.08, low=.85, gap=25, min_len=6):
+    """[(i0, i1)] runs in `frames` where the dub's frame looks more like another target frame
+    (within +-window s) than the one the plan maps it to: coarse candidates for fine checking."""
+    ok = (src >= 1) & (src < len(FS) - 1) & (frames < len(FT))
+    flag = np.zeros(len(frames), bool)
+    for i in np.flatnonzero(ok):
+        f, j = int(frames[i]), int(src[i])
+        mapped = max(float(FT[f] @ FS[j + k]) for k in (-1, 0, 1))
+        if mapped >= low or DS[j] <= 6:
+            continue
+        lo, hi = max(0, f - window * FPS), min(len(FT), f + window * FPS)
+        s = FT[lo:hi] @ FS[j]; s[max(0, f - 12 - lo):max(0, f + 13 - lo)] = -1
+        flag[i] = s.max() > mapped + margin
+    runs, idx, a = [], np.flatnonzero(flag), 0
+    while a < len(idx):
+        b = a
+        while b + 1 < len(idx) and idx[b + 1] - idx[b] <= gap:
+            b += 1
+        if idx[b] + 1 - idx[a] >= min_len:
+            runs.append((int(idx[a]), int(idx[b]) + 1))
+        a = b + 1
+    return runs
 
 
 def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place_cut, audio_cut=None, target_shift=0.,

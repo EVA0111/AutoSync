@@ -454,7 +454,7 @@ class RateFromSections(unittest.TestCase):
 
 
 class CensoredDubPictures(unittest.TestCase):
-    """A censored dub's freezes and repeats are found among the original's frames."""
+    """A censored dub's freezes, repeats and replaced shots, matched to the original's frames."""
     def setUp(self):
         rng = np.random.default_rng(3)
         shots = rng.normal(size=(40, 64))                # 40 shots of 25 frames, slight motion inside
@@ -462,44 +462,61 @@ class CensoredDubPictures(unittest.TestCase):
         self.FT = (T / np.linalg.norm(T, axis=1, keepdims=True)).astype(np.float32)
         self.DS = np.full(2000, 30.)
 
-    def test_freeze_and_repeat_become_pieces(self):
-        frozen = np.repeat(self.FT[437:438], 30, axis=0)   # a held frame
-        repeat = self.FT[500:510]                          # a repeated stretch
-        FS = np.vstack([self.FT[:400], frozen, repeat, self.FT[400:]])
-        got = pt.dub_pictures(FS, self.FT, 400, 440, 400, ref_score=.95)
-        self.assertEqual(got, [(437, 30, True), (500, 10, False)])
+    def test_path_holds_a_freeze_and_plays_a_repeat(self):
+        D = np.vstack([np.repeat(self.FT[437:438], 30, axis=0), self.FT[500:510]])
+        tidx = np.arange(400, 600)
+        path, sim = pt.align_frames(D, self.FT[tidx], tidx)
+        self.assertEqual(pt.path_pieces(path), [(437, 437, 30), (500, 509, 10)])
+        self.assertGreater(sim.min(), .99)
 
-    def test_dub_own_footage_is_not_rebuilt(self):
-        rng = np.random.default_rng(5)
-        own = rng.normal(size=(30, 64)); own /= np.linalg.norm(own, axis=1, keepdims=True)
-        FS = np.vstack([self.FT[:400], own.astype(np.float32), self.FT[400:]])
-        self.assertIsNone(pt.dub_pictures(FS, self.FT, 400, 430, 400, ref_score=.95))
+    def test_near_equal_candidates_prefer_frames_near_the_cut(self):
+        F = np.vstack([self.FT[:500], self.FT[100:101], self.FT[501:]])   # frame 500 duplicates frame 100
+        tidx = np.arange(0, 1000)
+        path, _ = pt.align_frames(self.FT[100:101].repeat(5, axis=0), F[tidx], tidx, near=480)
+        self.assertTrue((path == 500).all())
 
-    def test_same_length_replacement_is_found(self):
+    def test_runs_bridge_small_gaps(self):
+        flag = np.zeros(60, bool); flag[5:20] = flag[25:40] = True; flag[50:53] = True
+        self.assertEqual(pt.runs_of(flag, gap=6, min_len=10), [(5, 40)])
+
+    def test_replacement_candidates_need_a_better_match_elsewhere(self):
         FS = self.FT.copy()
         FS[300:340] = self.FT[600]                         # 1.6 s of the dub shows another shot, held
         frames = np.arange(250, 400)
-        runs, score = pt.replaced_spans(FS, self.FT, self.DS, frames, frames.copy())
-        self.assertEqual(len(runs), 1)                     # ends within the +-1 frame match tolerance
+        runs = pt.replaced_candidates(FS, self.FT, self.DS, frames, frames.copy())
+        self.assertEqual(len(runs), 1)
         self.assertLessEqual(abs(frames[runs[0][0]] - 300), 1)
         self.assertLessEqual(abs(frames[runs[0][1] - 1] + 1 - 340), 1)
-        self.assertGreater(score[:50].min(), .9)
 
 
 class HeldFrameKeepsMoving(unittest.TestCase):
-    """A dub's freeze is rebuilt as its shot playing back and forth, not one dead frame."""
-    def test_sway_stays_inside_the_shot_and_near_the_frame(self):
-        rng = np.random.default_rng(7)
-        a, b = rng.normal(size=64), rng.normal(size=64)
-        drift = rng.normal(size=64)
-        rows = [a + .02 * k * drift for k in range(50)] + [b] * 50   # moving shot, then a cut
-        FT = np.array([r / np.linalg.norm(r) for r in rows], dtype=np.float32)
-        lo, hi = pt.sway_window(FT, 45)
-        self.assertEqual(hi, 49)                         # stops at the cut
-        self.assertGreater(lo, 0)                        # stops where the shot no longer looks like frame 45
-        self.assertTrue(all(float(FT[k] @ FT[45]) >= .9 for k in range(lo, hi + 1)))
-        lo, hi = pt.sway_window(FT, 75)                  # a true still: the whole (identical) shot, within 1.5 s
-        self.assertEqual((lo, hi), (50, 99))
+    """A rebuilt freeze moves only where the dub's picture would: no new objects, no camera moves."""
+    def frames(self):
+        rng = np.random.default_rng(1)
+        base = ndimage_blur(rng.uniform(40, 200, size=(pt.FH, pt.FW)))
+        out = np.repeat(base[None], 31, axis=0).copy()
+        y, x = pt.FH // 2, pt.FW // 2
+        for k in range(31):                              # a "mouth" in the middle opens and closes
+            out[k, y:y + 4, x:x + 6] = 30 if k % 4 < 2 else 220
+        return out
+
+    def test_small_interior_motion_sways(self):
+        T = self.frames()
+        lo, hi = pt.sway_fine(T.astype(np.uint8), 15)
+        self.assertEqual((lo, hi), (-15, 15))
+
+    def test_object_entering_from_the_edge_stops_the_sway(self):
+        T = self.frames()
+        T[20:, 10:40, :8] = 255                           # a hand comes in at the left edge from frame 20
+        lo, hi = pt.sway_fine(T.astype(np.uint8), 15)
+        self.assertEqual(hi, 4)
+
+    def test_camera_move_stops_the_sway(self):
+        T = self.frames()
+        for k in range(18, 31):
+            T[k] = np.roll(T[15], 2 * (k - 17), axis=1)  # a pan starts at frame 18
+        lo, hi = pt.sway_fine(T.astype(np.uint8), 15)
+        self.assertLessEqual(hi, 2)
 
     def test_pingpong_covers_n_frames_without_repeating_the_turn(self):
         from video_edits import pingpong
@@ -509,3 +526,8 @@ class HeldFrameKeepsMoving(unittest.TestCase):
         self.assertEqual(runs[1], (49, 50, True))          # back without showing frame 50 twice
         self.assertEqual(runs[2][0], 1)
         self.assertEqual(pingpong(t=1.0, lo=1.0, hi=1.02, N=10, fr=25), [(0, 10, False)])   # nothing to play: hold
+
+
+def ndimage_blur(x):
+    from scipy import ndimage
+    return ndimage.gaussian_filter(x, 2)
