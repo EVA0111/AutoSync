@@ -95,7 +95,7 @@ def main():
         if not (engine / "plan.json").exists():
             cmd = [sys.executable, str(ROOT / 'autosync.py'), '--source', a.source, '--audio', a.source,
                    '--target', str(case / 'target.mkv'), '--reference', str(case / 'target.mkv'),
-                   '--out', str(engine), '--sync-method', a.method, '--analyze-only']
+                   '--out', str(engine), '--analyze-only']
             r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=ROOT, text=True,
                                encoding='utf-8', errors='replace')
             (case / f'engine_{a.method}.log').write_text(r.stdout, encoding='utf-8')

@@ -20,8 +20,7 @@ def recover_shared_opening(plan, source_features, target_features, source_length
     """Replace only a *verified* target-audio opening with matching source audio.
 
     Unlike protect_opening this is safe for ordinary full-target output: when
-    acoustic evidence is inconclusive, leave the plan unchanged. AI and
-    Standard must use the same independent acoustic verification.
+    acoustic evidence is inconclusive, leave the plan unchanged.
     """
     p=copy.deepcopy(plan)
     segments=p.get('segments') or []

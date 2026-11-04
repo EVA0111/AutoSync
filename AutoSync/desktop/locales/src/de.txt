@@ -75,7 +75,7 @@ Bericht öffnen
 Ausgabe öffnen
 Dateien wählen, Modus auswählen und starten. Fortschritt und Prüfhinweise erscheinen hier.
 Einrichtung
-Die portable App enthält Python und FFmpeg. Optionale Untertitel-KI und KI-gestützte Synchronisierung laden zusätzliche Pakete und Modelle.
+Die portable App enthält Python und FFmpeg. Die optionale Untertitel-KI lädt zusätzliche Pakete und Modelle.
 Engine prüfen / einrichten
 Untertitel-KI installieren
 AI-Sync-Modelle installieren
@@ -441,7 +441,7 @@ Untertitel
 Funktionen
 Optionale Werkzeuge. Ausgeschaltete erweiterte Optionen verwenden ihre Standardwerte.
 Ordner
-Engine & KI-Modelle
+Engine
 Einzelne Folge
 Originalfassung
 Optional · Ton des Quellvideos verwenden

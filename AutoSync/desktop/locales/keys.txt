@@ -75,7 +75,7 @@ Open report
 Open output
 Choose your files, select a mode, and start. Progress and review warnings will appear here.
 Setup
-The portable app includes Python and FFmpeg. Optional subtitle AI and AI-assisted syncing download additional packages and models.
+The portable app includes Python and FFmpeg. Optional subtitle AI downloads additional packages and models.
 Check / set up engine
 Install subtitle AI
 Install AI Sync models
@@ -441,7 +441,7 @@ Subtitle
 Features
 Optional tools. Turned-off advanced options use their defaults.
 Folders
-Engine & AI models
+Engine
 Single episode
 Original edition
 Optional · use source video audio

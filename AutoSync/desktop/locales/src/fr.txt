@@ -75,7 +75,7 @@ Ouvrir le rapport
 Ouvrir la sortie
 Choisissez vos fichiers, un mode, puis lancez. La progression et les avertissements à vérifier s’afficheront ici.
 Installation
-L’application portable inclut Python et FFmpeg. L’IA sous-titres et la synchro assistée par IA, optionnelles, téléchargent des paquets et modèles supplémentaires.
+L’application portable inclut Python et FFmpeg. L’IA sous-titres, optionnelle, télécharge des paquets et modèles supplémentaires.
 Vérifier / installer le moteur
 Installer l’IA sous-titres
 Installer les modèles AI Sync
@@ -441,7 +441,7 @@ Sous-titre
 Fonctions
 Outils facultatifs. Les options avancées désactivées gardent leurs valeurs par défaut.
 Dossiers
-Moteur & modèles IA
+Moteur
 Épisode unique
 Édition originale
 Facultatif · utiliser l’audio de la vidéo source

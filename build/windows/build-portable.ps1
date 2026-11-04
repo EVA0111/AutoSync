@@ -145,7 +145,6 @@ try {
   New-Item -ItemType Directory -Force -Path $engine,$python | Out-Null
   Copy-Item -Path (Join-Path $source '*.py') -Destination $engine
   Copy-Item -Path (Join-Path $source 'requirements.txt') -Destination $engine
-  Copy-Item -Path (Join-Path $source 'requirements-sync-ai.txt') -Destination $engine
   Copy-Item -Path (Join-Path $source 'jobs_example.csv') -Destination $engine
   Copy-Item -Path (Join-Path $source 'README.md') -Destination $engine
   if (Test-Path (Join-Path $source 'sushi')) {
@@ -168,7 +167,7 @@ try {
   Copy-Item -LiteralPath $ffprobe.FullName -Destination (Join-Path $engine 'ffprobe.exe')
 
   Write-Host '[6/7] Checking bundled runtime...'
-  & (Join-Path $python 'python.exe') -c 'import numpy, scipy, main_episode, video_edits, output_jobs, ai_sync'
+  & (Join-Path $python 'python.exe') -c 'import numpy, scipy, main_episode, video_edits, output_jobs'
   if ($LASTEXITCODE -ne 0) { throw 'Embedded Python import check failed.' }
   & (Join-Path $python 'python.exe') (Join-Path $engine 'autosync.py') --help | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Embedded AutoSync CLI failed.' }

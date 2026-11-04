@@ -227,7 +227,7 @@ function scheduleFineWaveforms(){
  },180);
 }
 function flaggedRegions(){
- return (plan.review||[]).filter(r=>r.confidence!=='supported'&&r.confidence!=='manual'||/uncertain|review|fallback|rewind/i.test(r.reason||''))
+ return (plan.review||[]).filter(r=>r.confidence!=='supported'&&r.confidence!=='manual'||/\b(uncertain|review|fallback|rewind)/i.test(r.reason||''))
   .map(r=>({start:Number(r.start),end:Number(r.end)})).filter(r=>Number.isFinite(r.start)&&Number.isFinite(r.end));
 }
 function fitCanvas(c,cx){
@@ -1049,7 +1049,7 @@ function buildIssues(){
  for(const r of plan.review||[]){
   const t=Number(r.splice??((Number(r.start)+Number(r.end))/2));
   if(!Number.isFinite(t)||t<0||t>plan.duration)continue;
-  const flagged=r.confidence!=='supported'&&r.confidence!=='manual'||/uncertain|review|fallback|rewind/i.test(r.reason||'');
+  const flagged=r.confidence!=='supported'&&r.confidence!=='manual'||/\b(uncertain|review|fallback|rewind)/i.test(r.reason||'');
   const insert=/target-only|insert|target audio used/i.test(r.reason||'');
   if(plan.censorship&&items.some(x=>x.kind==='censor'&&Math.abs(x.t-t)<.06))continue;
   items.push({t,kind:flagged?'flag':insert?'insert':'join',label:flagged?'Needs review':insert?'Target footage':'Join',reason:r.reason||'',confidence:r.confidence||''});

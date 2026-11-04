@@ -75,7 +75,7 @@ Abrir informe
 Abrir salida
 Elija sus archivos, seleccione un modo y empiece. El progreso y los avisos de revisión aparecerán aquí.
 Configuración
-La aplicación portátil incluye Python y FFmpeg. La IA de subtítulos y la sincronización asistida por IA, opcionales, descargan paquetes y modelos adicionales.
+La aplicación portátil incluye Python y FFmpeg. La IA de subtítulos, opcional, descarga paquetes y modelos adicionales.
 Comprobar / configurar el motor
 Instalar IA de subtítulos
 Instalar modelos de AI Sync
@@ -441,7 +441,7 @@ Subtítulo
 Funciones
 Herramientas opcionales. Las opciones avanzadas desactivadas usan sus valores predeterminados.
 Carpetas
-Motor y modelos de IA
+Motor
 Episodio único
 Edición original
 Opcional · usar el audio del vídeo de origen
