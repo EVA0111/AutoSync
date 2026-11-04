@@ -1187,6 +1187,66 @@ def both_fit(FT, FS, r, lo, hi, oa, ob, first, last, limit=15, back=True, ahead=
     return lo, hi
 
 
+def uncovered_span(FT, FS, DT, r, lo, hi, f1, f2, oa, ob, outer=None, low=.6, least=FPS // 4):
+    """Widen target-only frames [f1, f2) over adjacent informative frames in [lo, hi)
+    that the mapping on that side does not show (scores under `low`).
+
+    Source accounting gives the target-only length less any source-only material
+    in the same gap; a censored dub that covers a removed scene with a shorter
+    freeze or repeat leaves exactly such frames at the scene's edges. Dark or
+    flat frames (no evidence) and frames that side's mapping shows stop the widening;
+    a widening of under `least` frames in all is dropped (dissolves, compression).
+    """
+    # Only mapping a can precede the target-only footage and only b follow it, so
+    # each side asks its own mapping (a look-alike shot may fit the other one).
+    a = frame_scores(FT, FS, r, lo, hi, oa); b = frame_scores(FT, FS, r, lo, hi, ob)
+    inf = DT[lo:hi] > 6
+    i, j = f1 - lo, f2 - lo
+    while i > 0 and inf[i - 1] and a[i - 1] < low:
+        i -= 1
+    while j < hi - lo and inf[j] and b[j] < low:
+        j += 1
+    w1, w2 = lo + i, lo + j
+    # A dub freeze can resemble the removed scene's first or last shot (a
+    # look-alike pose), so it scores well at first. But under that side's
+    # mapping the dub's frames stand still while the original's move on.
+    # The freeze may run past the gap into the neighbouring section (it matched
+    # there): search up to `outer`, the sections' own extent.
+    o0, o1 = outer or (lo, hi)
+    w1 = min(w1, frozen_run(FT, FS, r, min(lo, o0), f1, oa, -1))
+    w2 = max(w2, frozen_run(FT, FS, r, f2, max(hi, o1), ob, 1))
+    return (w1, w2) if (f1 - w1) + (w2 - f2) >= least else (f1, f2)
+
+
+def frozen_run(FT, FS, r, lo, hi, offset, step, still=.995, moved=.9, shown=.97, least=FPS // 2):
+    """Edge of a run of target frames from the insert's edge outwards (step +1:
+    from `lo` up, -1: from `hi` down) over which `offset` maps to one held source
+    picture while the target picture moves (some frame unlike the run's first,
+    similarity under `moved`) or plainly differs from it (mean under MATCH). The run ends where the held picture changes or
+    where the target shows it (similarity `shown`: the original's own frame,
+    as when a dub freezes a shot's last frame). Returns the far end of that run
+    (exclusive for +1, inclusive start for -1) or the starting edge when there
+    is none, or when the run reaches the search's end (not bounded)."""
+    ks = np.arange(lo, hi) if step > 0 else np.arange(hi - 1, lo - 1, -1)
+    if len(ks) < least:
+        return lo if step > 0 else hi
+    sj = np.round(r * ks + offset).astype(int)
+    ok = (sj >= 0) & (sj < len(FS))
+    if not ok[0]:
+        return lo if step > 0 else hi
+    n = 0
+    while (n < len(ks) and ok[n] and float(FS[sj[0]] @ FS[sj[n]]) > still and
+           float(FT[ks[n]] @ FS[sj[n]]) < shown):
+        n += 1                                        # frames ks[0..n) show the held picture, unlike the target
+    if n < least or n >= len(ks):
+        return lo if step > 0 else hi
+    # Evidence the dub froze: the target moves on, or plainly is not the held picture.
+    fit = float(np.mean(np.sum(FT[ks[:n]] * FS[sj[:n]], axis=1)))
+    if float(np.min(FT[ks[:n]] @ FT[ks[0]])) > moved and fit >= MATCH:
+        return lo if step > 0 else hi
+    return int(ks[n - 1]) + 1 if step > 0 else int(ks[n - 1])
+
+
 def held_span(FT, FS, r, lo, hi, oa, ob, limit=30):
     """Widen [lo, hi) over adjacent frames that fit both mappings equally (a held shot)."""
     def held(x0, x1):
@@ -1535,7 +1595,15 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
                     loud = quiet((lo + tied) / FPS, n / FPS)
                     if loud is not None:
                         x = int(tied[int(np.argmin(loud))]); how = 'held shot shown longer, placed at the quietest target audio'
-            t1 = (lo + x) / FPS; t2 = t1 + n / FPS
+            # A censored dub may cover the removed scene with shorter material of its
+            # own (a freeze, a repeated shot): the target-only span is then longer
+            # than the source accounting says, and that material is dub-only
+            # source, skipped here (censored-dub "recreate" can rebuild it).
+            w1, w2 = uncovered_span(FT, FS, DT, r, lo, hi, lo + x, lo + x + n, oa, ob,
+                                    outer=(max(p['first'], int(np.ceil(cursor * FPS))), m['last']))
+            if (w1, w2) != (lo + x, lo + x + n):
+                how += f'; the dub shows {((lo + x - w1) + (w2 - lo - x - n)) / FPS:.2f}s of its own footage here (skipped)'
+            t1 = w1 / FPS; t2 = w2 / FPS
             pieces.append([cursor, t1, 'audio', oa, {'sec': p}])
             pieces.append([t1, t2, 'insert', None, {}])
             notes.append(dict(start=t1, end=t2, splice=t1, confidence='supported',

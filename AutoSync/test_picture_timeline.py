@@ -557,3 +557,59 @@ class HeldFrameKeepsMoving(unittest.TestCase):
 def ndimage_blur(x):
     from scipy import ndimage
     return ndimage.gaussian_filter(x, 2)
+
+
+class DubCoversARemovedScene(unittest.TestCase):
+    """Censored dub (source) vs the clean original (target): the dub removed target
+    60-70 s and shows 2 s of its own material there (a freeze or a repeat)."""
+    def check(self, cover):
+        C = unique_frames(130 * FPS, 4)
+        D = np.vstack([C[:60 * FPS], cover(C), C[70 * FPS:]])
+        segs = plan(solve(D, C), len(C) / FPS)
+        ref = [s for s in segs if s['kind'] == 'reference']
+        self.assertEqual(len(ref), 1)
+        self.assertAlmostEqual(ref[0]['target_start'], 60., delta=.05)
+        self.assertAlmostEqual(ref[0]['target_end'], 70., delta=.05)
+        after = next(s for s in segs if s['kind'] == 'audio' and s['target_start'] >= 70 - .05)
+        self.assertAlmostEqual(after['source_start'] + 70 - after['target_start'], 62., delta=.05)
+
+    def test_freeze_of_the_last_frame_is_dub_only(self):
+        self.check(lambda C: np.repeat(C[60 * FPS - 1:60 * FPS], 2 * FPS, axis=0))
+
+    def test_repeat_of_earlier_footage_is_dub_only(self):
+        self.check(lambda C: C[40 * FPS:42 * FPS])
+
+    def test_plain_removed_scene_is_unchanged(self):
+        C = unique_frames(130 * FPS, 4)
+        D = np.vstack([C[:60 * FPS], C[70 * FPS:]])
+        ref = [s for s in plan(solve(D, C), len(C) / FPS) if s['kind'] == 'reference']
+        self.assertEqual([(round(s['target_start'], 2), round(s['target_end'], 2)) for s in ref], [(60., 70.)])
+
+    def test_frozen_run_needs_a_change_in_the_target(self):
+        C = unique_frames(20 * FPS, 5)
+        still = np.repeat(C[:1], 10 * FPS, axis=0)        # both editions hold one picture: no evidence
+        self.assertEqual(pt.frozen_run(still, still, 1., 0, 5 * FPS, 0., 1), 0)
+
+
+class UnsupportedExcursion(unittest.TestCase):
+    """A run inside a near-static shot whose own offset fits no better than its
+    neighbours' takes their offset; a real reorder keeps its own."""
+    def setUp(self):
+        self.F = unique_frames(60 * FPS, 6)
+        self.DT = np.full(len(self.F), 20.)
+
+    def sections(self, M_offset):
+        return [dict(kind='match', first=0, last=20 * FPS, offset=0., samples=40, strong=40),
+                dict(kind='match', first=20 * FPS + 12, last=22 * FPS, offset=M_offset, samples=4, strong=4),
+                dict(kind='match', first=22 * FPS + 12, last=60 * FPS - 1, offset=0., samples=70, strong=70)]
+
+    def test_static_shot_takes_the_neighbours_offset(self):
+        FT = self.F.copy(); FT[19 * FPS:23 * FPS] = FT[19 * FPS]       # 4 s still shot in both
+        out = pt.absorb_unsupported(self.sections(-25.), FT, FT, self.DT, 1.)
+        self.assertEqual(out[1]['offset'], 0.)
+
+    def test_reordered_shot_keeps_its_offset(self):
+        FS = self.F.copy(); FT = self.F.copy()
+        FT[20 * FPS + 12:22 * FPS + 1] = FS[20 * FPS + 12 - 25:22 * FPS + 1 - 25]   # target shows source 1 s earlier
+        out = pt.absorb_unsupported(self.sections(-25.), FT, FS, self.DT, 1.)
+        self.assertEqual(out[1]['offset'], -25.)
