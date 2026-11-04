@@ -11,6 +11,16 @@ const timelineGestures=require('./timeline-gestures.cjs');
 const {preparePreviewValues}=require('./preview-request.cjs');
 
 const IMAGE_EXT=['.png','.jpg','.jpeg','.bmp','.webp','.tif','.tiff'];
+// FFmpeg f32le output viewed as floats without per-sample reads (copied when unaligned).
+const floats=buf=>buf.byteOffset%4===0?new Float32Array(buf.buffer,buf.byteOffset,Math.floor(buf.length/4)):new Float32Array(Uint8Array.from(buf).buffer,0,Math.floor(buf.length/4));
+const PROXY_KEEP=12;   // preview proxies kept on disk, newest first
+// atempo accepts 0.5-2 per stage; chain stages for 0.25-4x previews.
+function tempo(rate){
+ const out=[];let r=Number(rate);
+ while(r>2){out.push('atempo=2');r/=2;}
+ while(r<.5){out.push('atempo=0.5');r/=.5;}
+ out.push('atempo='+r.toFixed(6));return out.join(',');
+}
 function createAlignmentEditor(root,python){
  let editor=null,project=null,exportChild=null,prepareChild=null,lastPrepared=null;
  let proxyChildren=new Set();
@@ -188,17 +198,18 @@ function createAlignmentEditor(root,python){
   trusted(e);
   const {file,stream}=trackInfo(track);
   const data=await run('ffmpeg',['-v','error','-nostdin','-i',file,'-map','0:a:'+stream,'-ac','1','-ar','200','-f','f32le','pipe:1'],80*1024*1024);
-  const count=Math.floor(data.length/4);
-  const bins=Math.max(1,Math.min(3200,count));
-  const step=Math.max(1,Math.ceil(count/bins));
-  const peaks=[];
-  for(let i=0;i<count;i+=step){
+  const samples=floats(data),count=samples.length;
+  // Up to 60000 peaks: fine enough for every zoom the coarse view is used at.
+  const step=Math.max(1,Math.ceil(count/60000));
+  const peaks=new Float32Array(Math.ceil(count/step));
+  let max=.0001;
+  for(let i=0,k=0;i<count;i+=step,k++){
    let sum=0,p=0,n=0;
-   for(let j=i;j<Math.min(count,i+step);j++){const v=data.readFloatLE(j*4);if(!Number.isFinite(v))continue;sum+=v*v;p=Math.max(p,Math.abs(v));n++;}
-   peaks.push(Math.max(Math.sqrt(sum/Math.max(1,n)),p*.5));
+   for(let j=i,e=Math.min(count,i+step);j<e;j++){const v=samples[j];if(v!==v)continue;sum+=v*v;const a=v<0?-v:v;if(a>p)p=a;n++;}
+   const x=Math.max(Math.sqrt(sum/Math.max(1,n)),p*.5);peaks[k]=x;if(x>max)max=x;
   }
-  const max=Math.max(.0001,...peaks);
-  return {peaks:peaks.map(x=>Math.min(1,x/max)),duration:count/200};
+  for(let k=0;k<peaks.length;k++)peaks[k]=Math.min(1,peaks[k]/max);
+  return {peaks,duration:count/200};
  });
 
  ipcMain.handle('align-waveform-range',async(e,track,start,end)=>{
@@ -207,14 +218,12 @@ function createAlignmentEditor(root,python){
   const from=assertTime(start),to=assertTime(end);
   if(to<=from||to-from>120)throw Error('Waveform range must be between 0 and 120 seconds.');
   const data=await run('ffmpeg',['-v','error','-nostdin','-ss',String(from),'-t',String(to-from),'-i',file,'-map','0:a:'+stream,'-ac','1','-ar','2000','-f','f32le','pipe:1'],8*1024*1024);
-  const count=Math.floor(data.length/4),step=Math.max(1,Math.ceil(count/6000)),peaks=[];
-  for(let i=0;i<count;i+=step){
+  const samples=floats(data),count=samples.length,step=Math.max(1,Math.ceil(count/6000));
+  const peaks=new Float32Array(Math.ceil(count/step));
+  for(let i=0,k=0;i<count;i+=step,k++){
    let max=0;
-   for(let j=i;j<Math.min(count,i+step);j++){
-    const x=data.readFloatLE(j*4);
-    if(Number.isFinite(x))max=Math.max(max,Math.abs(x));
-   }
-   peaks.push(Math.min(1,max));
+   for(let j=i,e=Math.min(count,i+step);j<e;j++){const x=samples[j];const a=x<0?-x:x;if(a>max)max=a;}
+   peaks[k]=Math.min(1,max);
   }
   return {start:from,duration:count/2000,peaks};
  });
@@ -232,7 +241,8 @@ function createAlignmentEditor(root,python){
   const dir=path.join(app.getPath('userData'),'AutoSync preview cache');
   await fs.promises.mkdir(dir,{recursive:true});
   const output=path.join(dir,key+'.mp4');
-  if(fs.existsSync(output)&&(await fs.promises.stat(output)).size>16384)return pathToFileURL(output).href;
+  if(fs.existsSync(output)&&(await fs.promises.stat(output)).size>16384){fs.promises.utimes(output,new Date(),new Date()).catch(()=>{});return pathToFileURL(output).href;}
+  await pruneProxies(dir).catch(()=>{});
   const partial=path.join(dir,key+'.'+randomUUID().slice(0,8)+'.part.mp4');
   send('preview-progress',{track,message:'Generating playable proxy for '+track+' (only once per file)…'});
   const args=['-hide_banner','-loglevel','error','-nostdin','-y','-i',file,
@@ -252,6 +262,31 @@ function createAlignmentEditor(root,python){
    if(fs.existsSync(output))await fs.promises.rm(partial,{force:true});else throw err;
   });
   return pathToFileURL(output).href;
+ });
+ // Keep the preview cache bounded: the newest PROXY_KEEP proxies; stale partial files go.
+ async function pruneProxies(dir){
+  const rows=[];
+  for(const name of await fs.promises.readdir(dir)){
+   const file=path.join(dir,name);
+   try{rows.push({file,name,t:(await fs.promises.stat(file)).mtimeMs});}catch{}
+  }
+  const now=Date.now();
+  for(const r of rows)if(r.name.endsWith('.part.mp4')&&now-r.t>24*3600*1000)await fs.promises.rm(r.file,{force:true});
+  const done=rows.filter(r=>r.name.endsWith('.mp4')&&!r.name.endsWith('.part.mp4')).sort((a,b)=>b.t-a.t);
+  for(const r of done.slice(PROXY_KEEP))await fs.promises.rm(r.file,{force:true});
+ }
+ // Save the picture at the playhead as a PNG (target, source or imported clip frame).
+ ipcMain.handle('align-snapshot',async(e,track,time,media)=>{
+  trusted(e);
+  if(!['source','target','media'].includes(track))throw Error('Invalid snapshot track.');
+  const file=track==='media'?importedFile(media).path:track==='source'?(project.plan.source_video||project.plan.audio):(project.plan.target_video||project.plan.reference);
+  if(!file||!fs.existsSync(file))throw Error('The video file is missing.');
+  const t=track==='media'&&importedFile(media).image?0:assertTime(time);
+  const pick=await dialog.showSaveDialog(editor,{title:'Save frame as image',
+   defaultPath:path.join(path.dirname(project.outputPlan||project.file),'frame_'+t.toFixed(3).replace('.','_')+'.png'),filters:[{name:'PNG image',extensions:['png']}]});
+  if(pick.canceled||!pick.filePath)return null;
+  await run('ffmpeg',['-v','error','-nostdin','-y',...(t?['-ss',String(t)]:[]),'-i',file,'-map','0:v:0','-frames:v','1',path.resolve(pick.filePath)],1024*1024);
+  return path.resolve(pick.filePath);
  });
  ipcMain.handle('align-clip-op',(e,op,payload)=>{
   trusted(e);
@@ -283,15 +318,16 @@ function createAlignmentEditor(root,python){
  ipcMain.handle('align-audio',async(e,track,start,duration,speed,media)=>{
   trusted(e);
   const time=assertTime(start),len=Number(duration),rate=Number(speed);
-  if(!Number.isFinite(len)||len<=0||len>12||!Number.isFinite(rate)||rate<.5||rate>2)throw Error('Invalid preview duration or playback rate.');
-  if(track==='silence'){
-   const s=await run('ffmpeg',['-v','error','-nostdin','-f','lavfi','-i','anullsrc=r=48000:cl=stereo','-t',String(len),'-c:a','pcm_s16le','-f','wav','pipe:1'],10*1024*1024);
-   return 'data:audio/wav;base64,'+s.toString('base64');
-  }
+  if(!Number.isFinite(len)||len<=0||len>30||!Number.isFinite(rate)||rate<.25||rate>4)throw Error('Invalid preview duration or playback rate.');
+  // Raw 48 kHz stereo s16 PCM, sent as binary (no WAV, no base64): the editor
+  // schedules chunks back to back in Web Audio, so playback has no gaps.
+  // `len` is output (playback) seconds; `rate` folds in clip speed and preview speed,
+  // so len x rate source seconds are read and time-stretched into len seconds.
+  if(track==='silence')return new Uint8Array(Math.max(1,Math.round(len*48000))*4);
   const {file,stream}=track==='media'?{file:importedFile(media).path,stream:importedFile(media).audioStream}:trackInfo(track);
-  const b=await run('ffmpeg',['-v','error','-nostdin','-ss',String(time),'-t',String(len*rate),'-i',file,'-map','0:a:'+stream,'-af','atempo='+rate,'-ar','48000','-ac','2','-c:a','pcm_s16le','-f','wav','pipe:1'],10*1024*1024);
+  const b=await run('ffmpeg',['-v','error','-nostdin','-ss',String(time),'-t',String(len*rate),'-i',file,'-map','0:a:'+stream,'-af',tempo(rate),'-ar','48000','-ac','2','-f','s16le','pipe:1'],24*1024*1024);
   if(b.length<64)throw Error('No audio at this timestamp.');
-  return 'data:audio/wav;base64,'+b.toString('base64');
+  return new Uint8Array(b.buffer,b.byteOffset,b.length-b.length%4);
  });
  ipcMain.handle('align-import',async e=>{
   trusted(e);
@@ -320,7 +356,7 @@ function createAlignmentEditor(root,python){
   }
   return found;
  });
- ipcMain.handle('align-save',async(e,segments,timeline)=>{
+ ipcMain.handle('align-save',async(e,segments,timeline,extras)=>{
   trusted(e);
   if(project.exporting)throw Error('Cannot save while export is running.');
   // Picture edits (ripple deletes, imported clips) change length and video pieces.
@@ -349,6 +385,10 @@ function createAlignmentEditor(root,python){
    project.exported=false;
   }
   const value={...project.plan,segments:revised,source_cuts:[],editor_revision:1,editor_origin_plan:project.file};
+  // Markers (output seconds) and review notes travel with the edited plan.
+  const marks=Array.isArray(extras?.markers)?extras.markers.map(Number).filter(t=>Number.isFinite(t)&&t>=0&&t<=(edit?edit.duration:project.plan.duration)).slice(0,2000):[];
+  if(marks.length)value.markers=marks;else delete value.markers;
+  if(extras?.notes&&typeof extras.notes==='object'&&JSON.stringify(extras.notes).length<200000)value.review_notes=extras.notes;
   if(edit){
    value.duration=edit.duration;
    value.video_edits={original_target_duration:project.plan.video_edits?.original_target_duration??project.plan.duration,

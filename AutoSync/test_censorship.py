@@ -242,6 +242,24 @@ class EditorMotionFill(unittest.TestCase):
         self.assertLessEqual(got[0].get('sway', [5., 5.])[1], 5.)          # stops where the camera move starts
 
 
+
+class EditorBlackFill(unittest.TestCase):
+    def test_black_fill_is_a_colour_source_with_exact_frames(self):
+        import video_edits, re
+        p = dict(target_video='t.mkv', duration=10., video_edits=dict(kept=[
+            dict(start=0., end=4., output_start=0., original_start=0., original_end=4.),
+            dict(start=4., end=6., output_start=4., original_start=4., original_end=6., fill='black', hold=4.),
+            dict(start=6., end=10., output_start=6., original_start=6., original_end=10.)]))
+        old = video_edits.target_picture
+        video_edits.target_picture = lambda path: (64, 48, '1/1', '25/1')
+        try:
+            _, graph = video_edits.media_graph(p)
+        finally:
+            video_edits.target_picture = old
+        self.assertIn('color=c=black:s=64x48', graph)
+        self.assertEqual(sum(int(x) for x in re.findall(r'trim=end_frame=(\d+)', graph)), 250)
+
+
 if __name__ == '__main__':
     unittest.main()
 

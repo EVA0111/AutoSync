@@ -435,16 +435,21 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
                 # open map would replace the real error with a cleanup failure.
                 del x
             if len(fixed)!=n:raise RuntimeError('Exact duration correction failed.')
-            if i in gains:
-                fixed*=np.float32(gains[i])
+            # Matched restored-scene level, and the clip gain set in Preview & Edit.
+            g=float(gains.get(i,1.))*10**(float(s.get('gain_db',0) or 0)/20)
+            if abs(g-1.)>1e-6:
+                fixed*=np.float32(g)
                 peak=float(np.max(np.abs(fixed))) if len(fixed) else 0.
-                if peak>.98:fixed*=np.float32(.98/peak)   # never clip a boosted scene
+                if peak>.98:fixed*=np.float32(.98/peak)   # never clip a boosted clip
             # Five-millisecond fades at segment joins; 25 ms where a censored dub
-            # switches between dub and original audio.
+            # switches between dub and original audio; longer where the editor set fades.
             segs=plan['segments']
             def fade_at(j):return min((1200 if smooth and language_switch(segs,j) else 240),n//2)
-            if i>0:f=fade_at(i);fixed[:f]*=np.linspace(0,1,f,dtype=np.float32)[:,None]
-            if i<len(segs)-1:f=fade_at(i+1);fixed[-f:]*=np.linspace(1,0,f,dtype=np.float32)[:,None]
+            fi=min(round(float(s.get('fade_in_ms',0) or 0)*48),n);fo=min(round(float(s.get('fade_out_ms',0) or 0)*48),n)
+            f=max(fade_at(i) if i>0 else 0,fi)
+            if f:fixed[:f]*=np.linspace(0,1,f,dtype=np.float32)[:,None]
+            f=max(fade_at(i+1) if i<len(segs)-1 else 0,fo)
+            if f:fixed[-f:]*=np.linspace(1,0,f,dtype=np.float32)[:,None]
             fixed.astype(np.float32).tofile(dst);del fixed
             raw.unlink();stretched.unlink();say(f'Rendered {i+1}/{len(plan["segments"])} sections')
         joined=td/'joined.f32'

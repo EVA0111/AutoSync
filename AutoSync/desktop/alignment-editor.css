@@ -195,3 +195,5 @@ dialog .small-note{margin-top:12px}
 #media-empty{padding:0 12px}
 .media-foot{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 #ripple-delete{margin-top:6px;width:100%}
+/* Review filters: the row lives inside its pane and wraps when the panel is narrow. */
+#review-pane>.segmented{margin:0 10px;display:flex;flex-wrap:wrap}#review-pane>.segmented button{flex:1 1 auto;padding:4px 6px}

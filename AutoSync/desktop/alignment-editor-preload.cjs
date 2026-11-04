@@ -10,8 +10,9 @@ contextBridge.exposeInMainWorld('alignment',{
  audio:(track,start,length,speed,media)=>ipcRenderer.invoke('align-audio',track,start,length,speed,media),
  importMedia:()=>ipcRenderer.invoke('align-import'),
  registerMedia:paths=>ipcRenderer.invoke('align-register-media',paths),
- save:(segments,timeline)=>ipcRenderer.invoke('align-save',segments,timeline),
+ save:(segments,timeline,extras)=>ipcRenderer.invoke('align-save',segments,timeline,extras),
  export:()=>ipcRenderer.invoke('align-export'),
  openFolder:()=>ipcRenderer.invoke('align-open-folder'),
+ snapshot:(track,time,media)=>ipcRenderer.invoke('align-snapshot',track,time,media),
  onEvent:callback=>{const handler=(_,data)=>callback(data);ipcRenderer.on('alignment-event',handler);return()=>ipcRenderer.removeListener('alignment-event',handler);}
 });

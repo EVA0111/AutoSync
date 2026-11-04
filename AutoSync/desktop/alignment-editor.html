@@ -25,6 +25,7 @@
    <button data-filter="flagged" role="radio" aria-checked="false" title="Only points the analysis marked as uncertain or worth a look">Flagged</button>
    <button data-filter="open" role="radio" aria-checked="false" title="Only points not yet marked as checked">Not checked</button>
    <button data-filter="censor" role="radio" aria-checked="false" title="Scenes a censored or re-edited dub removed or re-cut" hidden>Censorship</button>
+   <button data-filter="markers" role="radio" aria-checked="false" title="Your markers (K adds or removes one at the playhead)">Markers</button>
   </div>
   <div class="progress"><div id="review-bar"><span></span></div><span id="review-count" role="status"></span></div>
   <ol id="issue-list" aria-label="Review points"></ol>
@@ -51,6 +52,8 @@
    <input id="wipe" type="range" min="0" max="100" value="50" aria-label="Wipe position" hidden>
    <span class="grow"></span>
    <span class="hint" id="view-hint">Source left · target right</span>
+   <button id="snapshot" class="small" title="Save the output picture at the playhead as a PNG · Ctrl+Shift+S">📷 Frame</button>
+   <button id="fullscreen" class="small icon" title="Full screen (double-click the picture) · Alt+Enter">⛶</button>
   </div>
   <div id="pictures" class="pictures side">
    <article class="viewer" data-track="source"><div class="heading"><strong>Source</strong><span id="source-time"></span></div>
@@ -75,8 +78,10 @@
    <button id="ab-audio" title="Swap between output and target audio · A">A/B</button>
    <span class="sep"></span>
    <button id="play-join" title="Play from 2 s before to 2 s after the selected join · P">▶ Across join</button>
-   <button id="loop" title="Loop the selected clip" aria-pressed="false">⟳ Loop</button>
-   <label class="rate">Speed <select id="rate" title="Playback speed"><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select></label>
+   <button id="play-range" title="Play the marked In/Out range · Shift+Space">▶ In→Out</button>
+   <button id="loop" title="Loop the In/Out range, or the selected clip" aria-pressed="false">⟳ Loop</button>
+   <button id="add-marker" title="Add or remove a marker at the playhead · K">◆ Marker</button>
+   <label class="rate">Speed <select id="rate" title="Playback speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
   </div>
  </section>
 
@@ -93,7 +98,11 @@
   <fieldset><legend>Edit</legend>
    <div class="grid2"><button id="split" title="Split the clip at the playhead · S">✂ Split (S)</button><button id="join" title="Merge with the clip before; it continues the earlier timing">⇤ Join previous</button><button id="trim-left" title="Trim the start to the playhead; the gap uses target audio · Q">Trim start (Q)</button><button id="trim-right" title="Trim the end to the playhead; the gap uses target audio · W">Trim end (W)</button></div>
    <button id="ripple-delete" class="wide" title="Remove the marked range, or the selected clip, from the output: picture and sound. Everything after moves earlier · Shift+Delete">⌫ Ripple delete (picture + sound)</button>
-   <button id="fill-motion" class="wide" title="Replace the picture in the marked range (or the selected clip) with the frame at In, kept moving: only small motion inside the picture (mouths, eyes); anything bigger holds still. The sound does not change · Shift+F">◫ Fill motion (picture only)</button>
+   <div class="grid2"><button id="fill-motion" title="Replace the picture in the marked range (or the selected clip) with the frame at In, kept moving: only small motion inside the picture (mouths, eyes); anything bigger holds still. The sound does not change · M">◫ Fill motion (M)</button><button id="fill-black" title="Make the picture in the marked range (or the selected clip) black; the sound does not change · Shift+M">■ Fill black</button></div>
+  </fieldset>
+  <fieldset><legend>Volume</legend>
+   <div class="fields"><label>Gain (dB)<input id="clip-gain" type="number" step=".5" min="-60" max="24" value="0"></label><label>Fade in (ms)<input id="fade-in" type="number" step="10" min="0" value="0"></label><label>Fade out (ms)<input id="fade-out" type="number" step="10" min="0" value="0"></label></div>
+   <button id="apply-volume" class="wide" title="Apply gain and fades to the selected clip (Enter); heard in the preview and applied at export">Apply volume</button>
   </fieldset>
   <fieldset><legend>Audio for this clip</legend>
    <div class="segmented wide"><button id="source-mode" title="Use the source audio here">Source audio</button><button id="target-mode" title="Use the target's own audio here">Target audio</button></div>
@@ -140,12 +149,11 @@
 <dialog id="shortcuts" aria-label="Keyboard shortcuts">
  <h2>Keyboard shortcuts</h2>
  <div class="keys">
-  <section><h3>Playback</h3><dl><dt>Space</dt><dd>Play / pause</dd><dt>← →</dt><dd>One frame</dd><dt>Shift+← →</dt><dd>Ten frames</dd><dt>Home / End</dt><dd>Start / end</dd><dt>P</dt><dd>Play across the selected join</dd><dt>A</dt><dd>Swap output ↔ target audio</dd><dt>Esc</dt><dd>Stop, or cancel a drag</dd></dl></section>
-  <section><h3>Review</h3><dl><dt>J / L</dt><dd>Previous / next review point</dd><dt>R</dt><dd>Mark the point as checked</dd><dt>F</dt><dd>Zoom to the clip</dd><dt>Shift+F</dt><dd>Show everything</dd><dt>Ctrl+scroll</dt><dd>Zoom the timeline</dd><dt>+ / −</dt><dd>Zoom in / out</dd></dl></section>
-  <section><h3>Editing</h3><dl><dt>V / C / Y</dt><dd>Select / Razor / Slip</dd><dt>N</dt><dd>Snapping on / off</dd><dt>S</dt><dd>Split at the playhead</dd><dt>Q / W</dt><dd>Trim start / end to the playhead</dd><dt>, / .</dt><dd>Audio 1 frame earlier / later</dd><dt>Alt+, / Alt+.</dt><dd>Audio 10 ms earlier / later</dd><dt>I / O</dt><dd>Mark In / Out</dd><dt>Ctrl+C / X / V</dt><dd>Copy / cut / paste audio</dd><dt>Ctrl+Z / Y</dt><dd>Undo / redo</dd><dt>Ctrl+S</dt><dd>Save As…</dd><dt>Shift+Delete</dt><dd>Ripple delete range / clip</dd><dt>Shift+F</dt><dd>Fill the range with motion from the frame at In</dd><dt>Ctrl+I</dt><dd>Import media</dd><dt>B</dt><dd>Insert the selected media at the playhead</dd></dl></section>
+  <section><h3>Playback</h3><dl><dt>Space</dt><dd>Play / pause</dd><dt>← →</dt><dd>One frame</dd><dt>Shift+← →</dt><dd>Ten frames</dd><dt>Home / End</dt><dd>Start / end</dd><dt>Shift+Space</dt><dd>Play the In/Out range</dd><dt>P</dt><dd>Play across the selected join</dd><dt>K</dt><dd>Add / remove a marker</dd><dt>Alt+Enter</dt><dd>Full screen</dd><dt>Ctrl+Shift+S</dt><dd>Save the frame as PNG</dd><dt>A</dt><dd>Swap output ↔ target audio</dd><dt>Esc</dt><dd>Stop, or cancel a drag</dd></dl></section>
+  <section><h3>Review</h3><dl><dt>J / L</dt><dd>Previous / next review point</dd><dt>R</dt><dd>Mark the point as checked</dd><dt>F</dt><dd>Zoom to the clip (or the In/Out range)</dd><dt>Shift+F</dt><dd>Show everything</dd><dt>Ctrl+scroll</dt><dd>Zoom the timeline</dd><dt>+ / −</dt><dd>Zoom in / out</dd></dl></section>
+  <section><h3>Editing</h3><dl><dt>V / C / Y</dt><dd>Select / Razor / Slip</dd><dt>N</dt><dd>Snapping on / off</dd><dt>S</dt><dd>Split at the playhead</dd><dt>Q / W</dt><dd>Trim start / end to the playhead</dd><dt>, / .</dt><dd>Audio 1 frame earlier / later</dd><dt>Alt+, / Alt+.</dt><dd>Audio 10 ms earlier / later</dd><dt>I / O</dt><dd>Mark In / Out</dd><dt>Ctrl+C / X / V</dt><dd>Copy / cut / paste audio</dd><dt>Ctrl+Z / Y</dt><dd>Undo / redo</dd><dt>Ctrl+S</dt><dd>Save As…</dd><dt>Shift+Delete</dt><dd>Ripple delete range / clip</dd><dt>M</dt><dd>Fill the range with motion from the frame at In</dd><dt>Shift+M</dt><dd>Fill the range with black</dd><dt>Ctrl+I</dt><dd>Import media</dd><dt>B</dt><dd>Insert the selected media at the playhead</dd></dl></section>
  </div>
  <p class="small-note">Audio edits never move the picture. Picture edits (ripple delete, inserted media) move everything after them together; a motion fill only replaces the picture in its range, so synced audio stays on its picture. Edits are kept automatically until you save.</p>
  <form method="dialog"><button class="primary">Close</button></form>
 </dialog>
-<audio id="audio-player" preload="auto"></audio>
 <script src="video-timeline.js"></script><script src="alignment-editor.js"></script></body></html>

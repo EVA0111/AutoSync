@@ -76,3 +76,9 @@ test('motion fill replaces only the picture in the range, holding the frame at I
  assert.equal(split.length,2);assert.ok(split.every(k=>Math.abs(k.hold-20)<1e-9));
  assert.throws(()=>vt.fillRange(vt.fromPlan(plan),5,5),/Mark a range/);
 });
+
+test('black fill needs no target picture and keeps the sound',()=>{
+ const tl=vt.fillRange(vt.fromPlan(plan),10,12,'black');
+ assert.equal(tl.kept.find(k=>k.fill).fill,'black');
+ assert.throws(()=>vt.fillRange(vt.fromPlan(plan),10,12,'blur'),/Unknown fill/);
+});

@@ -78,3 +78,11 @@ test('motion fills pass validation with their held frame',()=>{
  assert.equal(ok.kept[1].fill,'motion');assert.equal(ok.kept[1].hold,20);
  assert.throws(()=>validateTimeline({duration:100,kept:[{start:0,end:100,output_start:0,original_start:0,original_end:100,fill:'blur',hold:3}]},plan,media),/motion fill/);
 });
+
+test('clip gain and fades are validated',()=>{
+ const {validateSegments}=require('./alignment-model.cjs');
+ const row={kind:'reference',target_start:0,target_end:2};
+ assert.equal(validateSegments([{...row,gain_db:-6,fade_in_ms:500,fade_out_ms:500}],2)[0].gain_db,-6);
+ assert.throws(()=>validateSegments([{...row,gain_db:40}],2),/gain or fades/);
+ assert.throws(()=>validateSegments([{...row,fade_in_ms:1500,fade_out_ms:1000}],2),/gain or fades/);
+});

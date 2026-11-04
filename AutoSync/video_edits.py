@@ -233,11 +233,12 @@ def fill_pieces(plan):
     (picture_timeline.sway_fine); otherwise it holds still.
     """
     kept=plan['video_edits']['kept']
-    if not any(k.get('fill') and not k.get('recreated') for k in kept):return kept
+    if not any(k.get('fill')=='motion' and not k.get('recreated') for k in kept):return kept
     import picture_timeline as pt
     info=pt.stream_info(plan['target_video'],vc.binary('ffprobe'));out=[]
     for k in kept:
         if not k.get('fill') or k.get('recreated'):out.append(k);continue
+        if k['fill']=='black':out.append(k);continue
         h=float(k['hold']);f=int(round((h-(info['origin']-info['start']))*pt.FPS))
         first=max(0,f-15);k=dict(k,recreated=True,length=float(k['end'])-float(k['start']))
         try:
@@ -261,16 +262,17 @@ def apply_fills(edited,fills):
             lo,hi=max(u,float(f['start'])),min(end,float(f['end']))
             if hi-lo<=1e-6:continue
             if lo>u:pieces.append((u,lo,None))
-            pieces.append((lo,hi,float(f['hold'])));u=hi
+            pieces.append((lo,hi,(float(f['hold']),f.get('fill','motion'))));u=hi
         if not pieces:out.append(k);continue
         if end>u:pieces.append((u,end,None))
         for lo,hi,h in pieces:
             o=float(k['output_start'])+lo-float(k['start'])
+            if h is not None:h,kind=h
             if h is None:
                 a=float(k['original_start'])+lo-float(k['start'])
                 out.append(dict(start=lo,end=hi,output_start=o,original_start=a,original_end=a+hi-lo))
             else:
-                out.append(dict(start=lo,end=hi,output_start=o,original_start=h,original_end=h+hi-lo,fill='motion',hold=h))
+                out.append(dict(start=lo,end=hi,output_start=o,original_start=h,original_end=h+hi-lo,fill=kind,hold=h))
     e['video_edits']['kept']=out
     return e
 
@@ -289,7 +291,14 @@ def media_graph(plan):
     def frames(start,length):
         o=Fraction(start).limit_denominator(10**6);e=o+Fraction(length).limit_denominator(10**6)
         return round(e*fr)-round(o*fr)
+    exact=exact or any(k.get('fill')=='black' for k in kept)
     for n,k in enumerate(kept):
+        if k.get('fill')=='black':
+            N=frames(k['output_start'],float(k['end'])-float(k['start']))
+            if N>0:
+                chains.append(f'color=c=black:s={W}x{H}:r={rate},setsar={sar},format=yuv420p,trim=end_frame={N},setpts=N/({rate})/TB[p{n}]')
+                labels.append(f'[p{n}]')
+            continue
         if exact and frames(k['output_start'],k['length'] if k.get('recreated') else k['end']-k['start'] if k.get('media') else k['original_end']-k['original_start'])<=0:
             continue                         # shorter than half a frame on the output clock
         if k.get('recreated') and k.get('sway'):

@@ -127,16 +127,17 @@ function replaceAudio(tl,a,b,item,inPoint=0){
  return check({segments,kept:copy(tl.kept),duration:tl.duration});
 }
 
-/** Fill output [a,b) with the target picture shown at a, kept moving; the audio does not change. */
-function fillRange(tl,a,b){
+/** Fill output [a,b) with the target picture shown at a, kept moving ('motion'), or black; the audio does not change. */
+function fillRange(tl,a,b,kind='motion'){
  a=Math.max(0,a);b=Math.min(tl.duration,b);
  if(!(b-a>EPS))throw Error('Mark a range (In and Out) or select a clip to fill.');
+ if(!['motion','black'].includes(kind))throw Error('Unknown fill.');
  const at=pictureAt(tl.kept,a);
- if(!at||at.target===undefined)throw Error('The picture at In is an imported clip; fill needs target footage there.');
- const hold=at.target;
+ if(kind==='motion'&&(!at||at.target===undefined))throw Error('The picture at In is an imported clip; fill needs target footage there.');
+ const hold=at&&at.target!==undefined?at.target:0;
  let kept=splitKept(splitKept(copy(tl.kept),a),b);
  kept=kept.filter(k=>!(Number(k.output_start)>=a-EPS&&Number(k.output_start)+len(k)<=b+EPS));
- kept.push({start:a,end:b,output_start:a,original_start:hold,original_end:hold+(b-a),fill:'motion',hold});
+ kept.push({start:a,end:b,output_start:a,original_start:hold,original_end:hold+(b-a),fill:kind,hold});
  kept.sort((x,y)=>Number(x.output_start)-Number(y.output_start));
  return check({segments:copy(tl.segments),kept,duration:tl.duration});
 }

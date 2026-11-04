@@ -23,6 +23,10 @@ function validateSegments(rows,duration){
    if(row.media_stream!==null&&row.media_stream!==undefined&&!(Number.isInteger(Number(row.media_stream))&&Number(row.media_stream)>=0))
     throw Error('Invalid imported audio stream in region '+(i+1));
   }
+  // Optional clip gain (dB) and fades (ms), applied in the preview and at export.
+  const g=row.gain_db===undefined?0:Number(row.gain_db),fi=row.fade_in_ms===undefined?0:Number(row.fade_in_ms),fo=row.fade_out_ms===undefined?0:Number(row.fade_out_ms);
+  if(!Number.isFinite(g)||g<-60||g>24||!Number.isFinite(fi)||!Number.isFinite(fo)||fi<0||fo<0||(fi+fo)/1000>end-start+1e-3)
+   throw Error('Invalid gain or fades in region '+(i+1));
   if(kind==='audio'){
    const ss=Number(row.source_start),speed=Number(row.speed);
    if(!Number.isFinite(ss)||ss<0||!Number.isFinite(speed)||speed<.5||speed>2)
@@ -82,10 +86,10 @@ function validateTimeline(timeline,plan,knownMedia){
   }
   const a=Number(k.original_start),b=Number(k.original_end);
   if(k.fill){                      // motion fill: one target picture, kept moving at export
-   if(k.fill!=='motion'||!Number.isFinite(Number(k.hold))||Number(k.hold)<-.05||Number(k.hold)>limit)
+   if(!['motion','black'].includes(k.fill)||!Number.isFinite(Number(k.hold))||Number(k.hold)<-.05||Number(k.hold)>limit)
     throw Error('Invalid motion fill (piece '+(i+1)+').');
    const h=Number(k.hold);
-   return {start,end,output_start:out,original_start:h,original_end:h+end-start,fill:'motion',hold:h};
+   return {start,end,output_start:out,original_start:h,original_end:h+end-start,fill:k.fill,hold:h};
   }
   if(!Number.isFinite(a)||!Number.isFinite(b)||a<-.05||b>limit||Math.abs(b-a-(end-start))>1e-3)
    throw Error('Video piece '+(i+1)+' is outside the target video.');
