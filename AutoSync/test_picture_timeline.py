@@ -594,6 +594,16 @@ class DubCoversARemovedScene(unittest.TestCase):
         ref = [s for s in plan(solve(D, C), len(C) / FPS) if s['kind'] == 'reference']
         self.assertEqual([(round(s['target_start'], 1), round(s['target_end'], 1)) for s in ref], [(60., 70.)])
 
+    def test_dub_footage_the_original_lacks_keeps_its_audio(self):
+        # Not a cover: 2 s the original never shows (another opening, a scene of
+        # the dub's own). Unmatched spans keep source audio, as before.
+        C = unique_frames(130 * FPS, 4)
+        D = np.vstack([C[:60 * FPS], unique_frames(2 * FPS, 7), C[70 * FPS:]])
+        segs = plan(solve(D, C), len(C) / FPS)
+        ref = [s for s in segs if s['kind'] == 'reference']
+        self.assertEqual(len(ref), 1)
+        self.assertAlmostEqual(ref[0]['target_end'] - ref[0]['target_start'], 8., delta=.05)
+
     def test_frozen_run_needs_a_change_in_the_target(self):
         C = unique_frames(20 * FPS, 5)
         still = np.repeat(C[:1], 10 * FPS, axis=0)        # both editions hold one picture: no evidence

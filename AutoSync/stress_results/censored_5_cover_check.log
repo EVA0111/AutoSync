@@ -1,0 +1,33 @@
+## k1
+censor_mix               PASS  in40=1.000 unmatched=0.000 p95=21.379786884523355 max=21.379786884523355 false=0.0 wrong_at=[]
+                         censor PASS  removed: 4/4 false=0 edge_max=40.0ms  replaced: 1/1 false=0 edge_max=0.0ms  dub_only: 1/1 false=0 edge_max=21.4ms
+cover_short              PASS  in40=1.000 unmatched=0.000 p95=21.317840676346123 max=21.317840676346123 false=0.0 wrong_at=[]
+                         censor PASS  removed: 2/2 false=0 edge_max=0.0ms  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 2/2 false=0 edge_max=21.3ms
+freeze_cover             PASS  in40=1.000 unmatched=0.000 p95=21.00281764172962 max=21.00281764172962 false=0.0 wrong_at=[]
+                         censor PASS  removed: 0/0 false=0 edge_max=Nonems  replaced: 2/2 false=0 edge_max=160.0ms  dub_only: 0/0 false=0 edge_max=Nonems
+mosaic_large             PASS  in40=1.000 unmatched=0.000 p95=20.513544352297686 max=20.513544352297686 false=0.0 wrong_at=[]
+                         censor PASS  removed: 0/0 false=0 edge_max=Nonems  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+mosaic_patch             PASS  in40=1.000 unmatched=0.000 p95=20.58649075172525 max=20.58649075172525 false=0.0 wrong_at=[]
+                         censor PASS  removed: 0/0 false=0 edge_max=Nonems  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+patch_at_cut             PASS  in40=1.000 unmatched=0.000 p95=21.32080211436005 max=21.32080211436005 false=0.0 wrong_at=[]
+                         censor PASS  removed: 1/1 false=0 edge_max=0.0ms  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+patch_large              PASS  in40=1.000 unmatched=0.000 p95=20.959541465543907 max=20.959541465543907 false=0.0 wrong_at=[]
+                         censor PASS  removed: 0/0 false=0 edge_max=Nonems  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+patch_near_cut           PASS  in40=1.000 unmatched=0.000 p95=21.364049974636146 max=21.364049974636146 false=0.0 wrong_at=[]
+                         censor PASS  removed: 2/2 false=0 edge_max=0.0ms  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+scenes_removed           PASS  in40=1.000 unmatched=0.000 p95=21.368406494730152 max=21.368406494730152 false=0.0 wrong_at=[]
+                         censor PASS  removed: 4/4 false=0 edge_max=0.0ms  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+shots_trimmed            PASS  in40=1.000 unmatched=0.000 p95=21.233752272763695 max=21.233752272763695 false=0.0 wrong_at=[]
+                         censor PASS  removed: 3/3 false=0 edge_max=80.0ms  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+zoom_shot                PASS  in40=1.000 unmatched=0.000 p95=21.27182843355513 max=21.27182843358355 false=0.0 wrong_at=[]
+                         censor PASS  removed: 0/0 false=0 edge_max=Nonems  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+## k4
+cover_short              FAIL  in40=0.910 unmatched=0.000 p95=44.79166666664014 max=49.305819678664875 false=0.0 wrong_at=[194.25, 194.5, 194.75, 195.0, 195.25, 195.5]
+                         censor PASS  removed: 2/2 false=0 edge_max=58.7ms  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 2/2 false=0 edge_max=71.0ms
+mosaic_patch             PASS  in40=0.976 unmatched=0.000 p95=22.755042268439496 max=81.00000000001728 false=0.0 wrong_at=[292.75, 293.0, 293.25, 293.5, 293.75, 294.0]
+                         censor PASS  removed: 0/0 false=0 edge_max=Nonems  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+scenes_removed           FAIL  in40=0.953 unmatched=0.000 p95=29.57707995372516 max=60.000000000002274 false=0.0 wrong_at=[194.25, 194.5, 194.75, 195.0, 195.25, 195.5]
+                         censor PASS  removed: 4/4 false=0 edge_max=58.7ms  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+shots_trimmed            FAIL  in40=0.952 unmatched=0.000 p95=31.771086497172973 max=52.500000000009095 false=0.0 wrong_at=[285.75, 286.0, 286.25, 286.5, 286.75, 287.0]
+                         censor PASS  removed: 2/2 false=0 edge_max=39.0ms  replaced: 0/0 false=0 edge_max=Nonems  dub_only: 0/0 false=0 edge_max=Nonems
+CENSOR_DONE

@@ -1228,10 +1228,15 @@ def uncovered_span(FT, FS, DT, r, lo, hi, f1, f2, oa, ob, outer=None, low=.6, le
     # its own mapping's picture, not dub-only material.
     a = block_scores(FT, FS, r, lo, hi, oa); b = block_scores(FT, FS, r, lo, hi, ob)
     inf = DT[lo:hi] > 6
+    # A cover is a freeze or repeat of the original's own footage: what the dub
+    # shows there is a picture the target has nearby. Source footage the target
+    # lacks altogether (another opening, a scene of its own) stays as it was:
+    # unmatched spans keep source audio.
+    ca = in_target(FT, FS, r, lo, hi, oa); cb = in_target(FT, FS, r, lo, hi, ob)
     i, j = f1 - lo, f2 - lo
-    while i > 0 and inf[i - 1] and a[i - 1] < low:
+    while i > 0 and inf[i - 1] and a[i - 1] < low and ca[i - 1]:
         i -= 1
-    while j < hi - lo and inf[j] and b[j] < low:
+    while j < hi - lo and inf[j] and b[j] < low and cb[j]:
         j += 1
     w1, w2 = lo + i, lo + j
     # A dub freeze can resemble the removed scene's first or last shot (a
@@ -1245,25 +1250,44 @@ def uncovered_span(FT, FS, DT, r, lo, hi, f1, f2, oa, ob, outer=None, low=.6, le
     return (w1, w2) if (f1 - w1) + (w2 - f2) >= least else (f1, f2)
 
 
+def in_target(FT, FS, r, lo, hi, offset, window=60 * FPS):
+    """Per target frame in [lo, hi): whether the source frame `offset` maps there is
+    a picture the target shows somewhere within +-window frames (score > MATCH)."""
+    ti = np.arange(lo, hi)
+    sj = np.round(r * ti + offset).astype(int)
+    ok = (sj >= 0) & (sj < len(FS))
+    out = np.zeros(len(ti), bool)
+    if ok.any():
+        t0, t1 = max(0, lo - window), min(len(FT), hi + window)
+        out[ok] = (FS[sj[ok]] @ FT[t0:t1].T).max(axis=1) > MATCH
+    return out
+
+
 def frozen_run(FT, FS, r, lo, hi, offset, step, still=.995, moved=.9, shown=.97, least=FPS // 2):
     """Edge of a run of target frames from the insert's edge outwards (step +1:
     from `lo` up, -1: from `hi` down) over which `offset` maps to one held source
     picture while the target picture moves (some frame unlike the run's first,
-    similarity under `moved`) or plainly differs from it (mean under MATCH). The run ends where the held picture changes or
-    where the target shows it (similarity `shown`: the original's own frame,
-    as when a dub freezes a shot's last frame). Returns the far end of that run
-    (exclusive for +1, inclusive start for -1) or the starting edge when there
-    is none, or when the run reaches the search's end (not bounded)."""
+    similarity under `moved`) or plainly differs from it (mean under MATCH). The
+    held picture must be one the target shows nearby (a freeze of the original's
+    footage). The run ends where the held picture changes or where the target
+    shows it (similarity `shown`, or a jump of 0.3 above the run's first frame
+    to a match: the original's own frame, as when a dub freezes a shot's last
+    frame). Returns the far end of that run (exclusive for +1, inclusive start
+    for -1) or the starting edge when there is none, or when the run reaches
+    the search's end (not bounded)."""
     ks = np.arange(lo, hi) if step > 0 else np.arange(hi - 1, lo - 1, -1)
     if len(ks) < least:
         return lo if step > 0 else hi
     sj = np.round(r * ks + offset).astype(int)
     ok = (sj >= 0) & (sj < len(FS))
-    if not ok[0]:
-        return lo if step > 0 else hi
+    if not ok[0] or not in_target(FT, FS, r, ks[0], ks[0] + 1, offset)[0]:
+        return lo if step > 0 else hi                 # not a freeze of the original's footage
+    # The run ends where the target shows the held picture: its own frame
+    # (`shown`), or a clear jump back to a match (the shot the dub froze).
+    stop = min(shown, max(MATCH, float(FT[ks[0]] @ FS[sj[0]]) + .3))
     n = 0
     while (n < len(ks) and ok[n] and float(FS[sj[0]] @ FS[sj[n]]) > still and
-           float(FT[ks[n]] @ FS[sj[n]]) < shown):
+           float(FT[ks[n]] @ FS[sj[n]]) < stop):
         n += 1                                        # frames ks[0..n) show the held picture, unlike the target
     if n < least or n >= len(ks):
         return lo if step > 0 else hi
