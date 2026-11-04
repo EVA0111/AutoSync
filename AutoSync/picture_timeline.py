@@ -541,6 +541,34 @@ def absorb_jitter(sections, short=20, near=6, agree=1.5):
     return s
 
 
+def absorb_unsupported(sections, FT, FS, DT, r, agree=1.5, longest=30 * FPS):
+    """A matched run between two agreeing neighbours, at an offset of its own that
+    its pictures do not prefer, is no edit: give it the neighbours' offset.
+
+    In a slow or near-static shot several offsets fit the samples; the solver can
+    pick one a second away for a few samples, which reads as a removed scene
+    followed by a source skip that cancel (a false censored scene). Only when the
+    neighbours' mapping fits the run's informative frames at least as well as
+    its own does it take over; a real recap or reorder fits only its own.
+    """
+    s = [dict(x) for x in sections]
+    matches = [i for i, x in enumerate(s) if x['kind'] == 'match']
+    for a, b, c in zip(matches, matches[1:], matches[2:]):
+        L, M, N = s[a], s[b], s[c]
+        if (abs(L['offset'] - N['offset']) > agree or abs(M['offset'] - L['offset']) <= agree or
+                M['last'] - M['first'] > longest):
+            continue
+        lo, hi = M['first'], M['last'] + 1
+        inf = DT[lo:hi] > 6
+        if inf.sum() < FPS // 2:
+            continue
+        own = frame_scores(FT, FS, r, lo, hi, M['offset'])[inf]
+        both = frame_scores(FT, FS, r, lo, hi, L['offset'])[inf]
+        if both.mean() > MATCH and both.mean() >= own.mean():
+            M['offset'] = L['offset']; M['unsupported'] = True
+    return s
+
+
 DRIFT_GRID = np.arange(-12, 12.01, .25)   # frames around the section offset
 DRIFT_SLOPE = .05        # largest audio speed change used to follow a drift (5 %)
 DRIFT_MIN = 3            # frames (0.12 s): smaller departures stay constant
@@ -885,7 +913,7 @@ def solve_sections(FT, DT, FS, DS, r):
         if x.get('gap_refined'):
             strong = [samples[k] for k in range(len(samples)) if x['first'] <= samples[k] <= x['last']]
             x['offset'] = refine_offset(FT, FS, DT, r, strong, x['offset'])
-    sections = absorb_jitter(sections)
+    sections = absorb_unsupported(absorb_jitter(sections), FT, FS, DT, r)
     merged = []
     for s in sections:
         if merged and s['kind'] == merged[-1]['kind'] == 'none':
