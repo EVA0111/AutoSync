@@ -370,11 +370,11 @@ def refine_offset(FT, FS, DT, r, sample_frames, offset):
     return float(offset + grid[k] + shift * .25)
 
 
-def frame_scores(FT, FS, r, lo, hi, offset):
-    """Per target frame in [lo, hi): similarity under a mapping (+-1 frame tolerance)."""
+def frame_scores(FT, FS, r, lo, hi, offset, tol=1):
+    """Per target frame in [lo, hi): similarity under a mapping (+-tol frame tolerance)."""
     ti = np.arange(lo, hi)
     out = np.zeros(len(ti))
-    for d in (-1, 0, 1):
+    for d in range(-tol, tol + 1):
         sj = np.round(r * ti + offset + d).astype(int)
         ok = (sj >= 0) & (sj < len(FS))
         v = np.full(len(ti), -1.); v[ok] = np.sum(FT[ti[ok]] * FS[sj[ok]], axis=1)
@@ -391,7 +391,11 @@ def place_cut(FT, FS, DT, r, lo, hi, oa, ob):
     lo = max(0, lo); hi = min(len(FT), hi)
     if hi - lo < 2:
         return lo, lo, lo
-    a = frame_scores(FT, FS, r, lo, hi, oa); b = frame_scores(FT, FS, r, lo, hi, ob)
+    # The +-1 frame tolerance must not let the two mappings share source frames:
+    # a 2-frame skip (a micro cut) would score alike under both and the
+    # pictures would bound the join to noise. Close mappings are scored exactly.
+    tol = 1 if abs(ob - oa) >= 3 else 0
+    a = frame_scores(FT, FS, r, lo, hi, oa, tol); b = frame_scores(FT, FS, r, lo, hi, ob, tol)
     informative = (DT[lo:hi] > 6) & (np.abs(a - b) > .05)
     if not informative.any():
         # No frame tells the mappings apart: the gap's centre, whole span uncertain.
@@ -1126,6 +1130,35 @@ def edge_frame(FT, FS, r, lo, hi, offset, side):
     return lo + int(good[0]) if side == 'start' else lo + int(good[-1]) + k
 
 
+def both_fit(FT, FS, r, lo, hi, oa, ob, first, last, limit=15, back=True, ahead=True):
+    """Widen a join's search [lo, hi) over neighbouring seconds the other mapping fits as well.
+
+    Sections come from samples every STEP seconds; when two mappings differ by a
+    few frames (a micro cut) both fit those samples, so a section can run on
+    seconds past the real cut. Within [first, last) extend while the other
+    side's mapping matches at least as well as the section's own; a second its
+    own mapping clearly wins stops the search. place_cut then decides frame by
+    frame. Only a step between constant offsets is a cut to search for:
+    sub-frame steps need no search, and a drifting section (its own speed)
+    crosses over gradually, which the gap already brackets.
+    """
+    if abs(ob - oa) < 1:
+        return lo, hi
+    tol = 1 if abs(ob - oa) >= 3 else 0
+    def fits(x0, x1, other, own):
+        if x0 < first or x1 > last or x1 <= x0:
+            return False
+        o = float(np.mean(frame_scores(FT, FS, r, x0, x1, other, tol)))
+        return o > MATCH and o >= float(np.mean(frame_scores(FT, FS, r, x0, x1, own, tol)))
+    k = 0
+    while back and k < limit and fits(lo - FPS, lo, ob, oa):
+        lo -= FPS; k += 1
+    k = 0
+    while ahead and k < limit and fits(hi, hi + FPS, oa, ob):
+        hi += FPS; k += 1
+    return lo, hi
+
+
 def held_span(FT, FS, r, lo, hi, oa, ob, limit=30):
     """Widen [lo, hi) over adjacent frames that fit both mappings equally (a held shot)."""
     def held(x0, x1):
@@ -1414,14 +1447,32 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
         insert = L - (sb_start - sa_end) / FPS / r       # target seconds without source
         if insert < .25:
             # Continuous or a source-only cut: switch once, frame-accurately.
+            def resolve(f, s0, s1):
+                t, how, located = f / FPS, 'picture-located join', False
+                if (s1 - s0) / FPS > .2 and audio_cut is not None:
+                    # Static/dark frames between the evidence: audio decides inside the span.
+                    got = audio_cut(p, m, t, s0 / FPS, s1 / FPS)
+                    if got is not None:
+                        t, how = got; located = how.startswith('audio-located')
+                return t, how, (s1 - s0) / FPS, located
             f, s0, s1 = place(FT, FS, DT, r, gap_lo - FPS, gap_hi + FPS, oa, ob)
-            t, method = f / FPS, 'picture-located join'
-            span = (s1 - s0) / FPS
-            if span > .2 and audio_cut is not None:
-                # Static/dark frames between the evidence: audio decides inside the span.
-                got = audio_cut(p, m, t, s0 / FPS, s1 / FPS)
-                if got is not None:
-                    t, method = got
+            t, method, span, _ = resolve(f, s0, s1)
+            # A span reaching the window's edge is not bounded there by any picture:
+            # the cut may lie further out (see both_fit). Search on that side, and
+            # use the result only when it resolves the join (pictures within 3 s, or
+            # audio locating it); otherwise the original placement stands.
+            back, ahead = s0 <= max(0, gap_lo - FPS), s1 >= min(len(FT), gap_hi + FPS)
+            if (back or ahead) and not p.get('knots') and not m.get('knots'):
+                w0, w1 = both_fit(FT, FS, r, gap_lo, gap_hi, oa, ob, max(p['first'], int(np.ceil(cursor * FPS))),
+                                  m['last'], back=back, ahead=ahead)
+                if (w0, w1) != (gap_lo, gap_hi):
+                    wide = resolve(*place(FT, FS, DT, r, w0 - FPS, w1 + FPS, oa, ob))
+                    if wide[2] <= 3.:
+                        t, method, span = wide[:3]
+                    elif wide[3]:
+                        # Audio pins the cut outside the first window: take its position.
+                        # Confidence stays as the first window's evidence gives it.
+                        t, method = wide[:2]
             # Joins bounded by picture evidence within 3 s are located; wider spans
             # remain uncertain (and block when they skip source audio).
             conf = 'supported' if span <= 3. else 'uncertain'

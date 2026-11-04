@@ -522,8 +522,10 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
         oa,ob=pt.offset_at(p,lo*pt.FPS)/pt.FPS+shift,pt.offset_at(m,hi*pt.FPS)/pt.FPS+shift
         ts=ti['origin']-ti['start']   # frame seconds -> target video seconds (reference features)
         if ref_t is not None:
-            c=locate_cut(dict(speed=tl.ratio,offset=oa-tl.ratio*ts,last=lo+ts+4),dict(speed=tl.ratio,offset=ob-tl.ratio*ts,first=hi+ts-4),ref_t,energy_t,sf)
-            if c['confidence']=='supported' and lo<=c['time']-ts<=hi:return c['time']-ts,'audio-located join inside the picture-bounded span'
+            # Search a second past each picture bound: a cut at the span's edge still
+            # needs audio on both sides of it. The pictures bound the answer.
+            c=locate_cut(dict(speed=tl.ratio,offset=oa-tl.ratio*ts,last=lo+ts+3),dict(speed=tl.ratio,offset=ob-tl.ratio*ts,first=hi+ts-3),ref_t,energy_t,sf)
+            if c['confidence']=='supported' and lo-.04<=c['time']-ts<=hi+.04:return c['time']-ts,'audio-located join inside the picture-bounded span'
         times=np.arange(lo,hi+1e-9,.02)
         def level(src):
             i=np.clip(np.round(src*50).astype(int),2,len(se)-3)

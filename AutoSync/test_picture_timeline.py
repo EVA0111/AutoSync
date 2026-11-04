@@ -86,6 +86,32 @@ class StaticSpan(unittest.TestCase):
         self.assertAlmostEqual(audio[1]['source_start'] - audio[1]['target_start'], 1., delta=.05)
 
 
+class MicroCutJoin(unittest.TestCase):
+    """A 2-frame cut in slow footage: both mappings fit the 0.5 s samples, so the
+    sections can meet seconds after the real cut. The join search must reach it."""
+    def test_search_reaches_a_cut_seconds_before_the_section_gap(self):
+        rng = np.random.default_rng(5); w = 60
+        x = rng.normal(size=(60 * FPS + w, 384)).astype(np.float32)
+        c = np.cumsum(x, axis=0); S = (c[w:] - c[:-w])[:60 * FPS]
+        S -= S.mean(axis=1, keepdims=True); S /= np.linalg.norm(S, axis=1, keepdims=True)
+        T = np.vstack([S[:13 * FPS], S[13 * FPS + 2:]])
+        DT = np.full(len(T), 20.)
+        lo, hi = int(16.8 * FPS), int(17.28 * FPS)      # where the sections met
+        _, s0, s1 = pt.place_cut(T, S, DT, 1., lo - FPS, hi + FPS, 0., 2.)
+        self.assertGreater(s0, 13 * FPS)                  # the old window misses the cut
+        w0, w1 = pt.both_fit(T, S, 1., lo, hi, 0., 2., 0, len(T))
+        _, s0, s1 = pt.place_cut(T, S, DT, 1., w0 - FPS, w1 + FPS, 0., 2.)
+        self.assertLessEqual(s0, 13 * FPS); self.assertGreaterEqual(s1, 13 * FPS)
+
+    def test_sub_frame_and_distinct_mappings_do_not_widen(self):
+        S = unique_frames(60 * FPS, 6)
+        T = np.vstack([S[:30 * FPS], S[30 * FPS + 4:]])
+        lo, hi = 30 * FPS, 31 * FPS
+        self.assertEqual(pt.both_fit(T, S, 1., lo, hi, 0., .4, 0, len(T)), (lo, hi))
+        # Distinct footage: the section's own mapping wins next to the gap.
+        self.assertEqual(pt.both_fit(T, S, 1., lo, hi, 0., 4., 0, len(T)), (lo, hi))
+
+
 class Pieces(unittest.TestCase):
     def test_jitter_runs_are_absorbed_but_real_steps_kept(self):
         def m(first, last, off, n):
