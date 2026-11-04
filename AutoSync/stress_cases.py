@@ -243,8 +243,10 @@ def build(case, source, insert, out):
 # (target.mkv, clean seconds 60-360). Ops run in clean-source seconds, in
 # order; clean time left out between ops is a scene the dub removed.
 #   keep(a, b, fx)     clean a..b shown, optionally altered: 'mosaic' (pixelated
-#                      box), 'blur' (blurred box), 'patch' (painted-over box, as
-#                      dubs add clothing), 'zoom' (1.4x crop-in)
+#                      box), 'mosaic_large' (70 % of the frame), 'blur' (blurred
+#                      box), 'patch' / 'patch_large' (painted-over box, 18 % /
+#                      33 % of the frame, as dubs add clothing),
+#                      'zoom' (1.4x crop-in)
 #   freeze_over(a, b)  clean a..b's audio over its first frame held (same length)
 #   repeat_over(a, b, r) clean a..b's audio over clean r..r+(b-a) (same length)
 #   dub_hold(t, d)     dub-only: frame t held d s, other-episode audio
@@ -271,6 +273,19 @@ CENSORED_1 = {
     # Nothing removed: part of the frame pixelated, blurred or painted over.
     'mosaic_patch': [keep(60, 180), keep(180, 186, 'mosaic'), keep(186, 265), keep(265, 270, 'blur'),
                      keep(270, 300.5), keep(300.5, 305, 'patch'), keep(305, 360)],
+    # Nothing removed: most of the frame pixelated for 8 s across a shot change,
+    # then a painted patch held for 10 s.
+    'mosaic_large': [keep(60, 117), keep(117, 125, 'mosaic_large'), keep(125, 250), keep(250, 260, 'patch'),
+                     keep(260, 360)],
+    # Nothing removed: a third of the frame painted over for 10 s, twice.
+    'patch_large': [keep(60, 140), keep(140, 150, 'patch_large'), keep(150, 300), keep(300, 310, 'patch_large'),
+                    keep(310, 360)],
+    # Removed scenes with painted-over shots right next to them (the patch must
+    # not count as dub-only material or move the scene's edges).
+    'patch_near_cut': [keep(60, 140), keep(140, 148.04, 'patch_large'), keep(156.44, 163.88, 'patch_large'),
+                       keep(163.88, 289.28), keep(291.48, 300.12, 'patch_large'), keep(300.12, 360)],
+    # The dub paints over a shot and removes what follows it.
+    'patch_at_cut': [keep(60, 140), keep(140, 144.5, 'patch_large'), keep(156.44, 360)],
     # Nothing removed: two whole shots zoomed in.
     'zoom_shot': [keep(60, 225.48), keep(225.48, 244.76, 'zoom'), keep(244.76, 262.24),
                   keep(262.24, 283.16, 'zoom'), keep(283.16, 360)],
@@ -337,6 +352,12 @@ def build_censored(ops, clean, other, out, lo=60., hi=360.):
                           f'scale={w}:{h}:flags=neighbor[mo{k}];[b{k}][mo{k}]overlay={x}:{y}')
                 elif fx == 'blur':
                     v += f',split[b{k}][m{k}];[m{k}]crop={w}:{h}:{x}:{y},boxblur=12:2[mo{k}];[b{k}][mo{k}]overlay={x}:{y}'
+                elif fx == 'mosaic_large':                 # 70 % x 70 % of the frame, coarse blocks
+                    X, Y, w2, h2 = int(W * .15) // 2 * 2, int(H * .15) // 2 * 2, int(W * .7) // 2 * 2, int(H * .7) // 2 * 2
+                    v += (f',split[b{k}][m{k}];[m{k}]crop={w2}:{h2}:{X}:{Y},scale={w2 // 24}:{h2 // 24},'
+                          f'scale={w2}:{h2}:flags=neighbor[mo{k}];[b{k}][mo{k}]overlay={X}:{Y}')
+                elif fx == 'patch_large':                  # a third of the frame painted over
+                    v += f',drawbox=x={int(W * .2)}:y={int(H * .2)}:w={int(W * .55)}:h={int(H * .6)}:color=0x8a6a50:t=fill'
                 elif fx == 'patch':
                     v += f',drawbox=x={x}:y={y}:w={w}:h={h}:color=0x8a6a50:t=fill'
                 elif fx == 'zoom':
