@@ -80,7 +80,7 @@ Comprobar / configurar el motor
 Instalar IA de subtítulos
 Instalar modelos de AI Sync
 Revise las partes marcadas y las uniones antes de usar el resultado. Las puntuaciones de coincidencia no garantizan la sincronía labial.
-AutoSync v1.3.0 · Vista previa y edición
+AutoSync v1.4.0 · Vista previa y edición
 Abriendo un plan de alineación…
 — por revisar
 Sin cambios

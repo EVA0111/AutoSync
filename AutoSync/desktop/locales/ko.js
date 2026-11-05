@@ -83,7 +83,7 @@
 "Install subtitle AI": "자막 AI 설치",
 "Install AI Sync models": "AI Sync 모델 설치",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "결과를 사용하기 전에 표시된 구간과 이음새를 확인하세요. 매칭 점수가 입모양 일치를 보장하지는 않습니다.",
-"AutoSync v1.3.0 · Preview & Edit": "AutoSync v1.3.0 · 미리보기 및 편집",
+"AutoSync v1.4.0 · Preview & Edit": "AutoSync v1.4.0 · 미리보기 및 편집",
 "Opening an alignment plan…": "정렬 계획을 여는 중…",
 "— to review": "— 확인 필요",
 "No changes": "변경 없음",

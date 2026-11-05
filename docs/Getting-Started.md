@@ -1,4 +1,4 @@
-# Getting started — your first sync (v1.3.0)
+# Getting started — your first sync (v1.4.0)
 
 This guide is for people who have never used a sync tool. You need a **Windows 10/11 64-bit** computer, two versions of a video, and some free disk space.
 
@@ -6,12 +6,12 @@ This guide is for people who have never used a sync tool. You need a **Windows 1
 
 ## 1. Download and open AutoSync
 
-1. Open the [AutoSync v1.3.0 release page](https://github.com/EVA0111/AutoSync/releases/tag/v1.3.0).
-2. Under **Assets**, download **AutoSync-v1.3.0-Windows-Portable.zip** (not the "Source code" ZIP).
+1. Open the [AutoSync v1.4.0 release page](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.0).
+2. Under **Assets**, download **AutoSync-v1.4.0-Windows-Portable.zip** (not the "Source code" ZIP).
 3. Right-click the ZIP and choose **Extract All…**, into a folder you can write to, such as **Documents\AutoSync**.
-4. Open the extracted **AutoSync-v1.3.0-Windows-Portable** folder and double-click **AutoSync.exe**.
+4. Open the extracted **AutoSync-v1.4.0-Windows-Portable** folder and double-click **AutoSync.exe**.
 
-Python and FFmpeg are already included. If the app opens but says the engine is not ready, open **Settings → Engine & AI models → Check / set up engine**.
+Python and FFmpeg are already included. If the app opens but says the engine is not ready, open **Settings → Engine → Check / set up engine**.
 
 ## 2. The main window at a glance
 
@@ -37,10 +37,9 @@ Each file row has its own **track menu** (for example *Track 2 · jpn*). Pick:
 
 Do not assume track 1 is the language you want. For more detail open **Audio tracks → Tracks for the selected pair**.
 
-## 5. Choose the output and method
+## 5. Choose the output
 
 - **Output:** pick **Full target audio** for your first try. (The other two cards are explained on the [wiki home page](Home.md).)
-- **Matching → Method:** leave **Standard (default)**.
 - **Censored or edited dub:** leave **Off** unless your source is a dub that cut scenes ([see this page](Censored-and-Edited-Dubs.md)).
 
 ## 6. Where the result goes

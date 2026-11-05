@@ -1,4 +1,4 @@
-# Preview & Edit (v1.3.0)
+# Preview & Edit (v1.4.0)
 
 Preview & Edit lets you see and hear exactly what AutoSync did, and fix anything by hand. Nothing is changed until you save; the target's picture is never changed, only the timing of the audio.
 
@@ -30,6 +30,12 @@ Preview & Edit lets you see and hear exactly what AutoSync did, and fix anything
 - **Slip (Y):** drag to move the source audio inside its clip.
 - **Snap (N):** snapping to joins and the playhead (hold **Shift** to override).
 - Trimmed or cut ranges fall back to the target's own audio; nothing shifts in time.
+
+## Video tracks and media
+
+- **Video tracks:** add tracks above **V1**, or **duplicate** the locked target track and edit the copy. Upper tracks cover lower ones; the export shows the result from top to bottom. Each track can be **locked** or hidden.
+- **Media pool:** import video, audio or images (or drag them in from Explorer) and drag them onto a track.
+- **Fill motion:** mark a range and fill it with motion from the surrounding picture, for example to replace a frozen shot.
 
 ## Safety
 

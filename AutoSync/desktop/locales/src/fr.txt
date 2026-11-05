@@ -80,7 +80,7 @@ Vérifier / installer le moteur
 Installer l’IA sous-titres
 Installer les modèles AI Sync
 Vérifiez les passages signalés et les raccords avant d’utiliser le résultat. Les scores de correspondance ne garantissent pas la synchro labiale.
-AutoSync v1.3.0 · Aperçu & Montage
+AutoSync v1.4.0 · Aperçu & Montage
 Ouverture d’un plan d’alignement…
 — à vérifier
 Aucune modification

@@ -83,7 +83,7 @@
 "Install subtitle AI": "نصب هوش مصنوعی زیرنویس",
 "Install AI Sync models": "نصب مدل‌های AI Sync",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "پیش از استفاده از نتیجه، بخش‌ها و اتصال‌های علامت‌خورده را بررسی کنید. امتیاز تطبیق تضمینی برای هماهنگی لب نیست.",
-"AutoSync v1.3.0 · Preview & Edit": "AutoSync v1.3.0 · پیش‌نمایش و ویرایش",
+"AutoSync v1.4.0 · Preview & Edit": "AutoSync v1.4.0 · پیش‌نمایش و ویرایش",
 "Opening an alignment plan…": "در حال باز کردن طرح هم‌ترازی…",
 "— to review": "— برای بازبینی",
 "No changes": "بدون تغییر",

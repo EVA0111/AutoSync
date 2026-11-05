@@ -83,7 +83,7 @@
 "Install subtitle AI": "安装字幕 AI",
 "Install AI Sync models": "安装 AI Sync 模型",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "使用结果前，请检查标记的片段和衔接。匹配分数不能保证口型同步。",
-"AutoSync v1.3.0 · Preview & Edit": "AutoSync v1.3.0 · 预览与编辑",
+"AutoSync v1.4.0 · Preview & Edit": "AutoSync v1.4.0 · 预览与编辑",
 "Opening an alignment plan…": "正在打开对齐方案…",
 "— to review": "— 待检查",
 "No changes": "无更改",
