@@ -13,7 +13,6 @@ No coding is needed: download the Windows portable release, unzip it and run **A
 | **[Censored and edited dubs](Censored-and-Edited-Dubs.md)** | Your source is an old dub that removed or re-cut scenes. |
 | **[How syncing works](How-Syncing-Works.md)** | You want to know what AutoSync does, how accurate it is and where it can go wrong. |
 | **[Troubleshooting](Troubleshooting.md)** | Something did not work. |
-| [Subtitle syncing](../AutoSync/README_SUBTITLES.md) | A separate workflow for subtitles. |
 
 - [Download AutoSync v1.4.0](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.0)
 - [Ask a question / report a problem](https://github.com/EVA0111/AutoSync/issues)

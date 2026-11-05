@@ -146,7 +146,7 @@ try {
   Copy-Item -Path (Join-Path $source '*.py') -Destination $engine
   Copy-Item -Path (Join-Path $source 'requirements.txt') -Destination $engine
   Copy-Item -Path (Join-Path $source 'jobs_example.csv') -Destination $engine
-  Copy-Item -Path (Join-Path $source 'README.md') -Destination $engine
+  Copy-Item -Path (Join-Path $repo 'README.md') -Destination $engine
   if (Test-Path (Join-Path $source 'sushi')) {
     Copy-Item -LiteralPath (Join-Path $source 'sushi') -Destination $engine -Recurse
   }
