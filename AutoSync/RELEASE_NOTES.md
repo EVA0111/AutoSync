@@ -18,6 +18,7 @@ Windows x64 portable release by [EVA0111](https://github.com/EVA0111).
 ### Censored or edited dubs
 
 - New **Recreate the dub's version** option: removed scenes are cut, and the freezes, repeats and replaced shots the dub used to cover them are rebuilt from the original's own pictures, with natural motion instead of frozen frames.
+- **Better censorship detection.** Removed scenes now include the frames the dub covered with its own freeze or repeat; a mosaic, blur or painted patch over part of the frame is no longer mistaken for a different scene; slow or near-still shots no longer produce false "removed scene" reports; and removed footage inside a held shot is placed by the audio. Measured on a new set of 15 synthetic censored dubs (removed and trimmed scenes, freezes, mosaics, patches, zooms): 12 pass, up from 4 of the first 11.
 
 ### Preview & Edit
 

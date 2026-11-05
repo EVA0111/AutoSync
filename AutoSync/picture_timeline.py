@@ -431,6 +431,31 @@ def frame_scores(FT, FS, r, lo, hi, offset, tol=1):
     return out
 
 
+def block_similarity(A, B, keep=2 / 3):
+    """Per row: mean correlation of the best `keep` share of 24 picture blocks (4x4
+    feature cells each). A mosaic, blur or painted patch over part of the frame
+    lowers only its own blocks; another picture lowers nearly all of them."""
+    def blocks(X):
+        X = X.reshape(len(X), 4, 4, 6, 4).transpose(0, 1, 3, 2, 4).reshape(len(X), 24, 16)
+        X = X - X.mean(axis=2, keepdims=True)
+        return X / np.maximum(np.linalg.norm(X, axis=2, keepdims=True), 1e-6)
+    c = np.sort(np.sum(blocks(A) * blocks(B), axis=2), axis=1)[:, ::-1]
+    return c[:, :max(1, int(round(24 * keep)))].mean(axis=1)
+
+
+def block_scores(FT, FS, r, lo, hi, offset, tol=1):
+    """frame_scores with block_similarity: robust to part of the frame being altered."""
+    ti = np.arange(lo, hi)
+    out = np.full(len(ti), -1.)
+    for d in range(-tol, tol + 1):
+        sj = np.round(r * ti + offset + d).astype(int)
+        ok = (sj >= 0) & (sj < len(FS))
+        if ok.any():
+            v = np.full(len(ti), -1.); v[ok] = block_similarity(FT[ti[ok]], FS[sj[ok]])
+            out = np.maximum(out, v)
+    return out
+
+
 def place_cut(FT, FS, DT, r, lo, hi, oa, ob):
     """Switch frame from mapping a to b in [lo, hi), and the span the pictures bound it to.
 
@@ -587,6 +612,34 @@ def absorb_jitter(sections, short=20, near=6, agree=1.5):
         if len(merged) == len(s):
             changed = False
         s = merged
+    return s
+
+
+def absorb_unsupported(sections, FT, FS, DT, r, agree=1.5, longest=30 * FPS):
+    """A matched run between two agreeing neighbours, at an offset of its own that
+    its pictures do not prefer, is no edit: give it the neighbours' offset.
+
+    In a slow or near-static shot several offsets fit the samples; the solver can
+    pick one a second away for a few samples, which reads as a removed scene
+    followed by a source skip that cancel (a false censored scene). Only when the
+    neighbours' mapping fits the run's informative frames at least as well as
+    its own does it take over; a real recap or reorder fits only its own.
+    """
+    s = [dict(x) for x in sections]
+    matches = [i for i, x in enumerate(s) if x['kind'] == 'match']
+    for a, b, c in zip(matches, matches[1:], matches[2:]):
+        L, M, N = s[a], s[b], s[c]
+        if (abs(L['offset'] - N['offset']) > agree or abs(M['offset'] - L['offset']) <= agree or
+                M['last'] - M['first'] > longest):
+            continue
+        lo, hi = M['first'], M['last'] + 1
+        inf = DT[lo:hi] > 6
+        if inf.sum() < FPS // 2:
+            continue
+        own = frame_scores(FT, FS, r, lo, hi, M['offset'])[inf]
+        both = frame_scores(FT, FS, r, lo, hi, L['offset'])[inf]
+        if both.mean() > MATCH and both.mean() >= own.mean():
+            M['offset'] = L['offset']; M['unsupported'] = True
     return s
 
 
@@ -934,7 +987,7 @@ def solve_sections(FT, DT, FS, DS, r):
         if x.get('gap_refined'):
             strong = [samples[k] for k in range(len(samples)) if x['first'] <= samples[k] <= x['last']]
             x['offset'] = refine_offset(FT, FS, DT, r, strong, x['offset'])
-    sections = absorb_jitter(sections)
+    sections = absorb_unsupported(absorb_jitter(sections), FT, FS, DT, r)
     merged = []
     for s in sections:
         if merged and s['kind'] == merged[-1]['kind'] == 'none':
@@ -1307,6 +1360,92 @@ def both_fit(FT, FS, r, lo, hi, oa, ob, first, last, limit=15, back=True, ahead=
     return lo, hi
 
 
+def uncovered_span(FT, FS, DT, r, lo, hi, f1, f2, oa, ob, outer=None, low=.6, least=FPS // 4):
+    """Widen target-only frames [f1, f2) over adjacent informative frames in [lo, hi)
+    that the mapping on that side does not show (block scores under `low`).
+
+    Source accounting gives the target-only length less any source-only material
+    in the same gap; a censored dub that covers a removed scene with a shorter
+    freeze or repeat leaves exactly such frames at the scene's edges. Dark or
+    flat frames (no evidence) and frames that side's mapping shows stop the widening;
+    a widening of under `least` frames in all is dropped (dissolves, compression).
+    """
+    # Only mapping a can precede the target-only footage and only b follow it, so
+    # each side asks its own mapping (a look-alike shot may fit the other one).
+    # Block scores: a dub's mosaic or painted patch next to the scene is still
+    # its own mapping's picture, not dub-only material.
+    a = block_scores(FT, FS, r, lo, hi, oa); b = block_scores(FT, FS, r, lo, hi, ob)
+    inf = DT[lo:hi] > 6
+    # A cover is a freeze or repeat of the original's own footage: what the dub
+    # shows there is a picture the target has nearby. Source footage the target
+    # lacks altogether (another opening, a scene of its own) stays as it was:
+    # unmatched spans keep source audio.
+    ca = in_target(FT, FS, r, lo, hi, oa); cb = in_target(FT, FS, r, lo, hi, ob)
+    i, j = f1 - lo, f2 - lo
+    while i > 0 and inf[i - 1] and a[i - 1] < low and ca[i - 1]:
+        i -= 1
+    while j < hi - lo and inf[j] and b[j] < low and cb[j]:
+        j += 1
+    w1, w2 = lo + i, lo + j
+    # A dub freeze can resemble the removed scene's first or last shot (a
+    # look-alike pose), so it scores well at first. But under that side's
+    # mapping the dub's frames stand still while the original's move on.
+    # The freeze may run past the gap into the neighbouring section (it matched
+    # there): search up to `outer`, the sections' own extent.
+    o0, o1 = outer or (lo, hi)
+    w1 = min(w1, frozen_run(FT, FS, r, min(lo, o0), f1, oa, -1))
+    w2 = max(w2, frozen_run(FT, FS, r, f2, max(hi, o1), ob, 1))
+    return (w1, w2) if (f1 - w1) + (w2 - f2) >= least else (f1, f2)
+
+
+def in_target(FT, FS, r, lo, hi, offset, window=60 * FPS):
+    """Per target frame in [lo, hi): whether the source frame `offset` maps there is
+    a picture the target shows somewhere within +-window frames (score > MATCH)."""
+    ti = np.arange(lo, hi)
+    sj = np.round(r * ti + offset).astype(int)
+    ok = (sj >= 0) & (sj < len(FS))
+    out = np.zeros(len(ti), bool)
+    if ok.any():
+        t0, t1 = max(0, lo - window), min(len(FT), hi + window)
+        out[ok] = (FS[sj[ok]] @ FT[t0:t1].T).max(axis=1) > MATCH
+    return out
+
+
+def frozen_run(FT, FS, r, lo, hi, offset, step, still=.995, moved=.9, shown=.97, least=FPS // 2):
+    """Edge of a run of target frames from the insert's edge outwards (step +1:
+    from `lo` up, -1: from `hi` down) over which `offset` maps to one held source
+    picture while the target picture moves (some frame unlike the run's first,
+    similarity under `moved`) or plainly differs from it (mean under MATCH). The
+    held picture must be one the target shows nearby (a freeze of the original's
+    footage). The run ends where the held picture changes or where the target
+    shows it (similarity `shown`, or a jump of 0.3 above the run's first frame
+    to a match: the original's own frame, as when a dub freezes a shot's last
+    frame). Returns the far end of that run (exclusive for +1, inclusive start
+    for -1) or the starting edge when there is none, or when the run reaches
+    the search's end (not bounded)."""
+    ks = np.arange(lo, hi) if step > 0 else np.arange(hi - 1, lo - 1, -1)
+    if len(ks) < least:
+        return lo if step > 0 else hi
+    sj = np.round(r * ks + offset).astype(int)
+    ok = (sj >= 0) & (sj < len(FS))
+    if not ok[0] or not in_target(FT, FS, r, ks[0], ks[0] + 1, offset)[0]:
+        return lo if step > 0 else hi                 # not a freeze of the original's footage
+    # The run ends where the target shows the held picture: its own frame
+    # (`shown`), or a clear jump back to a match (the shot the dub froze).
+    stop = min(shown, max(MATCH, float(FT[ks[0]] @ FS[sj[0]]) + .3))
+    n = 0
+    while (n < len(ks) and ok[n] and float(FS[sj[0]] @ FS[sj[n]]) > still and
+           float(FT[ks[n]] @ FS[sj[n]]) < stop):
+        n += 1                                        # frames ks[0..n) show the held picture, unlike the target
+    if n < least or n >= len(ks):
+        return lo if step > 0 else hi
+    # Evidence the dub froze: the target moves on, or plainly is not the held picture.
+    fit = float(np.mean(np.sum(FT[ks[:n]] * FS[sj[:n]], axis=1)))
+    if float(np.min(FT[ks[:n]] @ FT[ks[0]])) > moved and fit >= MATCH:
+        return lo if step > 0 else hi
+    return int(ks[n - 1]) + 1 if step > 0 else int(ks[n - 1])
+
+
 def held_span(FT, FS, r, lo, hi, oa, ob, limit=30):
     """Widen [lo, hi) over adjacent frames that fit both mappings equally (a held shot)."""
     def held(x0, x1):
@@ -1558,7 +1697,7 @@ def replaced_candidates(FS, FT, DS, frames, src, window=60, margin=.08, low=.85,
 
 
 def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place_cut, audio_cut=None, target_shift=0.,
-                     quiet=None):
+                     quiet=None, audio_place=None):
     """Convert sections into contiguous AutoSync segments in target seconds.
 
     Internally times are decoded-frame seconds (frame k = k/FPS).
@@ -1566,6 +1705,9 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
     target_shift: target time (video-relative) = target frame seconds + target_shift.
     quiet(starts, length): mean target-audio loudness of windows starting at the
     given frame seconds, or None; places inserts inside held shots.
+    audio_place(p, m, starts, length): index of the start (frame seconds) the
+    audio singles out for target-only footage between sections p and m, or
+    None; tried before `quiet`.
     Returns (segments, models, notes).
     """
     d = tl.diagnostics; FT, FS, DT = d['FT'], d['FS'], d['DT']; r = tl.ratio
@@ -1651,11 +1793,25 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
                 # the pictures. Put the extra time where the target audio, which
                 # fills it, is quietest, so no audible sound is doubled or cut.
                 tied = np.flatnonzero(vals >= vals[x] - .5)
-                if quiet is not None and len(tied) >= FPS // 2:
+                # Audio first: the source stops matching the target where the
+                # extra footage starts and matches again where it ends.
+                got = (audio_place(p, m, (lo + tied) / FPS, n / FPS)
+                       if audio_place is not None and len(tied) >= FPS // 2 else None)
+                if got is not None:
+                    x = int(tied[got]); how = 'held shot shown longer, placed where the source audio stops and resumes matching'
+                elif quiet is not None and len(tied) >= FPS // 2:
                     loud = quiet((lo + tied) / FPS, n / FPS)
                     if loud is not None:
                         x = int(tied[int(np.argmin(loud))]); how = 'held shot shown longer, placed at the quietest target audio'
-            t1 = (lo + x) / FPS; t2 = t1 + n / FPS
+            # A censored dub may cover the removed scene with shorter material of its
+            # own (a freeze, a repeated shot): the target-only span is then longer
+            # than the source accounting says, and that material is dub-only
+            # source, skipped here (censored-dub "recreate" can rebuild it).
+            w1, w2 = uncovered_span(FT, FS, DT, r, lo, hi, lo + x, lo + x + n, oa, ob,
+                                    outer=(max(p['first'], int(np.ceil(cursor * FPS))), m['last']))
+            if (w1, w2) != (lo + x, lo + x + n):
+                how += f'; the dub shows {((lo + x - w1) + (w2 - lo - x - n)) / FPS:.2f}s of its own footage here (skipped)'
+            t1 = w1 / FPS; t2 = w2 / FPS
             pieces.append([cursor, t1, 'audio', oa, {'sec': p}])
             pieces.append([t1, t2, 'insert', None, {}])
             notes.append(dict(start=t1, end=t2, splice=t1, confidence='supported',

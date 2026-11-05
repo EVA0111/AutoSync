@@ -1,0 +1,472 @@
+{
+ "k1/censor_mix": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 1,
+    "true": 1
+   },
+   "pass": false,
+   "removed": {
+    "edge_max_ms": 2000.0,
+    "edge_median_ms": 0.0,
+    "edges_ok": 0.875,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 4
+   },
+   "replaced": {
+    "edge_max_ms": 0.0,
+    "edge_median_ms": 0.0,
+    "edges_ok": 1.0,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 1
+   }
+  },
+  "false_match_seconds": 1.75,
+  "max_ms": 21.379786884523355,
+  "p95_ms": 21.379786884523355,
+  "pass": false,
+  "source_seconds": 269.0,
+  "timing_pass": false,
+  "unmatched_source": 0.0,
+  "within_40ms": 1.0,
+  "wrong_at": []
+ },
+ "k1/cover_short": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 2,
+    "true": 2
+   },
+   "pass": false,
+   "removed": {
+    "edge_max_ms": 2000.0,
+    "edge_median_ms": 760.0,
+    "edges_ok": 0.5,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 2
+   },
+   "replaced": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 1,
+    "false_seconds": 1.52,
+    "missed": 0,
+    "true": 0
+   }
+  },
+  "false_match_seconds": 3.0,
+  "max_ms": 21.317840676346123,
+  "p95_ms": 21.317840676346123,
+  "pass": false,
+  "source_seconds": 285.5,
+  "timing_pass": false,
+  "unmatched_source": 0.0,
+  "within_40ms": 1.0,
+  "wrong_at": []
+ },
+ "k1/freeze_cover": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "pass": true,
+   "removed": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "replaced": {
+    "edge_max_ms": 160.0,
+    "edge_median_ms": 0.0,
+    "edges_ok": 0.75,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 2
+   }
+  },
+  "false_match_seconds": 0.0,
+  "max_ms": 21.00281764172962,
+  "p95_ms": 21.00281764172962,
+  "pass": true,
+  "source_seconds": 297.0,
+  "timing_pass": true,
+  "unmatched_source": 0.0,
+  "within_40ms": 1.0,
+  "wrong_at": []
+ },
+ "k1/mosaic_patch": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "pass": true,
+   "removed": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "replaced": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   }
+  },
+  "false_match_seconds": 0.0,
+  "max_ms": 20.58649075172525,
+  "p95_ms": 20.58649075172525,
+  "pass": true,
+  "source_seconds": 294.75,
+  "timing_pass": true,
+  "unmatched_source": 0.0,
+  "within_40ms": 1.0,
+  "wrong_at": []
+ },
+ "k1/scenes_removed": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "pass": true,
+   "removed": {
+    "edge_max_ms": 0.0,
+    "edge_median_ms": 0.0,
+    "edges_ok": 1.0,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 4
+   },
+   "replaced": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   }
+  },
+  "false_match_seconds": 0.0,
+  "max_ms": 21.368406494730152,
+  "p95_ms": 21.368406494730152,
+  "pass": true,
+  "source_seconds": 273.5,
+  "timing_pass": true,
+  "unmatched_source": 0.0,
+  "within_40ms": 1.0,
+  "wrong_at": []
+ },
+ "k1/shots_trimmed": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "pass": false,
+   "removed": {
+    "edge_max_ms": 560.0,
+    "edge_median_ms": 40.0,
+    "edges_ok": 0.667,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 3
+   },
+   "replaced": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   }
+  },
+  "false_match_seconds": 0.25,
+  "max_ms": 21.233752272763695,
+  "p95_ms": 21.233752272763695,
+  "pass": false,
+  "source_seconds": 287.5,
+  "timing_pass": true,
+  "unmatched_source": 0.0008695652173913044,
+  "within_40ms": 0.9991304347826087,
+  "wrong_at": []
+ },
+ "k1/zoom_shot": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "pass": true,
+   "removed": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "replaced": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   }
+  },
+  "false_match_seconds": 0.0,
+  "max_ms": 21.27182843358355,
+  "p95_ms": 21.27182843355513,
+  "pass": true,
+  "source_seconds": 296.5,
+  "timing_pass": true,
+  "unmatched_source": 0.0,
+  "within_40ms": 1.0,
+  "wrong_at": []
+ },
+ "k4/cover_short": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 2,
+    "true": 2
+   },
+   "pass": false,
+   "removed": {
+    "edge_max_ms": 2783.7,
+    "edge_median_ms": 1098.4,
+    "edges_ok": 0.25,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 2
+   },
+   "replaced": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 2,
+    "false_seconds": 4.64,
+    "missed": 0,
+    "true": 0
+   }
+  },
+  "false_match_seconds": 4.25,
+  "max_ms": 49.305819678664875,
+  "p95_ms": 44.79166666664014,
+  "pass": false,
+  "source_seconds": 280.75,
+  "timing_pass": false,
+  "unmatched_source": 0.0,
+  "within_40ms": 0.9100623330365093,
+  "wrong_at": [
+   194.25,
+   194.5,
+   194.75,
+   195.0,
+   195.25,
+   195.5,
+   195.75,
+   196.0,
+   196.25,
+   196.5,
+   196.75,
+   197.0
+  ]
+ },
+ "k4/mosaic_patch": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "pass": true,
+   "removed": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "replaced": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   }
+  },
+  "false_match_seconds": 0.0,
+  "max_ms": 81.00000000001728,
+  "p95_ms": 22.755042268439496,
+  "pass": true,
+  "source_seconds": 296.25,
+  "timing_pass": true,
+  "unmatched_source": 0.0,
+  "within_40ms": 0.9763713080168777,
+  "wrong_at": [
+   292.75,
+   293.0,
+   293.25,
+   293.5,
+   293.75,
+   294.0,
+   294.25,
+   294.5,
+   294.75,
+   295.0,
+   295.25,
+   295.5
+  ]
+ },
+ "k4/scenes_removed": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "pass": true,
+   "removed": {
+    "edge_max_ms": 58.7,
+    "edge_median_ms": 12.0,
+    "edges_ok": 1.0,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 4
+   },
+   "replaced": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   }
+  },
+  "false_match_seconds": 0.0,
+  "max_ms": 60.000000000002274,
+  "p95_ms": 29.57707995372516,
+  "pass": false,
+  "source_seconds": 274.25,
+  "timing_pass": false,
+  "unmatched_source": 0.0,
+  "within_40ms": 0.9525979945305378,
+  "wrong_at": [
+   194.25,
+   194.5,
+   194.75,
+   195.0,
+   195.25,
+   195.5,
+   195.75,
+   196.0,
+   196.25,
+   196.5,
+   196.75,
+   197.0
+  ]
+ },
+ "k4/shots_trimmed": {
+  "censorship": {
+   "dub_only": {
+    "edge_max_ms": null,
+    "false": 0,
+    "missed": 0,
+    "true": 0
+   },
+   "pass": true,
+   "removed": {
+    "edge_max_ms": 39.0,
+    "edge_median_ms": 35.3,
+    "edges_ok": 1.0,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 2
+   },
+   "replaced": {
+    "edge_max_ms": null,
+    "edge_median_ms": null,
+    "edges_ok": null,
+    "false": 0,
+    "false_seconds": 0,
+    "missed": 0,
+    "true": 0
+   }
+  },
+  "false_match_seconds": 0.0,
+  "max_ms": 52.500000000009095,
+  "p95_ms": 31.771086497172973,
+  "pass": false,
+  "source_seconds": 291.25,
+  "timing_pass": false,
+  "unmatched_source": 0.0,
+  "within_40ms": 0.951931330472103,
+  "wrong_at": [
+   285.75,
+   286.0,
+   286.25,
+   286.5,
+   286.75,
+   287.0,
+   287.25,
+   287.5,
+   287.75,
+   288.0,
+   288.25,
+   288.5
+  ]
+ }
+}

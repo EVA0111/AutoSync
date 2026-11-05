@@ -237,17 +237,196 @@ def build(case, source, insert, out):
     (out / 'truth.json').write_text(json.dumps(dict(speed=speed, pieces=truth), indent=1), encoding='utf-8')
 
 
+# --- Censored / re-edited dubs ---------------------------------------------
+# Here the roles are reversed, as in real case 3: the CENSORED DUB is the
+# source (DIR/<name>/source.mkv) and the clean original is the target
+# (target.mkv, clean seconds 60-360). Ops run in clean-source seconds, in
+# order; clean time left out between ops is a scene the dub removed.
+#   keep(a, b, fx)     clean a..b shown, optionally altered: 'mosaic' (pixelated
+#                      box), 'mosaic_large' (70 % of the frame), 'blur' (blurred
+#                      box), 'patch' / 'patch_large' (painted-over box, 18 % /
+#                      33 % of the frame, as dubs add clothing),
+#                      'zoom' (1.4x crop-in)
+#   freeze_over(a, b)  clean a..b's audio over its first frame held (same length)
+#   repeat_over(a, b, r) clean a..b's audio over clean r..r+(b-a) (same length)
+#   dub_hold(t, d)     dub-only: frame t held d s, other-episode audio
+#   dub_repeat(r, d)   dub-only: clean r..r+d repeated, other-episode audio
+# truth.json adds "censorship": removed [[t0,t1]] and replaced [[t0,t1]] in
+# target seconds, dub_only [[s0,s1]] in source seconds.
+
+def keep(a, b, fx=None): return ('keep', a, b, fx)
+def freeze_over(a, b): return ('freeze_over', a, b)
+def repeat_over(a, b, r): return ('repeat_over', a, b, r)
+def dub_hold(t, d): return ('dub_hold', t, d)
+def dub_repeat(r, d): return ('dub_repeat', r, d)
+
+
+# Shot changes (ffmpeg scene > 0.35) in 1source_small: 119.96 139.12 148.04
+# 156.44 163.88 166.84 173.60 207.64 210.56 221.52 225.48 244.76 262.24 283.16
+# 289.28 291.48 295.56 298.12 300.12 306.08 309.00 313.44 323.16 335.36 ...
+CENSORED_1 = {
+    # Whole scenes removed at shot changes (8.4, 2.9, 2.2 and 9.7 s).
+    'scenes_removed': [keep(60, 148.04), keep(156.44, 207.64), keep(210.56, 289.28), keep(291.48, 313.44),
+                       keep(323.16, 360)],
+    # Shots shortened mid-shot (4, 3 and 2.5 s removed inside a shot).
+    'shots_trimmed': [keep(60, 125), keep(129, 180), keep(183, 250), keep(252.5, 360)],
+    # Nothing removed: part of the frame pixelated, blurred or painted over.
+    'mosaic_patch': [keep(60, 180), keep(180, 186, 'mosaic'), keep(186, 265), keep(265, 270, 'blur'),
+                     keep(270, 300.5), keep(300.5, 305, 'patch'), keep(305, 360)],
+    # Nothing removed: most of the frame pixelated for 8 s across a shot change,
+    # then a painted patch held for 10 s.
+    'mosaic_large': [keep(60, 117), keep(117, 125, 'mosaic_large'), keep(125, 250), keep(250, 260, 'patch'),
+                     keep(260, 360)],
+    # Nothing removed: a third of the frame painted over for 10 s, twice.
+    'patch_large': [keep(60, 140), keep(140, 150, 'patch_large'), keep(150, 300), keep(300, 310, 'patch_large'),
+                    keep(310, 360)],
+    # Removed scenes with painted-over shots right next to them (the patch must
+    # not count as dub-only material or move the scene's edges).
+    'patch_near_cut': [keep(60, 140), keep(140, 148.04, 'patch_large'), keep(156.44, 163.88, 'patch_large'),
+                       keep(163.88, 289.28), keep(291.48, 300.12, 'patch_large'), keep(300.12, 360)],
+    # The dub paints over a shot and removes what follows it.
+    'patch_at_cut': [keep(60, 140), keep(140, 144.5, 'patch_large'), keep(156.44, 360)],
+    # Nothing removed: two whole shots zoomed in.
+    'zoom_shot': [keep(60, 225.48), keep(225.48, 244.76, 'zoom'), keep(244.76, 262.24),
+                  keep(262.24, 283.16, 'zoom'), keep(283.16, 360)],
+    # Scenes replaced at the same length: a held frame, then a repeated shot.
+    'freeze_cover': [keep(60, 148.04), freeze_over(148.04, 156.44), keep(156.44, 207.64),
+                     repeat_over(207.64, 210.56, 204.7), keep(210.56, 360)],
+    # Scenes removed and covered by shorter dub-only material.
+    'cover_short': [keep(60, 163.88), dub_repeat(160., 1.5), keep(166.84, 313.44), dub_hold(313.4, 2.),
+                    keep(323.16, 360)],
+    # Everything at once, with a mosaic shot next to a removed scene.
+    'censor_mix': [keep(60, 125), keep(129, 148.04), keep(156.44, 160, 'mosaic'), keep(160, 207.64),
+                   repeat_over(207.64, 210.56, 204.7), keep(210.56, 225.48), keep(225.48, 244.76, 'zoom'),
+                   keep(244.76, 289.28), keep(291.48, 313.44), dub_hold(313.4, 2.), keep(323.16, 360)],
+}
+
+# 4source_small (25 fps): 125.71 151.19 157.12 159.08 161.04 167.96 ... 201.45
+# 202.91 203.91 ... 238.86 242.33 253.96 258.42 ... 282.70 295.34 298.17 303.26
+# 307.06 309.77 ...
+CENSORED_4 = {
+    'scenes_removed': [keep(60, 151.19), keep(157.12, 201.45), keep(202.91, 242.33), keep(253.96, 303.26),
+                       keep(307.06, 360)],
+    'shots_trimmed': [keep(60, 95), keep(99, 287), keep(289.5, 360)],
+    'mosaic_patch': [keep(60, 130), keep(130, 136, 'mosaic'), keep(136, 210), keep(210, 214, 'patch'),
+                     keep(214, 360)],
+    'cover_short': [keep(60, 151.19), dub_hold(151.1, 2.), keep(157.12, 242.33), dub_repeat(238.9, 3.),
+                    keep(253.96, 360)],
+}
+CENSORED = {'1': CENSORED_1, '4': CENSORED_4}
+
+
+def build_censored(ops, clean, other, out, lo=60., hi=360.):
+    W, H, F, V0 = probe(clean)
+    frame_at = lambda t: math.ceil((t - V0) * F - 1e-6)
+    t_first = frame_at(lo)
+    tsec = lambda k: (k - t_first) / F          # clean frame -> target seconds
+    BOX = (int(W * .3) // 2 * 2, int(H * .3) // 2 * 2, int(W * .4) // 2 * 2, int(H * .45) // 2 * 2)   # x, y, w, h
+    dub = 'highpass=f=200,lowpass=f=5000,volume=0.8'
+    graph, labels, pieces = [], [], []
+    cens = dict(removed=[], replaced=[], dub_only=[])
+    pos, clean_at = 0., t_first                 # source seconds written; next clean frame expected
+
+    def audio(inp, a, d, k):
+        graph.append(f'[{inp}:a]atrim=start={a:.9f}:duration={d:.9f},asetpts=PTS-STARTPTS,aresample=48000,'
+                     f'aformat=channel_layouts=stereo,{dub}[a{k}]')
+
+    def covered(ka, kb):
+        nonlocal clean_at
+        if ka > clean_at:                       # the dub removed clean frames clean_at..ka
+            pieces.append(dict(kind='none', start=tsec(clean_at), end=tsec(ka), source_start=None))
+            cens['removed'].append([tsec(clean_at), tsec(ka)])
+        pieces.append(dict(kind='src', start=tsec(ka), end=tsec(kb), source_start=pos, speed=1.))
+        clean_at = kb
+
+    for k, op in enumerate(ops):
+        kind = op[0]
+        if kind in ('keep', 'freeze_over', 'repeat_over'):
+            ka, kb = frame_at(op[1]), frame_at(op[2]); n = kb - ka
+            if kind == 'keep':
+                v = f'[0:v]trim=start_frame={ka}:end_frame={kb},setpts=PTS-STARTPTS'
+                x, y, w, h = BOX
+                fx = op[3]
+                if fx == 'mosaic':
+                    v += (f',split[b{k}][m{k}];[m{k}]crop={w}:{h}:{x}:{y},scale={w // 12}:{h // 12},'
+                          f'scale={w}:{h}:flags=neighbor[mo{k}];[b{k}][mo{k}]overlay={x}:{y}')
+                elif fx == 'blur':
+                    v += f',split[b{k}][m{k}];[m{k}]crop={w}:{h}:{x}:{y},boxblur=12:2[mo{k}];[b{k}][mo{k}]overlay={x}:{y}'
+                elif fx == 'mosaic_large':                 # 70 % x 70 % of the frame, coarse blocks
+                    X, Y, w2, h2 = int(W * .15) // 2 * 2, int(H * .15) // 2 * 2, int(W * .7) // 2 * 2, int(H * .7) // 2 * 2
+                    v += (f',split[b{k}][m{k}];[m{k}]crop={w2}:{h2}:{X}:{Y},scale={w2 // 24}:{h2 // 24},'
+                          f'scale={w2}:{h2}:flags=neighbor[mo{k}];[b{k}][mo{k}]overlay={X}:{Y}')
+                elif fx == 'patch_large':                  # a third of the frame painted over
+                    v += f',drawbox=x={int(W * .2)}:y={int(H * .2)}:w={int(W * .55)}:h={int(H * .6)}:color=0x8a6a50:t=fill'
+                elif fx == 'patch':
+                    v += f',drawbox=x={x}:y={y}:w={w}:h={h}:color=0x8a6a50:t=fill'
+                elif fx == 'zoom':
+                    v += f',crop=trunc(iw/1.4/2)*2:trunc(ih/1.4/2)*2,scale={W}:{H},setsar=1'
+                graph.append(v + f'[v{k}]')
+            elif kind == 'freeze_over':
+                graph.append(f'[0:v]trim=start_frame={ka}:end_frame={ka + 1},setpts=PTS-STARTPTS,'
+                             f'tpad=stop_mode=clone:stop={n - 1}[v{k}]')
+                cens['replaced'].append([tsec(ka), tsec(kb)])
+            else:
+                kr = frame_at(op[3])
+                graph.append(f'[0:v]trim=start_frame={kr}:end_frame={kr + n},setpts=PTS-STARTPTS[v{k}]')
+                cens['replaced'].append([tsec(ka), tsec(kb)])
+            audio(0, V0 + ka / F, n / F, k)
+            covered(ka, kb)
+            pos += n / F
+        else:
+            n = round(op[2] * F); d = n / F
+            if kind == 'dub_hold':
+                kt = frame_at(op[1])
+                graph.append(f'[0:v]trim=start_frame={kt}:end_frame={kt + 1},setpts=PTS-STARTPTS,'
+                             f'tpad=stop_mode=clone:stop={n - 1}[v{k}]')
+            else:
+                kr = frame_at(op[1])
+                graph.append(f'[0:v]trim=start_frame={kr}:end_frame={kr + n},setpts=PTS-STARTPTS[v{k}]')
+            audio(1, 400 + 7 * k, d, k)         # unrelated dialogue: dub-only audio
+            cens['dub_only'].append([pos, pos + d])
+            pos += d
+        labels.append(f'[v{k}][a{k}]')
+    kend = frame_at(hi)
+    if kend > clean_at:
+        pieces.append(dict(kind='none', start=tsec(clean_at), end=tsec(kend), source_start=None))
+        cens['removed'].append([tsec(clean_at), tsec(kend)])
+    graph.append(''.join(labels) + f'concat=n={len(ops)}:v=1:a=1[ov][oa]')
+    out.mkdir(parents=True, exist_ok=True)
+    (out / 'graph.txt').write_text(';\n'.join(graph), encoding='utf-8')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(clean), '-i', str(other), '-filter_complex_script',
+                    str(out / 'graph.txt'), '-map', '[ov]', '-map', '[oa]', '-c:v', 'libx264', '-preset', 'veryfast',
+                    '-crf', '24', '-c:a', 'aac', '-b:a', '128k', str(out / 'source.mkv')], check=True)
+    # The clean original, frame-exact from clean second `lo`.
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(clean), '-filter_complex',
+                    f'[0:v]trim=start_frame={t_first}:end_frame={kend},setpts=PTS-STARTPTS[ov];'
+                    f'[0:a]atrim=start={V0 + t_first / F:.9f}:duration={(kend - t_first) / F:.9f},asetpts=PTS-STARTPTS,'
+                    f'aresample=48000,aformat=channel_layouts=stereo[oa]',
+                    '-map', '[ov]', '-map', '[oa]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22',
+                    '-c:a', 'aac', '-b:a', '128k', str(out / 'target.mkv')], check=True)
+    r = lambda xs: [[round(a, 6), round(b, 6)] for a, b in xs]
+    (out / 'truth.json').write_text(json.dumps(dict(speed=1., pieces=pieces,
+                                                    censorship={k: r(v) for k, v in cens.items()}), indent=1),
+                                    encoding='utf-8')
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--source', required=True); p.add_argument('--insert', required=True)
     p.add_argument('--out', required=True, type=Path); p.add_argument('--only')
+    p.add_argument('--censored', choices=sorted(CENSORED),
+                   help='Build the censored-dub cases for this clean source (dub = source.mkv, clean = target.mkv)')
     a = p.parse_args()
-    names = a.only.split(',') if a.only else list(CASES)
+    table = CENSORED[a.censored] if a.censored else CASES
+    names = a.only.split(',') if a.only else list(table)
     for name in names:
         if (a.out / name / 'truth.json').exists():
             continue
         print('building', name, flush=True)
-        build(CASES[name], a.source, a.insert, a.out / name)
+        if a.censored:
+            build_censored(table[name], a.source, a.insert, a.out / name)
+        else:
+            build(table[name], a.source, a.insert, a.out / name)
 
 
 if __name__ == '__main__':

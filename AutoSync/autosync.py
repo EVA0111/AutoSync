@@ -590,7 +590,13 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
         i0=np.clip(np.round((np.asarray(starts)+ts)*50).astype(int),0,len(energy_t))
         i1=np.clip(i0+max(1,int(round(length*50))),0,len(energy_t))
         return (c[i1]-c[i0])/np.maximum(i1-i0,1)
-    segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut,target_shift=ti['origin']-ti['start'],quiet=quiet)
+    def audio_place(p,m,starts,length):
+        # Target-only footage inside a held shot: where source audio stops/resumes matching the target's.
+        from cut_detection import place_insert
+        ts=ti['origin']-ti['start'];starts=np.asarray(starts)
+        oa=pt.offset_at(p,starts[0]*pt.FPS)/pt.FPS+shift;ob=pt.offset_at(m,(starts[-1]+length)*pt.FPS)/pt.FPS+shift
+        return place_insert(dict(speed=tl.ratio,offset=oa-tl.ratio*ts),dict(speed=tl.ratio,offset=ob-tl.ratio*ts),starts+ts,length,ref_t,energy_t,sf)
+    segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut,target_shift=ti['origin']-ti['start'],quiet=quiet,audio_place=audio_place)
     dub_only_pictures(tl,segments,shift,ti['origin']-ti['start'],source_video,target)
     rows=[[t,m['speed']*t+m['offset'],1.] for m in models for t in np.arange(m['first'],m['last']+1e-6,2.)]
     anchors=np.asarray(rows,dtype=float).reshape(-1,3)
