@@ -1,13 +1,15 @@
-# AutoSync v1.3.0
+# AutoSync v1.4.0
 
 An Electron + Python/FFmpeg tool for matching audio and subtitles between
 different video editions, including different playback speeds, openings,
 scene edits, censored scenes and missing footage.
 
-**New in v1.3.0:** a picture-based sync engine (typical error 9–17 ms; 64 of
-64 regression runs pass, measured independently), a censored / edited dub
-option, a redesigned Preview & Edit and a cleaner main window. See the
-[release notes](AutoSync/RELEASE_NOTES.md) and the [wiki](docs/Home.md).
+**New in v1.4.0:** smooth crossfaded joins instead of brief dips, tiny cuts
+found reliably, more than twice as fast, a "recreate" option for censored
+dubs, a full video editor in Preview & Edit and the interface in 10 more
+languages. AI-assisted sync is removed. 36 of 36 regression runs pass,
+measured independently. See the [release notes](AutoSync/RELEASE_NOTES.md)
+and the [wiki](docs/Home.md).
 
 ## Build the portable app
 
@@ -18,7 +20,7 @@ build\windows\build-portable.cmd
 ```
 
 The builder installs dependencies in a private build environment and produces
-`dist/AutoSync-v1.3.0-Windows-Portable.zip`. Unzip the result and run
+`dist/AutoSync-v1.4.0-Windows-Portable.zip`. Unzip the result and run
 `AutoSync.exe`; the finished portable application includes Electron,
 Python 3.12, NumPy, SciPy, FFmpeg and FFprobe.
 
@@ -26,35 +28,13 @@ See [build/windows/README.md](build/windows/README.md) for requirements,
 custom destinations and CI build instructions. There are no application
 patchers or merges involved.
 
-## Optional AI-assisted syncing (experimental)
-
-When both videos are present, v1.3.0 matches by picture and AI-assisted gives
-the same result as Standard; AI only helps the audio-matching fallback.
-In the **Audio** tab, choose **Matching → Method → AI-assisted (experimental)** to
-use pretrained AST sound embeddings and a DINOv2 scene-model fallback. The
-three existing **output modes** remain separate, and **Standard** is still
-the default.
-
-Click **Install AI Sync models** under Setup before using the mode. The
-optional PyTorch/Transformers dependencies can be large; pretrained weights
-download once on first use. AI features are cached for future runs. Standard
-sync needs none of these downloads.
-
-AI models propose candidate correspondence points; AutoSync independently
-checks original audio at 50 Hz, rejects ambiguous/unconfirmed matches, and
-keeps the existing cut-safety rules. Learned scene matches are used only when
-the original scene matcher has insufficient evidence. Inspect uncertain
-sections in Preview & Edit. There is no automatic guarantee of better sync
-for different dubs or editions.
-
-## Wiki (v1.3.0)
+## Wiki (v1.4.0)
 
 New to AutoSync? Start with the **[Wiki](docs/Home.md)**:
 [Getting started](docs/Getting-Started.md) ·
 [Preview & Edit](docs/Preview-and-Edit.md) ·
 [Censored and edited dubs](docs/Censored-and-Edited-Dubs.md) ·
 [How syncing works](docs/How-Syncing-Works.md) ·
-[AI-assisted matching](docs/AI-Assisted-Matching.md) ·
 [Troubleshooting](docs/Troubleshooting.md).
 No coding or media folders inside the app are required for the Windows portable release.
 

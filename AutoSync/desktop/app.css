@@ -72,9 +72,6 @@ main>header{display:none}
 .mode span{font-size:11px;color:var(--muted);line-height:1.4}
 .mode.selected{border-color:var(--accent);background:var(--accent-soft)}
 .mode-bar{display:none}
-.sync-method-selector{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;border:0;background:transparent}
-.sync-method-selector label{font-size:12px;color:var(--muted)}
-.sync-method-selector small{font-size:11px;color:var(--dim);line-height:1.45}
 
 /* Fields */
 .field{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:8px;align-items:center;margin:6px 0;border:1px solid transparent;border-radius:6px}
@@ -214,3 +211,7 @@ pre#log{white-space:pre-wrap;overflow-wrap:anywhere;height:calc(100vh - 380px);m
 .field-stack{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}
 #censor-fields .field{grid-template-columns:minmax(0,1fr) auto}
 #censor-fields .field label{grid-column:1/-1}
+
+/* Right-to-left languages: time and pictures still run left to right. */
+[dir=rtl] canvas,[dir=rtl] #timeline-area,[dir=rtl] .transport,[dir=rtl] #pictures,[dir=rtl] .ltr,[dir=rtl] input[type=number],[dir=rtl] output{direction:ltr}
+.ui-language{max-width:150px}

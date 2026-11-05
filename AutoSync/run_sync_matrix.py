@@ -26,7 +26,7 @@ MODES = {
     'keep_op_ed': (['--keep-target-op-ed'], 'full_episode.mkv'),
     'remove_unmatched': (['--remove-unmatched-video'], 'edited_episode.mkv'),
 }
-METHODS = ('standard', 'ai_assisted')
+METHODS = ('standard',)
 
 
 def last_error(log):
@@ -55,7 +55,7 @@ def run_one(case, mode, method, out_root, cache, extra):
     cmd = [sys.executable, str(ROOT / 'autosync.py'), '--source', case['source'], '--audio', audio,
            '--target', case['target'], '--reference', case['target'],
            '--audio-stream', str(case.get('audio_stream', 0)), '--reference-stream', str(case.get('reference_stream', 0)),
-           '--out', str(out / 'engine'), '--sync-method', method, *MODES[mode][0], *extra]
+           '--out', str(out / 'engine'), *MODES[mode][0], *extra]
     t0 = time.time()
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=ROOT)
     log = p.stdout.decode('utf-8', errors='replace')

@@ -84,11 +84,12 @@ def decode_frames(path, crop='', cache_dir=None):
 
 
 def decode_audio_features(path, stream=0, cache_dir=None):
-    c = _cache(path, ['audio2', stream], cache_dir)
+    c = _cache(path, ['audio3', stream], cache_dir)
     if c is not None and c.exists():
         return np.load(c)
-    out = _run(['ffmpeg', '-v', 'error', '-nostdin', '-i', str(path), '-map', f'0:a:{stream}', '-ac', '1',
-                '-ar', str(AR), '-f', 'f32le', '-'])
+    # On timestamps: a packet gap must not shift the rest of the measurement.
+    out = _run(['ffmpeg', '-v', 'error', '-nostdin', '-i', str(path), '-map', f'0:a:{stream}',
+                '-af', 'aresample=async=1', '-ac', '1', '-ar', str(AR), '-f', 'f32le', '-'])
     a = np.frombuffer(out, np.float32)
     f, _, z = signal.stft(a, AR, nperseg=512, noverlap=512 - HOP, boundary=None, padded=False)
     # Log-spaced bands; bins are grouped so every band holds at least one bin.

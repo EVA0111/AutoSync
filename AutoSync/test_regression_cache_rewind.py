@@ -1,4 +1,4 @@
-"""Regression tests for cache integrity and repeatable rewind diagnostics."""
+"""Regression tests for repeatable rewind diagnostics."""
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,45 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-import ai_sync
 from continuity_guard import annotate_rewinds
-
-
-class AICacheIntegrity(unittest.TestCase):
-    def test_invalid_cached_timestamps_are_recomputed(self):
-        with tempfile.TemporaryDirectory() as temp:
-            media = Path(temp) / "input.mkv"
-            media.write_bytes(b"fixture")
-            with patch.object(ai_sync, "CACHE", Path(temp)):
-                key = ai_sync._key(media, 0, ai_sync.AUDIO_MODEL, "audio")
-                cache = Path(temp) / (key + ".npz")
-                vectors = np.eye(3, dtype=np.float32)
-                for times in (
-                    [0., float("nan"), 16.],
-                    [0., 16., 8.],
-                    [-1., 8., 16.],
-                    [0., float("inf"), 16.],
-                ):
-                    with self.subTest(times=times):
-                        np.savez_compressed(cache, times=np.array(times),
-                                            vectors=vectors)
-                        self.assertIsNone(ai_sync._load_cached(
-                            media, 0, ai_sync.AUDIO_MODEL, "audio"))
-
-    def test_valid_cache_still_reused(self):
-        with tempfile.TemporaryDirectory() as temp:
-            media = Path(temp) / "input.mkv"
-            media.write_bytes(b"fixture")
-            with patch.object(ai_sync, "CACHE", Path(temp)):
-                expected_times = np.array([4., 12., 20.], dtype=np.float32)
-                vectors = np.eye(3, dtype=np.float32)
-                ai_sync._save_cached(media, 0, ai_sync.AUDIO_MODEL,
-                                     "audio", expected_times, vectors)
-                cached = ai_sync._load_cached(
-                    media, 0, ai_sync.AUDIO_MODEL, "audio")
-                self.assertIsNotNone(cached)
-                np.testing.assert_array_equal(cached[0], expected_times)
-                np.testing.assert_array_equal(cached[1], vectors)
 
 
 class RewindDiagnosticRefresh(unittest.TestCase):

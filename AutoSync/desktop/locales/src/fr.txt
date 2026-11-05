@@ -1,0 +1,1021 @@
+Tâches de synchro
+Plan enregistré
+Choisissez la sortie
+Audio complet de la cible
+Synchroniser l’audio sur toute la cible. Exporter en FLAC.
+Épisode principal seulement
+Retirer le générique de début et de fin différent. Exporter vidéo + FLAC.
+Garder génériques début & fin
+Garder l’audio des génériques de la cible. Synchroniser l’épisode principal.
+Vos fichiers
+Source = audio voulu · Cible = vidéo à faire correspondre
+Associez vos épisodes
+Source = audio à utiliser · Cible = vidéo à faire correspondre. Les sous-dossiers sont inclus.
+Vidéo source
+Ajouter un dossier
+Ajouter des fichiers
+Vidéos sources
+Déposez ici des fichiers sources ou un dossier
+Sélectionnez un fichier
+Monter d’une ligne (Alt+Haut)
+↑ Monter
+Placer en première ligne
+⇈ Début
+Numéro de ligne
+Déplacer au numéro de ligne
+Déplacer vers
+Placer en dernière ligne
+⇊ Fin
+Descendre d’une ligne (Alt+Bas)
+↓ Descendre
+Retirer le fichier sélectionné (Suppr)
+× Retirer
+Vidéo cible
+Vidéos cibles
+Déposez ici des fichiers cibles ou un dossier
+Associer par numéro d’épisode
+Vider les deux colonnes
+Ajoutez des vidéos dans les deux colonnes.
+La ligne source 1 va avec la ligne cible 1, et ainsi de suite. Sélectionnez un fichier dans une liste, puis utilisez les commandes du milieu. Alt + ↑ / ↓ réordonne ; Suppr retire.
+Utiliser plutôt un CSV existant
+Utiliser un lot CSV
+Sélectionnez un CSV avec source, cible, audio et un dossier de sortie distinct par épisode.
+Ouvrir l’exemple de CSV
+Les numéros de piste et les décalages viennent de chaque ligne du CSV. Les bornes manuelles et les points de coupe s’appliquent à tous les épisodes du lot. Les lots par dossier utilisent les pistes et décalages choisis pour toutes les paires.
+Rendre un plan enregistré
+Utiliser la carte de synchronisation existante sans réanalyser l’épisode.
+Le mode et les chemins d’origine du plan sont utilisés. Sortez les médias exportés précédemment de leur dossier de sortie avant un nouveau rendu.
+Référence de timing
+1 · Un autre sous-titre déjà synchronisé
+2 · Encodage source → encodage cible
+3 · Audio de la cible seulement (reconnaissance vocale)
+Sushi — correspondance audio (ASS / SRT)
+Réutiliser une carte de synchronisation enregistrée
+Sushi a besoin de sous-titres calés sur la source et d’un audio correspondant dans les deux versions. Prend en charge ASS / SRT. Les styles sont conservés ; vérifiez les panneaux muets et le typesetting image par image dans la sortie BROUILLON.
+Options des sous-titres
+Langues différentes / dialogues traduits (correspondance IA multilingue)
+Pour la correspondance vocale ou multilingue, installez l’IA sous-titres dans les Paramètres. Les modèles se téléchargent à la première utilisation.
+Formats texte sans perte : ASS/SSA, SRT, VTT, SBV, MicroDVD SUB, MPL2, SAMI et TTML/DFXP plat. PGS SUP fonctionne avec la correspondance d’encodages ou une carte enregistrée. VobSub et les autres formats binaires doivent être convertis ; l’OCR n’est pas inclus. Les pistes ASS/SRT/VTT/PGS intégrées peuvent être extraites des MKV.
+L’audio ne peut pas caler directement les panneaux muets. Le typesetting sans preuve à l’image, les répliques non associées et les coupes incertaines sont signalés. Un BROUILLON garde le timing d’origine des répliques non associées ; vérifiez-le avant le multiplexage. Les positions sont conservées, sans redimensionnement pour d’autres cadrages/formats.
+Pistes audio
+Paramètres avancés
+Forçages de timing & export
+Correspondance audio seule (mode cible complète)
+Utiliser la référence là où l’audio source manque (la langue peut changer)
+Retirer les passages de la cible sans audio source (exporter vidéo montée + FLAC)
+Autoriser les coupes incertaines — les raccords devinés sont à vérifier
+Tous les temps sont en secondes. Le recadrage n’affecte que la correspondance.
+Analyser seulement
+Prêt quand vous l’êtes
+Arrêter
+Aperçu & Montage
+Lancer la synchro →
+Activité
+Ouvrir le rapport
+Ouvrir la sortie
+Choisissez vos fichiers, un mode, puis lancez. La progression et les avertissements à vérifier s’afficheront ici.
+Installation
+L’application portable inclut Python et FFmpeg. L’IA sous-titres, optionnelle, télécharge des paquets et modèles supplémentaires.
+Vérifier / installer le moteur
+Installer l’IA sous-titres
+Installer les modèles AI Sync
+Vérifiez les passages signalés et les raccords avant d’utiliser le résultat. Les scores de correspondance ne garantissent pas la synchro labiale.
+AutoSync v1.4.0 · Aperçu & Montage
+Ouverture d’un plan d’alignement…
+— à vérifier
+Aucune modification
+Annuler · Ctrl+Z
+↶ Annuler
+Rétablir · Ctrl+Y
+↷ Rétablir
+Enregistrer le plan modifié dans n’importe quel dossier · Ctrl+S
+Enregistrer sous…
+Exporter l’audio corrigé (enregistrer d’abord)
+Exporter l’audio corrigé
+Raccourcis clavier · ?
+Des modifications non enregistrées d’une session précédente ont été trouvées.
+Restaurer les modifications
+Ignorer
+Points à vérifier et médias
+Panneau gauche
+Raccords et points à vérifier
+Vérifier
+Vidéos, audios et images importés
+Médias
+Masquer ce panneau
+Filtrer la liste
+Tout
+Seulement les points marqués incertains ou à regarder par l’analyse
+Signalés
+Seulement les points pas encore cochés
+Non vérifiés
+Scènes qu’un doublage censuré ou remonté a retirées ou recoupées
+Censure
+Points à vérifier
+Cette scène :
+Garder cette scène avec l’audio d’origine
+Restaurer (audio d’origine)
+Retirer cette scène de la vidéo exportée, comme le doublage
+Couper de la vidéo
+Point précédent · J
+◀ Préc.
+Marquer le point actuel comme vérifié · R
+✓ Vérifié
+Point suivant · L
+Suiv. ▶
+Ajouter des fichiers vidéo, audio ou image · Ctrl+I
+＋ Importer des médias…
+Médias importés
+Importez des vidéos, audios ou images, puis placez-les à la tête de lecture. Les montages d’image se propagent : tout ce qui suit se déplace avec son audio synchronisé.
+Insérer le fichier sélectionné (image et son) à la tête de lecture ; tout ce qui suit est décalé · B
+Insérer à la tête de lecture
+Lire l’audio du fichier sélectionné sur la plage marquée ou le clip sélectionné ; l’image reste
+Utiliser son audio ici
+Afficher la liste
+Vérifier ⟩
+Comparaison vidéo
+Vue de comparaison
+Source et cible côte à côte
+Côte à côte
+Source à 50 % sur la cible
+Superposition
+Clair là où les images diffèrent ; sombre et stable signifie synchronisé
+Différence
+Faites glisser le curseur pour balayer entre source et cible
+Balayage
+Position du balayage
+Source à gauche · cible à droite
+Source
+Lecture de la vidéo source
+Image source
+Chargement de la vidéo source…
+Cible
+Lecture de la vidéo cible
+Image cible
+Clip importé
+Image importée
+Chargement de la vidéo cible…
+Lecture
+Reculer de 10 images · Maj+←
+Reculer d’une image · ←
+Lecture / pause · Espace
+▶ Lire
+Avancer d’une image · →
+Avancer de 10 images · Maj+→
+Temps de sortie
+Écouter
+La sortie montée
+Sortie
+L’audio source d’origine
+L’audio propre de la cible
+Sortie montée
+Audio source
+Audio cible
+Basculer entre audio de sortie et audio cible · A
+Lire de 2 s avant à 2 s après le raccord sélectionné · P
+▶ Sur le raccord
+Lire en boucle le clip sélectionné
+⟳ Boucle
+Vitesse
+Vitesse de lecture
+Clip sélectionné
+Sélectionnez un clip dans la timeline.
+Timing
+Début en sortie
+Fin en sortie
+La source commence à
+Appliquer les valeurs saisies (Entrée)
+Appliquer les valeurs
+Déplacer l’audio de ce clip
+Déplacer l’audio
+Une image plus tôt · ,
+10 ms plus tôt · Alt+,
+10 ms plus tard · Alt+.
+Une image plus tard · .
+Montage
+Couper le clip à la tête de lecture · S
+✂ Couper (S)
+Fusionner avec le clip précédent ; il reprend le timing antérieur
+⇤ Joindre au précédent
+Raccourcir le début jusqu’à la tête de lecture ; le vide utilise l’audio cible · Q
+Raccourcir le début (Q)
+Raccourcir la fin jusqu’à la tête de lecture ; le vide utilise l’audio cible · W
+Raccourcir la fin (W)
+Retirer de la sortie la plage marquée ou le clip sélectionné : image et son. Tout ce qui suit avance · Maj+Suppr
+⌫ Supprimer et resserrer (image + son)
+Audio de ce clip
+Utiliser ici l’audio source
+Utiliser ici l’audio propre de la cible
+Presse-papiers
+Placer le point d’entrée à la tête de lecture · I
+Entrée (I)
+Placer le point de sortie à la tête de lecture · O
+Sortie (O)
+Utiliser tout le clip
+Effacer
+Copier l’audio · Ctrl+C
+Copier
+Couper ; le vide utilise l’audio cible · Ctrl+X
+Couper
+Remplacer l’audio à la tête de lecture ; l’image ne bouge pas · Ctrl+V
+Coller
+Presse-papiers vide
+Point à vérifier
+Aucun point à vérifier près de la tête de lecture.
+Note pour ce point (gardée avec vos modifications)
+Afficher le panneau du clip
+⟨ Clip
+Redimensionner la timeline
+Faites glisser pour redimensionner la timeline (↑/↓ avec le focus)
+Timeline
+Outils de la timeline
+Sélection : faire glisser les clips, tirer les bords pour raccourcir · V
+↖ Sélection
+Lame : cliquer sur un clip pour le couper · C
+✂ Lame
+Glissement : déplacer l’audio à l’intérieur de son clip · Y
+↔ Glissement
+Magnétisme · N (maintenir Maj en faisant glisser pour l’ignorer)
+◈ Magnétisme : actif
+Aller au début · Début
+⇤ Début
+Zoomer sur le clip sélectionné · F
+Ajuster au clip
+Afficher tout l’épisode · Maj+F
+Tout afficher
+Zoom
+Ctrl+molette sur la timeline zoome aussi
+Vue d’ensemble de l’épisode : cliquer ou glisser pour naviguer
+Timeline : vidéo cible, audio source, audio cible et sortie montée
+Prêt.
+À vérifier
+Journal d’export ▴
+Ouvrir le dossier de sortie
+Journal d’export
+Fermer
+Raccourcis clavier
+Lecture / pause
+Une image
+Dix images
+Début / fin
+Lire sur le raccord sélectionné
+Basculer sortie ↔ audio cible
+Arrêter ou annuler un glissement
+Point précédent / suivant
+Marquer le point comme vérifié
+Zoomer sur le clip
+Tout afficher
+Zoomer la timeline
+Zoom avant / arrière
+Montage
+Sélection / Lame / Glissement
+Magnétisme on / off
+Couper à la tête de lecture
+Raccourcir début / fin jusqu’à la tête de lecture
+Audio 1 image plus tôt / tard
+Audio 10 ms plus tôt / tard
+Entrée / Sortie
+Copier / couper / coller l’audio
+Annuler / rétablir
+Supprimer et resserrer plage / clip
+Importer des médias
+Insérer le média sélectionné à la tête de lecture
+Les montages audio ne déplacent jamais l’image. Les montages d’image (suppression resserrée, médias insérés) déplacent tout ce qui suit ensemble, l’audio synchronisé reste donc sur son image. Les modifications sont conservées automatiquement jusqu’à l’enregistrement.
+Annulé. Ctrl+Y rétablit.
+Rétabli.
+Exporter la vidéo montée
+Enregistrez d’abord (Enregistrer sous…), puis exportez
+Export en cours…
+Enregistré · prêt à exporter
+Modifications non enregistrées
+Silence (le fichier inséré n’a pas de son).
+Ce clip lit l’audio propre de la cible. Choisissez « Audio source » pour placer ici l’audio source.
+Placez la tête de lecture dans le clip sélectionné pour le couper · S
+Décodeur vidéo indisponible ; affichage d’images fixes.
+Source non utilisée à cet endroit
+Aucun audio source n’est placé ici. Écoutez plutôt la sortie ou la cible.
+Impossible de décaler la source avant zéro.
+Bornes de clip invalides.
+Position source ou vitesse invalide.
+Le premier clip doit commencer à zéro.
+Le dernier clip doit finir à la durée de sortie.
+Clip trop court ou position source négative.
+Clip mis à jour.
+Clips joints. Écoutez le raccord.
+Audio source utilisé ; ajustez son début et écoutez.
+Ce clip utilise l’audio propre de la cible.
+Lame : cliquez sur un clip audio pour le couper.
+Glissement : faites glisser l’audio source dans son clip.
+Sélection : faites glisser un clip pour le déplacer ; tirez ses bords pour raccourcir.
+Le glissement ne fonctionne que sur les clips d’audio source.
+Faites glisser un clip de A1 ou A2 vers MIX pour le placer dans la sortie montée.
+Copié
+Déplacé
+Le clip source dépasserait la fin de son audio.
+⟳ Boucle : active
+Retirée · coupée
+Retirée · restaurée
+Elle est coupée de la vidéo exportée.
+Elle garde l’image et l’audio d’origine.
+Contenu propre au doublage
+Images de la cible
+Raccord
+Limite de clip
+Raccord monté ou calculé entre deux clips.
+Tout est vérifié ici.
+Rien à afficher.
+Tous les points signalés sont vérifiés
+Aucun point à la tête de lecture. Utilisez J / L ou cliquez dans la liste.
+Aucun point à vérifier dans cette liste.
+Allez d’abord sur un point (J / L ou clic dans la liste).
+Marqué comme vérifié.
+Marqué comme non vérifié.
+Cette scène sera coupée de la vidéo exportée, comme dans le doublage.
+Cette scène garde l’image et l’audio d’origine.
+Au début : vérifiez que la musique et l’image du générique ont été conservées.
+Placez la tête de lecture dans le clip sélectionné.
+Audio coupé vers le presse-papiers. La plage libérée utilise l’audio cible (rien ne bouge).
+Enregistrement annulé.
+Journal d’export ▾
+Enregistrez vos modifications avant d’exporter.
+Export en cours…\n
+Export de l’audio corrigé et des montages vidéo nécessaires…
+Échec de l’export. Voir le journal d’export.
+Source à 50 % sur la cible
+Les images identiques deviennent sombres. Des contours qui sautent avec le mouvement indiquent un mauvais timing ; des contours stables sont des différences de cadrage
+Source à gauche de la ligne · cible à droite
+Glissement annulé.
+Ce plan coupe les scènes censurées à l’export. Restaurez ces scènes (Vérifier → Censure) avant de monter l’image.
+Sélectionnez d’abord un clip ou marquez Entrée et Sortie.
+Sélectionnez d’abord un fichier dans l’onglet Médias.
+Sélectionnez un clip ou marquez Entrée et Sortie pour le nouvel audio.
+Import annulé.
+Aucun clip modifiable dans le plan sélectionné.
+Modifications non enregistrées restaurées. Annuler (Ctrl+Z) revient au plan analysé.
+Anciennes modifications non enregistrées ignorées.
+Chargement des formes d’onde… Vous pouvez déjà commencer la vérification.
+Prêt. J / L parcourent les raccords, P en lit un, ? affiche tous les raccourcis.
+Paramètres
+Enregistrer rapports et plans de timing
+Activer les paramètres audio avancés
+Activer les paramètres de sous-titres avancés
+Activer l’import de tâches CSV
+Activer le rendu de plans enregistrés
+Afficher le journal d’activité
+Dossier des rapports (facultatif)
+AutoSync Reports à côté de l’application · ou choisissez un dossier
+Dossier de travail temporaire (facultatif)
+Auto — AutoSync Temp à côté de la vidéo cible
+Laissez vide pour un dossier AutoSync Temp à côté de la vidéo cible. Les fichiers temporaires de chaque exécution sont supprimés à la fin ou en cas d’échec.
+Dossier (facultatif)
+Auto — à côté de la vidéo cible · ou choisissez un dossier
+Utiliser le dossier de la cible
+Enregistrer à côté du fichier cible (sans écraser la vidéo)
+AutoSync Outputs
+Choisissez d’abord une vidéo cible.
+Choisissez un fichier source ou cible pour déterminer le dossier de sortie par défaut, ou Parcourir pour en choisir un.
+Dossier des rapports de l’application introuvable. Choisissez-en un dans les Paramètres.
+File gérée
+Non défini
+Prévisualiser la vidéo et la rogner avant la synchro
+Aperçu indisponible
+Chargement de l’image…
+Image indisponible
+Appuyez sur Enregistrer le rognage pour retirer ces repères.
+Marquez les deux points, la fin après le début.
+Préparation…
+Traitement
+Arrêté
+Terminé · résultats à vérifier
+Terminé
+Terminé avec des erreurs · voir l’activité
+Lecture des fichiers et des pistes…
+Choisissez les médias source/cible ou un dossier de sortie.
+Définissez un dossier de rapports ou redémarrez l’application pour retrouver le dossier par défaut.
+Choisissez un plan de timing enregistré.
+Activez Audio, Sous-titres, ou les deux.
+Synchroniser l’audio complet de la cible
+La correspondance audio seule exige le mode cible complète.
+Choisissez le CSV des tâches.
+Ajoutez des vidéos sources dans la colonne Source.
+Les deux colonnes audio doivent avoir le même nombre de vidéos.
+Ajoutez des fichiers correspondants dans chaque colonne de sous-titres.
+Utilisez un seul fichier de sous-titres avec une carte de synchronisation enregistrée.
+Choisissez la carte de synchronisation enregistrée.
+Vérifiez les paires de sous-titres et le choix des pistes.
+Traitement des tâches sélectionnées…
+Prêt à synchroniser les tâches sélectionnées.
+Exporter la vidéo montée + le FLAC correspondant. Les passages propres à la cible sont retirés.
+Audio
+Sous-titres
+Tâches
+Déposez un épisode ou tout un dossier
+Choisissez une référence de timing, puis ajoutez vos fichiers
+Audio à transférer
+Vidéo à faire correspondre
+Les lignes s’associent dans l’ordre. Sélectionnez un fichier pour le déplacer. Alt + ↑ / ↓ déplace une ligne ; Suppr la retire.
+Utilise des empreintes sonores AST pré-entraînées et DINOv2 pour les scènes difficiles. Installez d’abord AI Sync dans l’Installation ; les téléchargements sont facultatifs et la première analyse est plus lente.
+La correspondance standard utilise des empreintes audio et les scènes vidéo.
+Lancer les tâches sélectionnées
+Piste audio source
+Audio de référence de la cible
+Détection des pistes…
+Aucune piste audio trouvée
+Échec
+Ouvrir les rapports
+Paramètres de la tâche
+Correspondance
+Méthode
+Doublage censuré ou remonté
+Sous-titres des scènes restaurées (facultatif)
+Sous-titres de la version originale : les répliques des scènes restaurées sont enregistrées à part
+Les scènes retirées gardent l’image d’origine et l’audio d’origine, au volume du doublage. Les endroits recoupés sont listés pour vérification.
+Les scènes retirées sont coupées de la vidéo exportée, comme dans le doublage. Chaque scène peut être changée dans Aperçu & Montage.
+Liste chaque scène retirée ou recoupée par le doublage dans le rapport et dans Aperçu & Montage, où vous pouvez les changer une à une.
+Enregistrer dans
+Chaque ligne de fichier a son propre menu de pistes ; ouvrez ceci pour modifier en détail la paire sélectionnée.
+Pistes de la paire sélectionnée
+Avancé
+Réordonner les lignes
+Sous-titre
+Fonctions
+Outils facultatifs. Les options avancées désactivées gardent leurs valeurs par défaut.
+Dossiers
+Moteur
+Épisode unique
+Édition originale
+Facultatif · utiliser l’audio de la vidéo source
+Audio de référence
+Facultatif · utiliser l’audio de la vidéo cible
+Nouveau dossier de sortie
+Choisissez un dossier parent pour une nouvelle exécution
+Parcourir
+Utiliser des fichiers audio séparés (facultatif)
+CSV du lot
+Sélectionner jobs.csv
+Dossier de sortie du lot
+Choisissez un dossier parent pour ce lot
+Décalage de l’audio source (s)
+Décalage de la référence (s)
+Début du principal (secondes cible, facultatif)
+Fin du principal (secondes cible, facultatif)
+Points de coupe manuels (séparés par des virgules)
+Recadrage source pour la correspondance (w:h:x:y)
+Recadrage cible pour la correspondance (w:h:x:y)
+Seuil de scène
+Codec de la vidéo rognée
+Traitement…
+Échec de l’installation · voir l’activité
+Arrêté · des fichiers partiels peuvent rester
+Échec · voir le journal d’activité
+Les nombres diffèrent. Ajoutez ou retirez des vidéos avant de lancer.
+Déposez vos dossiers pour commencer.
+Les numéros d’épisode correspondent. Vérifiez les paires sous chaque titre.
+L’association suit l’ordre des lignes. Utilisez « Vérifier et réordonner les paires » pour la changer.
+Lecture des vidéos des dossiers…
+Aucun fichier vidéo pris en charge dans cette sélection.
+Les numéros d’épisode manquent, sont en double ou diffèrent. Associez les fichiers à la main avec les flèches.
+Impossible de lire les chemins déposés. Essayez Ajouter des fichiers ou Choisir un dossier.
+Déposez un fichier ici, ou utilisez les tâches par lot pour plusieurs fichiers.
+Sous-titre à synchroniser
+Fichier de sous-titres ou MKV contenant la piste
+Sous-titre de référence synchronisé
+Sous-titre déjà calé sur la cible
+Encodage source
+Vidéo correspondant au timing d’origine des sous-titres
+Vidéo / audio cible
+Vidéo ou audio à faire correspondre
+Carte de synchronisation enregistrée
+Choisissez un dossier parent
+Encodage du texte
+FPS source (MicroDVD)
+FPS cible (MicroDVD)
+Recadrage source (facultatif w:h:x:y)
+Recadrage cible (facultatif w:h:x:y)
+Fenêtre de recherche Sushi (secondes)
+Fenêtre maximale Sushi (secondes)
+Modèle Whisper
+Langue parlée dans la cible (facultatif, p. ex. en)
+Générique début / fin de la cible
+Piste de sous-titres
+Piste de sous-titres de référence
+Piste audio cible
+Choisissez d’abord un fichier
+Détection des pistes impossible — voir l’activité
+Garder les génériques début / fin de la cible
+Installation des dépendances…
+Préparation de l’aperçu…
+Analyse de la paire sélectionnée pour Aperçu & Montage…
+Ouverture d’Aperçu & Montage…
+Aperçu & Montage ouvert
+Aperçu annulé
+Sous-titres à synchroniser
+Encodages sources
+Sous-titres de référence
+Impossible d’associer tous les numéros d’épisode. Réordonnez les listes à la main.
+Vider les listes
+Aucun fichier de sous-titres/média pris en charge dans cette sélection.
+Retirer ce fichier
+Audio / vidéo source
+Sous-titres de référence synchronisés
+Audio / vidéos cibles
+Encodages cibles
+Vérifiez les paires de sous-titres et cochez la case de confirmation.
+Une carte de synchronisation enregistrée n’accepte qu’un fichier de sous-titres à la fois.
+Toutes les colonnes du lot de sous-titres doivent avoir le même nombre de fichiers.
+Attendez la fin de la détection des fichiers et des pistes.
+Démarrage…
+⚙ Paramètres
+Assistée par IA (expérimental)
+La synchro audio est désactivée pour cette exécution.
+Annuler
+Effacer les repères
+Fermer l’aperçu
+Les tâches terminées et les avertissements à vérifier apparaîtront ici.
+Création d’un aperçu fluide de la cible en arrière-plan…
+Couper de la vidéo
+Première image
+Image
+Image →
+Aller à la fin
+Aller au numéro d’image
+Aller au début
+Aller à l’instant
+Préréglage H.264
+J’ai vérifié les paires de sous-titres et le choix des pistes.
+Inclure les tâches audio
+Inclure les tâches de sous-titres
+Tâche
+Ne garder que la plage marquée avant la synchro. La vidéo et l’audio sont rognés ensemble ; les fichiers d’origine ne changent pas. Le début est inclus, la fin exclue. Utilisez « Fin de la vidéo » pour inclure la dernière image. Les rognages source et cible sont indépendants. Les images commencent à 1. L’aperçu est muet.
+Dernière image
+Détails du mode
+Image suivante (flèche droite)
+Désactivé (la source est complète)
+Progression globale
+Image précédente (flèche gauche)
+Lecture des horodatages de la vidéo…
+Prêt
+Rapports
+Restaurer avec l’audio d’origine
+Résultats de l’exécution en cours
+Enregistrer le rognage
+Parcourir la vidéo
+Montrer
+Standard (par défaut)
+État
+La synchro des sous-titres est désactivée pour cette exécution.
+Mode de synchro
+Temps
+Rogner avant la synchro
+Rogner la fin
+Rogner le début
+Activer la synchro audio
+Activer la synchro des sous-titres
+Fin de la vidéo
+Quand le doublage a retiré des scènes
+subtitle_map.json ou un plan AutoSync
+← Image
+Pistes de la paire {0}. Sélectionnez une ligne pour modifier une autre paire. Les paires inchangées utilisent leur première piste audio.
+{0} fichiers
+{0} affichées
+{0} / {1} vérifiés
+{0} signalés à vérifier
+Clip {0} sur {1}
+Des modifications non enregistrées du {0} ont été trouvées pour ce plan.
+Auto — {0}
+Décalage audio : la source {0} joue en sortie à {1} · vitesse {2}
+Décalage audio : la source {0} joue en sortie à {1}
+· audio source · {0}
+· audio cible · {0}
+Ouvrir github.com/EVA0111
+GitHub · EVA0111 ↗
+Menu
+Fichier
+Importer des médias…
+Enregistrer l’image en PNG
+Annuler
+Rétablir
+Couper l’audio
+Copier l’audio
+Coller l’audio
+Scinder à la tête de lecture
+Fusionner avec le précédent
+Supprimer la plage avec décalage
+Marquer l’entrée
+Marquer la sortie
+Effacer entrée/sortie
+Image
+Insérer le média dans V1 (avec décalage)
+Placer le média sur la piste vidéo sélectionnée
+Retirer le clip de piste sélectionné
+Remplir la plage avec du mouvement
+Remplir la plage en noir
+Dupliquer V1 (copie au-dessus)
+Dupliquer la piste sélectionnée
+Ajouter une piste vidéo vide
+Supprimer la piste sélectionnée
+Verrouiller / déverrouiller la piste sélectionnée
+Verrouiller / déverrouiller V1
+Verrouiller / déverrouiller MIX
+Afficher / masquer la piste sélectionnée
+Marqueurs
+Ajouter / retirer un marqueur
+Point précédent
+Point suivant
+Affichage
+Ajuster au clip ou à la plage
+Aide
+Vos marqueurs (K en ajoute ou en retire un à la tête de lecture)
+Glissez des fichiers depuis l’Explorateur dans la fenêtre pour les importer. Glissez un élément de la réserve sur V1 (insérer), V2 (superposer) ou MIX (son).
+Insérer le fichier sélectionné (image et son) dans V1 à la tête de lecture ; tout ce qui suit est décalé · B
+Insérer dans V1
+Placer l’image sélectionnée sur la piste vidéo sélectionnée à la tête de lecture : elle couvre les pistes inférieures, le son ne change pas · Shift+B
+Placer sur la piste
+Utiliser son son
+Enregistrer l’image de sortie à la tête de lecture en PNG · Ctrl+Shift+S
+📷 Image
+Plein écran (double-clic sur l’image) · Alt+Enter
+Lire la plage entrée/sortie marquée · Shift+Space
+▶ Entrée→Sortie
+Boucler la plage entrée/sortie ou le clip sélectionné
+Ajouter ou retirer un marqueur à la tête de lecture · K
+◆ Marqueur
+−1 image
+−10 ms
++10 ms
++1 image
+Montage audio
+Image (plage entrée/sortie ou clip)
+◫ Remplir avec mouvement (M)
+Mettre en noir l’image de la plage marquée (ou du clip sélectionné) ; le son ne change pas · Shift+M
+■ Remplir en noir
+Volume
+Gain (dB)
+Fondu d’entrée (ms)
+Fondu de sortie (ms)
+Appliquer le volume
+Entrée — · Sortie —
+Lire la plage entrée/sortie
+Ajouter / retirer un marqueur
+Enregistrer l’image en PNG
+Zoomer sur le clip (ou la plage entrée/sortie)
+Remplir la plage avec du mouvement à partir de l’image à l’entrée
+Remplir la plage en noir
+Insérer le média sélectionné dans V1 à la tête de lecture
+Placer le média sélectionné sur la piste vidéo sélectionnée
+Retirer le clip de piste sélectionné
+Dupliquer la piste sélectionnée (V1 par défaut)
+Les modifications audio ne déplacent jamais l’image. Les modifications de l’image (suppression avec décalage, médias insérés) déplacent ensemble tout ce qui suit ; un remplissage avec mouvement ne remplace que l’image de sa plage, l’audio synchronisé reste donc sur son image. Les modifications sont conservées automatiquement jusqu’à l’enregistrement.
+V{0} est verrouillée. Cliquez sur son 🔒 dans l’en-tête de piste pour la déverrouiller.
+{0} est verrouillée. Cliquez sur son 🔒 dans l’en-tête de piste pour la déverrouiller.
+Forme d’onde haute résolution indisponible : {0}
+Impossible de lire l’aperçu vidéo {0}.
+Échec de la création du proxy pour {0} : {1}
+Échec de l’aperçu audio : {0}
+Aperçu audio : {0}
+Marquez d’abord l’entrée et la sortie (I / O).
+Écoute de l’audio propre de la cible.
+Écoute de la sortie montée.
+Audio du clip {0} décalé de {1} ms plus tard. Écoutez le raccord pour vérifier.
+Audio du clip {0} décalé de {1} ms plus tôt. Écoutez le raccord pour vérifier.
+Le gain doit être compris entre −60 et +24 dB.
+Les fondus doivent être positifs et tenir dans le clip ({0} ms).
+Clip {0} : +{1} dB, fondu d’entrée {2} ms.
+Clip {0} : +{1} dB, fondu de sortie {2} ms.
+Clip {0} : +{1} dB.
+Clip {0} : {1} dB, fondu d’entrée {2} ms.
+Clip {0} : {1} dB, fondu de sortie {2} ms.
+Clip {0} : {1} dB.
+Clip scindé à {0}.
+Magnétisme activé. Maintenez Shift en faisant glisser pour l’ignorer.
+Magnétisme désactivé. Maintenez Shift en faisant glisser pour l’ignorer.
+Impossible de couper ici : {0}
+Glissement : images +{0} s
+Glissement : images {0} s
+Glissement : +{0} ms
+Glissement : {0} ms
+Modification de la timeline refusée : {0}
+Vitesse de lecture {0}×.
+Boucle sur la plage entrée/sortie.
+Boucle sur le clip sélectionné.
+Boucle désactivée.
+Marqueur retiré.
+Marqueur ajouté à {0}. Saisissez une note dans l’inspecteur.
+{0} à {1}. Appuyez sur P pour le lire, A pour comparer avec l’audio cible, R une fois vérifié.
+Lecture de 2 s de part et d’autre de {0}. Appuyez sur A pour comparer avec l’audio cible.
+La plage marquée ne chevauche pas le clip sélectionné.
+{0} s copiées. Déplacez la tête de lecture et collez pour ne remplacer que l’audio.
+Échec de la copie : {0}
+{0} s collées sans déplacer l’image. Annuler : Ctrl+Z.
+Échec du collage : {0}
+Début coupé jusqu’à la tête de lecture. La plage libérée utilise l’audio cible ; l’image ne change pas.
+Fin coupée jusqu’à la tête de lecture. La plage libérée utilise l’audio cible ; l’image ne change pas.
+Échec du découpage : {0}
+Échec de la coupe : {0}
+Enregistré : {0}. L’export écrit la sortie corrigée dans ce dossier.
+Échec de l’enregistrement : {0}
+Échec de l’export : {0}
+Export terminé : {0}. Enregistrez à nouveau pour créer un autre export.
+Échec de la suppression avec décalage : {0}
+Échec du remplissage en noir : {0}
+Échec du remplissage avec mouvement : {0}
+L’image est noire ici.
+Image enregistrée : {0}
+Image non enregistrée.
+Impossible d’enregistrer l’image : {0}
+Plein écran indisponible : {0}
+Modification de piste refusée : {0}
+{0} verrouillée : ses clips ne peuvent pas être modifiés.
+{0} déverrouillée.
+V{0} verrouillée.
+V{0} déverrouillée.
+V{0} masquée : ni affichée ni exportée.
+V{0} affichée.
+Jusqu’à 12 pistes vidéo.
+Impossible de dupliquer : {0}
+Sélectionnez d’abord une piste vidéo au-dessus de V1.
+Impossible de le placer sur V{0} : {1}
+{0} fichier(s) déposé(s) n’ont pas pu être lus comme vidéo, audio ou image.
+{0} n’a pas d’image ; déposez-le sur MIX pour utiliser son son.
+{0} n’a pas de son ; déposez-le sur une piste vidéo.
+Échec du dépôt : {0}
+Échec de l’import : {0}
+Échec de l’insertion : {0}
+La plage marquée lit maintenant {0}. L’image ne change pas.
+Impossible d’utiliser cet audio : {0}
+{0} fichiers importés. Insérez-les à la tête de lecture (B) ou utilisez l’audio pour une plage.
+{0} fichier importé. Insérez-le à la tête de lecture (B) ou utilisez l’audio pour une plage.
+Certains médias importés sont introuvables : {0}
+Forme d’onde {0} indisponible : {1}
+{0} points signalés à vérifier. Appuyez sur L pour le suivant, P pour le lire, ? pour tous les raccourcis.
+{0} point signalé à vérifier. Appuyez sur L pour le suivant, P pour le lire, ? pour tous les raccourcis.
+Impossible de charger l’éditeur : {0}
+Lit {0} à partir de {1}.
+non utilisé ici
+Aucune vidéo {0} disponible
+Création d’un aperçu {0} fluide en arrière-plan…
+Aperçu indisponible : {0}
+Fichier importé introuvable : {0}
+❚❚ Pause
+{0} raccords
+{0} à {1} ({2}). {3}
+{0} à {1}. {2}
+{0} s copiées
+En attente de l’image {0} : {1}
+Image · insérée pendant {0} s
+{0} · à glisser sur V1, V2 ou MIX
+◇ Magnétisme : désactivé
+Propre au doublage · reconstruit
+Plan remplacé · reconstruit
+Plan remplacé
+Le doublage a supprimé cette scène de {0} s. Elle est coupée de la vidéo exportée.
+Le doublage a supprimé cette scène de {0} s. Elle garde l’image et l’audio d’origine.
+Le doublage montre ici {0} s d’images figées ou répétées ; elles sont reconstruites à partir des images de l’original et l’audio du doublage est conservé.
+Le doublage montre ici un autre plan pendant {0} s ; la vidéo exportée le montre aussi, reconstruit à partir des images de l’original.
+Le doublage montre ici un autre plan pendant {0} s.
+Votre marqueur (K en ajoute ou en retire un à la tête de lecture).
+Début du clip coupé.
+Fin du clip coupée.
+Insérer dans V1 (avec décalage)
+Utiliser son son sur MIX
+Configuration arrêtée
+Configuration terminée
+Source · ligne {0}
+Cible · ligne {0}
+{0} source · {1} cible — Les nombres diffèrent. Ajoutez ou retirez des vidéos avant de commencer.
+{0} source · {1} cible — Déposez vos dossiers pour commencer.
+{0} source · {1} cible — Les numéros d’épisode correspondent. Vérifiez les paires sous chaque titre.
+{0} source · {1} cible — L’appariement suit l’ordre des lignes. Utilisez « Vérifier l’appariement et réordonner » pour le changer.
+Saisissez une ligne entre 1 et {0}.
+Sélectionner plan.json
+Lot de dossiers
+Les rapports et les options avancées sont dans les Paramètres.
+La synchronisation {0} est désactivée pour cette exécution.
+Activer la synchronisation {0}
+{0} à vérifier
+Vérifier l’appariement et réordonner
+Méthode de correspondance
+Réglages des pistes pour la paire sélectionnée
+Recréer la version du doublage (couper ces scènes ; reconstruire ses arrêts sur image et répétitions à partir de l’original)
+Découpe {0} – {1}
+Source · {0}
+Cible · {0}
+Durée {0}
+Image {0} / {1}
+Saisissez des secondes ou HH:MM:SS.mmm dans cette vidéo.
+Saisissez un numéro d’image entier de 1 à {0}.
+Plage de découpe : {0} – {1}. Cliquez pour modifier.
+Choisissez une plage de découpe {0} valide.
+Aperçu {0} : {1}
+Image vidéo sélectionnée
+{0} / {1} tâches terminées · {2} %
+{0} / {1} tâches terminées
+Terminé · {0} résultat(s) à vérifier
+{0} vidéo(s) seront découpées avant la synchronisation. La vidéo et l’audio utilisent exactement la même plage. Les modes de synchronisation s’appliquent dans cette plage.
+Les sorties ne peuvent pas être enregistrées dans le dossier des rapports. Choisissez un emplacement de sortie distinct.
+Choisissez les fonctions optionnelles à afficher et à utiliser. Les options avancées désactivées utilisent leurs valeurs par défaut.
+Enregistrer la sortie
+Laissez vide pour enregistrer à côté de la cible, ou choisissez n’importe quel dossier ou lecteur. Les fichiers existants ne sont jamais écrasés.
+{0}. Choix de pistes affichés pour la ligne {1}. Cliquez sur un nom de fichier pour choisir une autre ligne ; réordonnez avec les flèches. Les autres lignes utilisent leur première piste.
+Déplacer ce fichier
+Lot de sous-titres
+Cette piste vidéo n’existe pas.
+Aucun clip sur cette piste à cet endroit.
+Seules des images et des vidéos peuvent aller sur une piste vidéo.
+Placez la tête de lecture dans le clip pour le scinder.
+Un remplissage n’a pas d’images à faire glisser.
+Une image fixe n’a rien à faire glisser.
+Le clip commencerait avant son fichier.
+Le clip commencerait avant la vidéo cible.
+Marquez une plage (entrée et sortie) ou sélectionnez un clip à remplir.
+Remplissage inconnu.
+L’image à l’entrée est un clip importé ; le remplissage a besoin d’images de la cible à cet endroit.
+Marquez une plage (entrée et sortie) ou sélectionnez un clip à supprimer.
+La sortie entière ne peut pas être supprimée.
+Seuls des clips avec image peuvent être insérés dans la vidéo.
+Ce fichier n’a pas d’audio.
+Marquez une plage (entrée et sortie) ou sélectionnez un clip pour le nouvel audio.
+La partie choisie du clip est vide ou plus longue que le fichier.
+La modification a créé un trou ou un chevauchement dans l’audio.
+L’audio ne couvre pas la vidéo montée.
+La modification a créé un trou ou un chevauchement dans la vidéo.
+La vidéo ne couvre pas la sortie.
+La modification a créé des clips qui se chevauchent ou sortent de la plage sur V{0}.
+Segments audio ou durée de sortie non valides.
+Région non valide {0}
+Les régions doivent être contiguës, ordonnées, non vides et dans la timeline de sortie (région {0}).
+Type de région non valide {0}
+Média importé non valide dans la région {0}
+Flux audio importé non valide dans la région {0}
+Gain ou fondus non valides dans la région {0}
+Temps source ou vitesse non valides dans la région {0}
+Les régions doivent couvrir toute la timeline de sortie.
+Timeline de la vidéo montée non valide.
+Les morceaux vidéo doivent être contigus et non vides (morceau {0}).
+Position de clip importé non valide (morceau {0}).
+Remplissage avec mouvement non valide (morceau {0}).
+Le morceau vidéo {0} est en dehors de la vidéo cible.
+Les morceaux vidéo doivent couvrir la sortie montée.
+Pistes vidéo non valides.
+Piste vidéo V{0} non valide.
+Les clips doivent être ordonnés et dans la sortie{0}
+Clip importé non valide{0}
+Remplissage non valide{0}
+Images en dehors de la vidéo cible{0}
+Requête d’éditeur non fiable.
+Aucun plan n’est chargé.
+Temps de lecture non valide.
+Piste audio inconnue.
+Impossible de lire la durée de {0}
+{0} n’a ni image ni son.
+Média importé inconnu.
+Le plan d’alignement n’existe pas : {0}
+Le fichier sélectionné ne contient pas d’alignement AutoSync.
+Le fichier audio source d’origine est manquant : {0}
+Le fichier cible d’origine est manquant. Ouvrez un plan avec des chemins de médias valides.
+L’analyse d’aperçu est déjà en cours.
+Choisissez une paire source et cible avant l’aperçu.
+La demande d’aperçu est trop volumineuse.
+Choisissez une vidéo {0} valide.
+Choisissez un dossier de sortie existant.
+Impossible de démarrer l’analyseur AutoSync : {0}
+Échec de l’analyse d’alignement (code {0}). Consultez le journal dans AutoSync. {1}
+L’analyseur s’est terminé sans enregistrer plan.json dans {0}
+La plage de forme d’onde doit être comprise entre 0 et 120 secondes.
+Piste vidéo non valide.
+La vidéo d’origine est manquante.
+Échec du proxy vidéo : {0}
+Piste de capture non valide.
+Le fichier vidéo est manquant.
+Modification de clip non valide.
+Durée de sortie non valide.
+Opération de clip inconnue.
+Piste d’aperçu non valide.
+Durée d’aperçu ou vitesse de lecture non valide.
+Pas d’audio à cet instant.
+Liste de médias non valide.
+Impossible d’enregistrer pendant l’export.
+Choisissez un nom de dossier de sortie valide.
+Un dossier de sortie existe déjà ici. Choisissez un autre nom : {0}
+Export déjà en cours.
+Enregistrez d’abord votre alignement modifié.
+Enregistrez d’abord le plan modifié.
+Création d’un proxy lisible pour {0} (une seule fois par fichier)…
+Plan de synchro modifié par l’utilisateur. Vérifiez les raccords de la sortie.
+Aperçu & Montage analyse toute la cible sans couper automatiquement le générique de début/fin ni retirer de vidéo.
+L’alignement sera enregistré dans {0}
+Alignement enregistré dans {0}
+Type de fichier inconnu
+Terminez la tâche de synchronisation en cours avant d’ouvrir Aperçu & Montage.
+Requête Aperçu & Montage non valide.
+Une synchronisation ou une analyse Aperçu & Montage est déjà en cours.
+Tâche non valide.
+File d’attente non valide.
+Option de configuration non valide.
+Aucun dossier de sortie n’est encore disponible.
+Les rapports n’ont pas été enregistrés. Activez « Enregistrer les rapports » dans les Paramètres pour les prochaines exécutions.
+Ce fichier ou dossier n’a pas encore été créé.
+Aucun dossier de rapports n’est disponible.
+Le dossier de rapports est en dehors de cette exécution.
+Le dossier de rapports est manquant.
+Sous-titres ou conteneur
+Déposez des fichiers ou dossiers locaux.
+Le dossier est trop volumineux. Choisissez un dossier d’épisode.
+Ajoutez au moins une paire d’épisodes.
+Chaque ligne a besoin d’une vidéo source et d’une vidéo cible existantes.
+Une vidéo est utilisée plusieurs fois. Retirez les lignes en double.
+Choisissez un nouveau dossier de sortie pour le lot.
+Choisissez un fichier média local existant.
+FFprobe est introuvable. Installez FFmpeg ou placez ffprobe.exe à côté d’AutoSync.
+Réponse FFprobe non valide : {0}
+Aperçu annulé.
+Choisissez un fichier vidéo local.
+Choisissez un fichier vidéo.
+Aucun horodatage vidéo utilisable trouvé.
+Image d’aperçu non valide.
+Impossible de décoder cette image. Essayez une image voisine.
+Placement non valide.
+Le mappage audio copié n’est pas valide.
+Clip audio non pris en charge.
+Choisissez d’abord un clip audio.
+Placez un point d’entrée et de sortie dans la région sélectionnée.
+Sélectionnez un clip.
+Placez la tête de lecture dans le clip sélectionné.
+Bord de découpe non valide.
+Copiez un clip avant de coller.
+Sélectionnez d’abord un clip audio.
+Ce clip ne peut pas être déplacé.
+Le glissement est disponible pour les clips audio source.
+Décalage source non valide.
+Sélectionnez un clip à découper.
+Choisissez un bord du clip.
+Aucun audio source antérieur n’est disponible.
+Cliquez dans un clip pour le couper.
+Paramètres d’aperçu non valides.
+Le dossier temporaire doit être un chemin de dossier.
+Choisissez un chemin absolu pour le dossier temporaire.
+Choisissez un fichier cible ou un dossier temporaire personnalisé.
+L’emplacement temporaire n’est pas un dossier.
+Entrée {0} · Sortie {1}
+{0} · image + son
+{0} · image seule
+{0} · son seul
+Clip {0} : gain unitaire.
+Clip {0} : gain unitaire, fondu d’entrée {1} ms.
+Clip {0} : gain unitaire, fondu de sortie {1} ms.
+Clip {0} : {1} dB, fondu d’entrée {2} ms, fondu de sortie {3} ms.
+Clip {0} : gain unitaire, fondu d’entrée {1} ms, fondu de sortie {2} ms.
+Clip retiré ; la piste inférieure apparaît à cet endroit.
+Clip {1} de V{0} · {2}–{3}. Glissez pour déplacer, glissez un bord pour couper, Razor (C) scinde, Slip (Y) change ses images, Delete le retire.
+Clip de V{0} scindé.
+Clip de V{0} scindé à {1}.
+Clip déplacé à {0}.
+Images décalées de {0} s.
+V{0} ajoutée.
+V{0} supprimée ; ses clips ont disparu (Annuler : Ctrl+Z).
+{0} copiée sur V{1} au-dessus, coupe pour coupe. Verrouillez l’original pour le protéger ; modifiez librement la copie — le clip visible le plus haut est ce qui est lu et exporté.
+{0} est sur V{1} à partir de {2}. Il couvre les pistes inférieures ; le son ne change pas. Annuler : Ctrl+Z.
+Placer sur V{0} à {1}
+Insérer dans V1 (avec décalage) à {0}
+Utiliser son son sur MIX à {0}
+V{0} : {1}–{2} est noir. Annuler : Ctrl+Z.
+V{0} : {1}–{2} tient l’image de l’entrée, en mouvement. Annuler : Ctrl+Z.
+L’image de {0}–{1} est maintenant noire. Son inchangé. Annuler : Ctrl+Z.
+L’image de {0}–{1} est maintenant l’image de l’entrée, maintenue en mouvement (créée à l’export ; l’aperçu montre l’image). Son inchangé. Annuler : Ctrl+Z.
+{0} s d’image et de son supprimées ; tout ce qui suit a avancé. Annuler : Ctrl+Z.
+{0} ({1} s) inséré à {2}. Tout ce qui suit a reculé.
+Coupe au rasoir à {0}. Ctrl+Z pour annuler.
+Audio source décalé de {0} ms plus tard (glissement).
+Audio source décalé de {0} ms plus tôt (glissement).
+Début du clip coupé à {0}. La plage libérée utilise l’audio cible.
+Fin du clip coupée à {0}. La plage libérée utilise l’audio cible.
+Clip déplacé à {0}. L’image ne change pas.
+Clip copié à {0}. L’image ne change pas.
+Écoute de {0}.
+Clip {0} sur {1} · audio importé · {2}
+Dupliquer
+Supprimer la piste
+Exporter
+Pistes
+Plein écran
+Langue de l’interface
+Appliquer le gain et les fondus au clip sélectionné (Entrée) ; audibles dans l’aperçu et appliqués à l’export
+Changement de timing ; {0} ; vérifiez le raccord
+Section propre à la source : {0} s sautées ; {1} ; vérifiez le raccord
+raccord localisé par l’image
+raccord localisé par l’audio dans la zone délimitée par l’image
+point le plus silencieux de l’audio source dans la zone délimitée par l’image
+raccord estimé dans une zone peu animée de {0} s
+Images propres à la cible vérifiées par l’image ({0} s) : {1} ; audio cible utilisé ; vérifiez
+pas d’image source
+plan fixe montré plus longtemps, placé sur l’audio cible le plus silencieux
+Images propres à la cible vérifiées par l’image ; utilisez l’audio cible choisi
+Eyecatch/carton propre à la cible vérifié par l’image ; utilisez l’audio cible choisi
+Vidéo propre à la cible retirée ; vérifiez le nouveau raccord
+Les sections de la cible sans audio source ont été retirées. Vérifiez la vidéo montée, y compris le début et la fin.
+Matériel propre au doublage ({0} s) reconstruit à partir d’images figées/répétées de la cible ; audio du doublage conservé ; vérifiez
+Plans remplacés par le doublage ({0} s) reconstruits à partir des images de la cible qu’il montre à la place ; vérifiez
+audio source indisponible ; recours à la référence nécessaire
+Musique de générique commune : utiliser l’audio source aligné, pas l’audio cible
+dispersion de l’ajustement {0} s ; vérifiez la synchro
+correspondances éparses ; timing estimé, audio source conservé

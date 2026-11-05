@@ -73,6 +73,25 @@ class Recap(unittest.TestCase):
         self.assertEqual(source_rewinds(segs), [])
 
 
+class ParallelRates(unittest.TestCase):
+    def test_parallel_and_one_at_a_time_solves_are_identical(self):
+        import os
+        S = unique_frames(640 * FPS, 7)                     # long enough to solve in parallel
+        T = np.vstack([S[:300 * FPS], S[304 * FPS:]])
+        D = np.full(len(S), 20.), np.full(len(T), 20.)
+        rates = [1., 25 / 24, 24 / 25]
+        par = pt.solve_rates(T, D[1], S, D[0], rates)
+        old = os.environ.get('AUTOSYNC_RATE_WORKERS')
+        os.environ['AUTOSYNC_RATE_WORKERS'] = '1'
+        try:
+            seq = pt.solve_rates(T, D[1], S, D[0], rates)
+        finally:
+            os.environ.pop('AUTOSYNC_RATE_WORKERS') if old is None else os.environ.update(AUTOSYNC_RATE_WORKERS=old)
+        self.assertEqual(list(par), rates)
+        self.assertEqual(par, seq)
+        self.assertEqual(par[1.], pt.solve_sections(T, D[1], S, D[0], 1.))
+
+
 class StaticSpan(unittest.TestCase):
     def test_cut_inside_a_static_shot_is_bounded(self):
         S = unique_frames(120 * FPS, 4)
@@ -84,6 +103,32 @@ class StaticSpan(unittest.TestCase):
         self.assertEqual(len(audio), 2)
         self.assertTrue(50 <= audio[1]['target_start'] <= 57.1)
         self.assertAlmostEqual(audio[1]['source_start'] - audio[1]['target_start'], 1., delta=.05)
+
+
+class MicroCutJoin(unittest.TestCase):
+    """A 2-frame cut in slow footage: both mappings fit the 0.5 s samples, so the
+    sections can meet seconds after the real cut. The join search must reach it."""
+    def test_search_reaches_a_cut_seconds_before_the_section_gap(self):
+        rng = np.random.default_rng(5); w = 60
+        x = rng.normal(size=(60 * FPS + w, 384)).astype(np.float32)
+        c = np.cumsum(x, axis=0); S = (c[w:] - c[:-w])[:60 * FPS]
+        S -= S.mean(axis=1, keepdims=True); S /= np.linalg.norm(S, axis=1, keepdims=True)
+        T = np.vstack([S[:13 * FPS], S[13 * FPS + 2:]])
+        DT = np.full(len(T), 20.)
+        lo, hi = int(16.8 * FPS), int(17.28 * FPS)      # where the sections met
+        _, s0, s1 = pt.place_cut(T, S, DT, 1., lo - FPS, hi + FPS, 0., 2.)
+        self.assertGreater(s0, 13 * FPS)                  # the old window misses the cut
+        w0, w1 = pt.both_fit(T, S, 1., lo, hi, 0., 2., 0, len(T))
+        _, s0, s1 = pt.place_cut(T, S, DT, 1., w0 - FPS, w1 + FPS, 0., 2.)
+        self.assertLessEqual(s0, 13 * FPS); self.assertGreaterEqual(s1, 13 * FPS)
+
+    def test_sub_frame_and_distinct_mappings_do_not_widen(self):
+        S = unique_frames(60 * FPS, 6)
+        T = np.vstack([S[:30 * FPS], S[30 * FPS + 4:]])
+        lo, hi = 30 * FPS, 31 * FPS
+        self.assertEqual(pt.both_fit(T, S, 1., lo, hi, 0., .4, 0, len(T)), (lo, hi))
+        # Distinct footage: the section's own mapping wins next to the gap.
+        self.assertEqual(pt.both_fit(T, S, 1., lo, hi, 0., 4., 0, len(T)), (lo, hi))
 
 
 class Pieces(unittest.TestCase):
@@ -309,3 +354,300 @@ class FrameOrigin(unittest.TestCase):
         self.assertAlmostEqual(sa, sb, delta=.002)
         self.assertAlmostEqual(moved[0]['target_start'], 0.)
         self.assertAlmostEqual(moved[-1]['target_end'], 100.)
+
+
+def sparse_detail(n, every=6):
+    """Real footage has an unambiguous frame only every few seconds."""
+    d = np.zeros(n)
+    d[(np.arange(n) // FPS) % every == 0] = 20.
+    return d
+
+
+class RateWithManyCuts(unittest.TestCase):
+    """A target missing 7 % of the source in four cuts still plays at rate 1.
+
+    The median slope of match pairs leaned towards the duration ratio (300/280)
+    because most pairs 20-200 s apart straddle a cut.
+    """
+    def test_rate_is_not_the_duration_ratio(self):
+        S = unique_frames(300 * FPS, 5)
+        keep = [(0, 50), (56, 110), (112.5, 170), (178, 240), (243, 300)]
+        T = np.vstack([S[int(a * FPS):int(b * FPS)] for a, b in keep])
+        r = pt.estimate_ratio(T, sparse_detail(len(T)), S, np.full(len(S), 20.))
+        self.assertAlmostEqual(r, 1., places=4)
+
+    def test_rate_with_inserts(self):
+        S = unique_frames(300 * FPS, 6)
+        extra = unique_frames(60 * FPS, 7)
+        T = np.vstack([S[:60 * FPS], extra[:8 * FPS], S[60 * FPS:150 * FPS], extra[20 * FPS:35 * FPS],
+                       S[150 * FPS:220 * FPS], extra[40 * FPS:52 * FPS], S[220 * FPS:]])
+        r = pt.estimate_ratio(T, sparse_detail(len(T)), S, np.full(len(S), 20.))
+        self.assertAlmostEqual(r, 1., places=4)
+
+
+class ZoomedFraming(unittest.TestCase):
+    """Source is the target zoomed in 12 % off centre (broadcast overscan / re-framing)."""
+    def test_zoomed_side_is_found(self):
+        from scipy import ndimage
+        rng = np.random.default_rng(3)
+        T = np.repeat(ndimage.gaussian_filter(rng.uniform(0, 255, (50, pt.H, pt.W)), (0, 2.5, 2.5)), 12, axis=0)  # held shots
+        T = (T - T.min(axis=(1, 2), keepdims=True)) / np.ptp(T, axis=(1, 2), keepdims=True) * 200 + 30
+        y0, x0, h, w = 2, 6, int(pt.H * .88), int(pt.W * .88)
+        S = ndimage.zoom(T[:, y0:y0 + h, x0:x0 + w], (1, pt.H / h, pt.W / w), order=1)
+        info = dict(aspect=4 / 3)
+        S, T = S.astype(np.uint8), T.astype(np.uint8)
+        plain = pt._framing_score(pt.features(S[::12], (0, 0, 1, 1))[0],
+                                  *pt.features(T[np.linspace(pt.FPS * 5, len(T) - pt.FPS * 5, 160).astype(int)], (0, 0, 1, 1)))
+        score, sr, tr = pt._best_geometry(S, T, info, info)
+        self.assertGreater(score, plain + .02)
+        self.assertEqual(tuple(sr), (0, 0, 1, 1))
+        self.assertLess(tr[2] - tr[0], .95)  # the target (wider view) is the side cropped
+
+
+@unittest.skipUnless(__import__('shutil').which('ffmpeg'), 'FFmpeg unavailable')
+class OffGridVideoStart(unittest.TestCase):
+    """MKV with AAC priming starts its video 0.021 s after the file start.
+
+    The decode grid used to start at the FILE start, so the fps filter put
+    every picture in a neighbouring slot (a constant 19-59 ms timing error).
+    """
+    def test_same_pictures_decode_to_same_frames(self):
+        import subprocess, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as td:
+            a, b = Path(td) / 'a.mp4', Path(td) / 'b.mkv'
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=320x240:r=25:d=6', '-f', 'lavfi',
+                            '-i', 'sine=d=6', '-c:v', 'libx264', '-g', '1', '-c:a', 'aac', '-shortest', str(a)], check=True)
+            subprocess.run(['ffmpeg', '-v', 'error', '-i', str(a), '-c', 'copy', str(b)], check=True)
+            ia, ib = pt.stream_info(a), pt.stream_info(b)
+            A, B = pt.decode(a).astype(float), pt.decode(b).astype(float)
+            n = min(len(A), len(B)) - 2
+            same = np.mean([np.abs(A[k] - B[k]).mean() for k in range(1, n)])
+            shifted = np.mean([np.abs(A[k] - B[k + 1]).mean() for k in range(1, n)])
+            self.assertLess(same, shifted / 5)
+            # Picture time 0 is each video's first frame on the container timeline.
+            self.assertAlmostEqual(ia['origin'], ia['start']); self.assertAlmostEqual(ib['origin'], ib['start'])
+
+
+class FirstFrameLaterThanStream(unittest.TestCase):
+    """Zorro: the stream starts at 0 but its first picture is shown at 0.083 s."""
+    def test_origin_is_the_first_shown_frame(self):
+        from unittest.mock import patch
+        import json as _json
+        streams = _json.dumps(dict(format=dict(start_time='0.000000'), streams=[
+            dict(codec_type='video', width=640, height=480, start_time='0.000000'),
+            dict(codec_type='audio', start_time='0.000000')]))
+        with patch.object(pt, '_run', return_value=streams), patch.object(pt, 'first_frame_time', return_value=.083):
+            info = pt.stream_info('zorro.mkv')
+        self.assertAlmostEqual(info['origin'], .083)
+        self.assertAlmostEqual(info['start'], .083)
+        self.assertAlmostEqual(info['audio_starts'][0], 0.)
+
+
+@unittest.skipUnless(__import__('shutil').which('ffmpeg'), 'FFmpeg unavailable')
+class FirstFrameMeasured(unittest.TestCase):
+    def test_first_frame_time_follows_the_decoder(self):
+        import subprocess, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / 'late.mkv'
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=64x48:r=25:d=2',
+                            '-output_ts_offset', '0.3', '-c:v', 'libx264', str(f)], check=True)
+            self.assertAlmostEqual(pt.stream_info(f)['origin'], .3, delta=.002)
+
+
+class RateFromSections(unittest.TestCase):
+    """The rate is the one at which matched sections hold their pictures still.
+
+    Stress suite: broadcast trims of 2-6 frames every 11-43 s read as a 0.6 %
+    speed-up from match-pair slopes; a 0.1 % (film vs NTSC) rate was snapped
+    to 1; and one act from a PAL master could not be expressed at all.
+    """
+    @classmethod
+    def setUpClass(cls):
+        cls.S = slow_frames(420 * FPS, 41, width=30)
+
+    def timeline(self, pos):
+        T = noisy(resample(self.S, np.asarray(pos, float)), .2)
+        return pt.from_features(self.S, np.full(len(self.S), 20.), T, sparse_detail(len(T), 3), dict(score=1.),
+                                dict(start=0.), dict(start=0.), progress=lambda *_: None)
+
+    def test_micro_cuts_keep_rate_one(self):
+        pos, s = [], 30. * FPS
+        for gap, frames in zip([13, 29, 41, 17, 23, 37, 11, 31, 19, 43, 27], [2, 6, 3, 5, 2, 4, 6, 3, 2, 5, 4]):
+            pos += list(s + np.arange(gap * FPS)); s += gap * FPS + frames
+        self.assertEqual(self.timeline(pos).ratio, 1.)
+
+    def test_film_to_ntsc_rate(self):
+        t = np.arange(280 * FPS)
+        self.assertAlmostEqual(self.timeline(30 * FPS + t * 1.001).ratio, 1.001, places=9)
+
+    def test_one_act_at_pal_speed(self):
+        t = np.arange(280 * FPS) / FPS
+        src = np.where(t < 90, 30 + t, np.where(t < 186, 120 + (t - 90) * 25 / 24, 220 + (t - 186)))
+        tl = self.timeline(src * FPS)
+        self.assertEqual(tl.ratio, 1.)
+        act = [x for x in tl.sections if x.get('rate')]
+        self.assertEqual(len(act), 1)
+        self.assertAlmostEqual(act[0]['rate'], 25 / 24)
+        self.assertLess(abs(act[0]['first'] / FPS - 90), 3); self.assertLess(abs(act[0]['last'] / FPS - 186), 3)
+        segs = plan(tl, len(t) / FPS)
+        for x in (100., 150., 180.):
+            got = next(s['source_start'] + (x - s['target_start']) * s['speed'] for s in segs
+                       if s['kind'] == 'audio' and s['target_start'] <= x < s['target_end'])
+            self.assertAlmostEqual(got, 120 + (x - 90) * 25 / 24, delta=.04)
+
+
+class CensoredDubPictures(unittest.TestCase):
+    """A censored dub's freezes, repeats and replaced shots, matched to the original's frames."""
+    def setUp(self):
+        rng = np.random.default_rng(3)
+        shots = rng.normal(size=(40, 64))                # 40 shots of 25 frames, slight motion inside
+        T = np.repeat(shots, 25, axis=0) + .15 * rng.normal(size=(1000, 64))
+        self.FT = (T / np.linalg.norm(T, axis=1, keepdims=True)).astype(np.float32)
+        self.DS = np.full(2000, 30.)
+
+    def test_path_holds_a_freeze_and_plays_a_repeat(self):
+        D = np.vstack([np.repeat(self.FT[437:438], 30, axis=0), self.FT[500:510]])
+        tidx = np.arange(400, 600)
+        path, sim = pt.align_frames(D, self.FT[tidx], tidx)
+        self.assertEqual(pt.path_pieces(path), [(437, 437, 30), (500, 509, 10)])
+        self.assertGreater(sim.min(), .99)
+
+    def test_near_equal_candidates_prefer_frames_near_the_cut(self):
+        F = np.vstack([self.FT[:500], self.FT[100:101], self.FT[501:]])   # frame 500 duplicates frame 100
+        tidx = np.arange(0, 1000)
+        path, _ = pt.align_frames(self.FT[100:101].repeat(5, axis=0), F[tidx], tidx, near=480)
+        self.assertTrue((path == 500).all())
+
+    def test_runs_bridge_small_gaps(self):
+        flag = np.zeros(60, bool); flag[5:20] = flag[25:40] = True; flag[50:53] = True
+        self.assertEqual(pt.runs_of(flag, gap=6, min_len=10), [(5, 40)])
+
+    def test_replacement_candidates_need_a_better_match_elsewhere(self):
+        FS = self.FT.copy()
+        FS[300:340] = self.FT[600]                         # 1.6 s of the dub shows another shot, held
+        frames = np.arange(250, 400)
+        runs = pt.replaced_candidates(FS, self.FT, self.DS, frames, frames.copy())
+        self.assertEqual(len(runs), 1)
+        self.assertLessEqual(abs(frames[runs[0][0]] - 300), 1)
+        self.assertLessEqual(abs(frames[runs[0][1] - 1] + 1 - 340), 1)
+
+
+class HeldFrameKeepsMoving(unittest.TestCase):
+    """A rebuilt freeze moves only where the dub's picture would: no new objects, no camera moves."""
+    def frames(self):
+        rng = np.random.default_rng(1)
+        base = ndimage_blur(rng.uniform(40, 200, size=(pt.FH, pt.FW)))
+        out = np.repeat(base[None], 31, axis=0).copy()
+        y, x = pt.FH // 2, pt.FW // 2
+        for k in range(31):                              # a "mouth" in the middle opens and closes
+            out[k, y:y + 4, x:x + 6] = 30 if k % 4 < 2 else 220
+        return out
+
+    def test_small_interior_motion_sways(self):
+        T = self.frames()
+        lo, hi = pt.sway_fine(T.astype(np.uint8), 15)
+        self.assertEqual((lo, hi), (-15, 15))
+
+    def test_object_entering_from_the_edge_stops_the_sway(self):
+        T = self.frames()
+        T[20:, 10:40, :8] = 255                           # a hand comes in at the left edge from frame 20
+        lo, hi = pt.sway_fine(T.astype(np.uint8), 15)
+        self.assertEqual(hi, 4)
+
+    def test_camera_move_stops_the_sway(self):
+        T = self.frames()
+        for k in range(18, 31):
+            T[k] = np.roll(T[15], 2 * (k - 17), axis=1)  # a pan starts at frame 18
+        lo, hi = pt.sway_fine(T.astype(np.uint8), 15)
+        self.assertLessEqual(hi, 2)
+
+    def test_pingpong_covers_n_frames_without_repeating_the_turn(self):
+        from video_edits import pingpong
+        runs = pingpong(t=1.0, lo=0.0, hi=2.0, N=130, fr=25)
+        self.assertEqual(sum(c for _, c, _ in runs), 130)
+        self.assertEqual(runs[0], (25, 26, False))         # starts on the held frame, forward to the end
+        self.assertEqual(runs[1], (49, 50, True))          # back without showing frame 50 twice
+        self.assertEqual(runs[2][0], 1)
+        self.assertEqual(pingpong(t=1.0, lo=1.0, hi=1.02, N=10, fr=25), [(0, 10, False)])   # nothing to play: hold
+
+
+def ndimage_blur(x):
+    from scipy import ndimage
+    return ndimage.gaussian_filter(x, 2)
+
+
+class DubCoversARemovedScene(unittest.TestCase):
+    """Censored dub (source) vs the clean original (target): the dub removed target
+    60-70 s and shows 2 s of its own material there (a freeze or a repeat)."""
+    def check(self, cover):
+        C = unique_frames(130 * FPS, 4)
+        D = np.vstack([C[:60 * FPS], cover(C), C[70 * FPS:]])
+        segs = plan(solve(D, C), len(C) / FPS)
+        ref = [s for s in segs if s['kind'] == 'reference']
+        self.assertEqual(len(ref), 1)
+        self.assertAlmostEqual(ref[0]['target_start'], 60., delta=.05)
+        self.assertAlmostEqual(ref[0]['target_end'], 70., delta=.05)
+        after = next(s for s in segs if s['kind'] == 'audio' and s['target_start'] >= 70 - .05)
+        self.assertAlmostEqual(after['source_start'] + 70 - after['target_start'], 62., delta=.05)
+
+    def test_freeze_of_the_last_frame_is_dub_only(self):
+        self.check(lambda C: np.repeat(C[60 * FPS - 1:60 * FPS], 2 * FPS, axis=0))
+
+    def test_repeat_of_earlier_footage_is_dub_only(self):
+        self.check(lambda C: C[40 * FPS:42 * FPS])
+
+    def test_plain_removed_scene_is_unchanged(self):
+        C = unique_frames(130 * FPS, 4)
+        D = np.vstack([C[:60 * FPS], C[70 * FPS:]])
+        ref = [s for s in plan(solve(D, C), len(C) / FPS) if s['kind'] == 'reference']
+        self.assertEqual([(round(s['target_start'], 2), round(s['target_end'], 2)) for s in ref], [(60., 70.)])
+
+    def test_painted_patch_next_to_the_scene_is_not_dub_only(self):
+        C = unique_frames(130 * FPS, 4)
+        D = np.vstack([C[:60 * FPS], C[70 * FPS:]]).reshape(-1, 16, 24).copy()
+        D[56 * FPS:60 * FPS, 4:12, 6:18] = .15             # the dub paints over a quarter of the frame for 4 s
+        D = D.reshape(len(D), -1); D -= D.mean(axis=1, keepdims=True); D /= np.linalg.norm(D, axis=1, keepdims=True)
+        self.assertLess(float(np.mean(np.sum(D[57 * FPS:60 * FPS] * C[57 * FPS:60 * FPS], axis=1))), .6)
+        ref = [s for s in plan(solve(D, C), len(C) / FPS) if s['kind'] == 'reference']
+        self.assertEqual([(round(s['target_start'], 1), round(s['target_end'], 1)) for s in ref], [(60., 70.)])
+
+    def test_dub_footage_the_original_lacks_keeps_its_audio(self):
+        # Not a cover: 2 s the original never shows (another opening, a scene of
+        # the dub's own). Unmatched spans keep source audio, as before.
+        C = unique_frames(130 * FPS, 4)
+        D = np.vstack([C[:60 * FPS], unique_frames(2 * FPS, 7), C[70 * FPS:]])
+        segs = plan(solve(D, C), len(C) / FPS)
+        ref = [s for s in segs if s['kind'] == 'reference']
+        self.assertEqual(len(ref), 1)
+        self.assertAlmostEqual(ref[0]['target_end'] - ref[0]['target_start'], 8., delta=.05)
+
+    def test_frozen_run_needs_a_change_in_the_target(self):
+        C = unique_frames(20 * FPS, 5)
+        still = np.repeat(C[:1], 10 * FPS, axis=0)        # both editions hold one picture: no evidence
+        self.assertEqual(pt.frozen_run(still, still, 1., 0, 5 * FPS, 0., 1), 0)
+
+
+class UnsupportedExcursion(unittest.TestCase):
+    """A run inside a near-static shot whose own offset fits no better than its
+    neighbours' takes their offset; a real reorder keeps its own."""
+    def setUp(self):
+        self.F = unique_frames(60 * FPS, 6)
+        self.DT = np.full(len(self.F), 20.)
+
+    def sections(self, M_offset):
+        return [dict(kind='match', first=0, last=20 * FPS, offset=0., samples=40, strong=40),
+                dict(kind='match', first=20 * FPS + 12, last=22 * FPS, offset=M_offset, samples=4, strong=4),
+                dict(kind='match', first=22 * FPS + 12, last=60 * FPS - 1, offset=0., samples=70, strong=70)]
+
+    def test_static_shot_takes_the_neighbours_offset(self):
+        FT = self.F.copy(); FT[19 * FPS:23 * FPS] = FT[19 * FPS]       # 4 s still shot in both
+        out = pt.absorb_unsupported(self.sections(-25.), FT, FT, self.DT, 1.)
+        self.assertEqual(out[1]['offset'], 0.)
+
+    def test_reordered_shot_keeps_its_offset(self):
+        FS = self.F.copy(); FT = self.F.copy()
+        FT[20 * FPS + 12:22 * FPS + 1] = FS[20 * FPS + 12 - 25:22 * FPS + 1 - 25]   # target shows source 1 s earlier
+        out = pt.absorb_unsupported(self.sections(-25.), FT, FS, self.DT, 1.)
+        self.assertEqual(out[1]['offset'], -25.)

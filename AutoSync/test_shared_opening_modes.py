@@ -19,29 +19,24 @@ class SharedOpeningMatrix(unittest.TestCase):
                       dict(kind='audio',target_start=5.8,target_end=30.,
                            source_start=8.8,speed=1.)])
 
-    def test_verified_shared_music_across_matching_methods_and_full_target_modes(self):
-        for method in ('standard','ai_assisted'):
-            for remove_video in (False,True):
-                with self.subTest(method=method,remove_unmatched_video=remove_video):
-                    plan=copy.deepcopy(self.base)
-                    plan['sync_method']=method
-                    result=recover_shared_opening(plan,self.source,self.target,28.)
-                    if remove_video:
-                        result=remove_missing(protect_opening(result,self.source,self.target,28.))
-                        self.assertEqual(result['video_edits']['removed'],[])
-                    self.assertEqual(result['segments'][0]['kind'],'audio')
-                    self.assertAlmostEqual(result['segments'][0]['source_start'],3.,delta=.08)
-                    self.assertEqual(result['duration'],30.)
-                    self.assertEqual(plan['segments'][0]['kind'],'reference')
+    def test_verified_shared_music_in_full_target_modes(self):
+        for remove_video in (False,True):
+            with self.subTest(remove_unmatched_video=remove_video):
+                plan=copy.deepcopy(self.base)
+                result=recover_shared_opening(plan,self.source,self.target,28.)
+                if remove_video:
+                    result=remove_missing(protect_opening(result,self.source,self.target,28.))
+                    self.assertEqual(result['video_edits']['removed'],[])
+                self.assertEqual(result['segments'][0]['kind'],'audio')
+                self.assertAlmostEqual(result['segments'][0]['source_start'],3.,delta=.08)
+                self.assertEqual(result['duration'],30.)
+                self.assertEqual(plan['segments'][0]['kind'],'reference')
 
-    def test_unrelated_music_is_not_replaced_in_either_matching_method(self):
+    def test_unrelated_music_is_not_replaced(self):
         rng=np.random.default_rng(19)
         other=rng.standard_normal(self.target.shape).astype(np.float32)
-        for method in ('standard','ai_assisted'):
-            with self.subTest(method=method):
-                plan=copy.deepcopy(self.base);plan['sync_method']=method
-                result=recover_shared_opening(plan,self.source,other,28.)
-                self.assertEqual(result['segments'][0]['kind'],'reference')
+        result=recover_shared_opening(copy.deepcopy(self.base),self.source,other,28.)
+        self.assertEqual(result['segments'][0]['kind'],'reference')
 
     def test_short_or_unavailable_source_opening_is_not_invented(self):
         for length in (2.,4.):

@@ -1,0 +1,1021 @@
+Sync-Aufträge
+Gespeicherter Plan
+Ausgabe wählen
+Vollständiger Ziel-Ton
+Ton mit dem gesamten Ziel synchronisieren. FLAC exportieren.
+Nur Hauptfolge
+Abweichenden Vor- und Abspann entfernen. Video + FLAC exportieren.
+Vor- & Abspann behalten
+Vor-/Abspann-Ton des Ziels behalten. Die Hauptfolge synchronisieren.
+Ihre Dateien
+Quelle = gewünschter Ton · Ziel = anzupassendes Video
+Folgen zuordnen
+Quelle = zu verwendender Ton · Ziel = anzupassendes Video. Unterordner werden einbezogen.
+Quellvideo
+Ordner hinzufügen
+Dateien hinzufügen
+Quellvideos
+Quelldateien oder einen Ordner hier ablegen
+Datei auswählen
+Eine Zeile nach oben (Alt+Hoch)
+↑ Hoch
+In die erste Zeile verschieben
+⇈ Anfang
+Zeilennummer
+Zu Zeilennummer verschieben
+Verschieben nach
+In die letzte Zeile verschieben
+⇊ Ende
+Eine Zeile nach unten (Alt+Runter)
+↓ Runter
+Ausgewählte Datei entfernen (Entf)
+× Entfernen
+Zielvideo
+Zielvideos
+Zieldateien oder einen Ordner hier ablegen
+Folgennummern abgleichen
+Beide Spalten leeren
+Videos zu beiden Spalten hinzufügen.
+Quellzeile 1 gehört zu Zielzeile 1 usw. Wählen Sie in einer Liste eine Datei und nutzen Sie die Steuerung in der Mitte. Alt + ↑ / ↓ sortiert um; Entf entfernt.
+Stattdessen eine vorhandene CSV verwenden
+CSV-Stapel verwenden
+CSV mit Quelle, Ziel, Ton und einem eigenen Ausgabeordner pro Folge auswählen.
+Beispiel-CSV öffnen
+Spurnummern und Verzögerungen stammen aus jeder CSV-Zeile. Manuelle Grenzen und Schnittzeiten gelten für jede Folge im Stapel. Ordnerstapel verwenden die gewählten Spuren und Verzögerungen für alle Paare.
+Gespeicherten Plan rendern
+Die vorhandene Timing-Karte ohne erneute Analyse verwenden.
+Modus und ursprüngliche Dateipfade des Plans werden verwendet. Verschieben Sie zuvor exportierte Medien vor dem erneuten Rendern aus dem Ausgabeordner.
+Timing-Referenz
+1 · Ein bereits synchronisierter Untertitel
+2 · Quell-Encode → Ziel-Encode
+3 · Nur Ziel-Ton (Spracherkennung)
+Sushi — Tonabgleich (ASS / SRT)
+Gespeicherte Timing-Karte wiederverwenden
+Sushi braucht auf die Quelle getimte Untertitel und passenden Ton in beiden Fassungen. Unterstützt ASS / SRT. Stile bleiben erhalten; prüfen Sie stumme Schilder und bildgenaues Typesetting in der ENTWURF-Ausgabe.
+Untertitel-Optionen
+Verschiedene Sprachen / übersetzte Dialoge (mehrsprachiger KI-Abgleich)
+Für Sprach- oder mehrsprachigen Abgleich installieren Sie die Untertitel-KI in den Einstellungen. Modelle werden beim ersten Gebrauch geladen.
+Verlustfreie Textformate: ASS/SSA, SRT, VTT, SBV, MicroDVD SUB, MPL2, SAMI und flaches TTML/DFXP. PGS SUP funktioniert mit Encode-Abgleich oder gespeicherter Karte. VobSub und andere Binärformate müssen umgewandelt werden; OCR ist nicht enthalten. Eingebettete ASS/SRT/VTT/PGS-Spuren können aus MKV extrahiert werden.
+Ton kann stumme Schilder nicht direkt timen. Typesetting ohne Bildnachweis, nicht zugeordnete Zeilen und unsichere Schnitte werden markiert. Ein ENTWURF behält das ursprüngliche Timing nicht zugeordneter Zeilen; prüfen Sie ihn vor dem Muxen. Positionen bleiben erhalten und werden nicht an andere Ausschnitte/Seitenverhältnisse angepasst.
+Tonspuren
+Erweiterte Einstellungen
+Timing-Vorgaben & Export
+Nur-Ton-Abgleich (Modus vollständiges Ziel)
+Referenz verwenden, wo Quellton fehlt (Sprache kann wechseln)
+Zielabschnitte ohne Quellton entfernen (bearbeitetes Video + FLAC exportieren)
+Unsichere Schnitte erlauben — geschätzte Übergänge manuell prüfen
+Alle Zeiten in Sekunden. Zuschnitt wirkt nur auf den Abgleich.
+Nur analysieren
+Bereit, wenn Sie es sind
+Stopp
+Vorschau & Bearbeiten
+Synchronisierung starten →
+Aktivität
+Bericht öffnen
+Ausgabe öffnen
+Dateien wählen, Modus auswählen und starten. Fortschritt und Prüfhinweise erscheinen hier.
+Einrichtung
+Die portable App enthält Python und FFmpeg. Die optionale Untertitel-KI lädt zusätzliche Pakete und Modelle.
+Engine prüfen / einrichten
+Untertitel-KI installieren
+AI-Sync-Modelle installieren
+Prüfen Sie markierte Abschnitte und Übergänge, bevor Sie das Ergebnis verwenden. Übereinstimmungswerte garantieren keine Lippensynchronität.
+AutoSync v1.4.0 · Vorschau & Bearbeiten
+Ausrichtungsplan wird geöffnet…
+— zu prüfen
+Keine Änderungen
+Rückgängig · Strg+Z
+↶ Rückgängig
+Wiederholen · Strg+Y
+↷ Wiederholen
+Bearbeiteten Plan in einem beliebigen Ordner speichern · Strg+S
+Speichern unter…
+Korrigierten Ton exportieren (zuerst speichern)
+Korrigierten Ton exportieren
+Tastenkürzel · ?
+Ungespeicherte Änderungen einer früheren Sitzung gefunden.
+Änderungen wiederherstellen
+Verwerfen
+Prüfpunkte und Medien
+Linkes Feld
+Übergänge und zu prüfende Punkte
+Prüfen
+Importierte Videos, Töne und Bilder
+Medien
+Dieses Feld ausblenden
+Prüfliste filtern
+Alle
+Nur Punkte, die die Analyse als unsicher oder prüfenswert markiert hat
+Markiert
+Nur noch nicht abgehakte Punkte
+Nicht geprüft
+Szenen, die eine zensierte oder umgeschnittene Synchronfassung entfernt oder neu geschnitten hat
+Zensur
+Prüfpunkte
+Diese Szene:
+Diese Szene mit dem Originalton behalten
+Wiederherstellen (Originalton)
+Diese Szene aus dem exportierten Video entfernen, wie in der Synchronfassung
+Aus dem Video schneiden
+Vorheriger Prüfpunkt · J
+◀ Zurück
+Aktuellen Punkt als geprüft markieren · R
+✓ Geprüft
+Nächster Prüfpunkt · L
+Weiter ▶
+Video-, Ton- oder Bilddateien hinzufügen · Strg+I
+＋ Medien importieren…
+Importierte Medien
+Videos, Töne oder Bilder importieren und an der Abspielposition einfügen. Bildbearbeitungen verschieben alles Folgende mitsamt seinem synchronen Ton.
+Ausgewählte Datei (Bild und Ton) an der Abspielposition einfügen; alles Folgende rückt nach hinten · B
+An Abspielposition einfügen
+Ton der ausgewählten Datei über den markierten Bereich oder den ausgewählten Clip legen; das Bild bleibt
+Ihren Ton hier verwenden
+Prüfliste anzeigen
+Prüfen ⟩
+Videovergleich
+Vergleichsansicht
+Quelle und Ziel nebeneinander
+Nebeneinander
+Quelle zu 50 % über dem Ziel
+Überlagern
+Hell, wo sich die Bilder unterscheiden; dunkel und ruhig heißt synchron
+Differenz
+Regler ziehen, um zwischen Quelle und Ziel zu wischen
+Wischen
+Wischposition
+Quelle links · Ziel rechts
+Quelle
+Wiedergabe Quellvideo
+Quellbild
+Quellvideo wird geladen…
+Ziel
+Wiedergabe Zielvideo
+Zielbild
+Importierter Clip
+Importiertes Bild
+Zielvideo wird geladen…
+Wiedergabe
+10 Bilder zurück · Umschalt+←
+Ein Bild zurück · ←
+Wiedergabe / Pause · Leertaste
+▶ Abspielen
+Ein Bild vor · →
+10 Bilder vor · Umschalt+→
+Ausgabezeit
+Anhören
+Die bearbeitete Ausgabe
+Ausgabe
+Der ursprüngliche Quellton
+Der eigene Ton des Ziels
+Bearbeitete Ausgabe
+Quellton
+Ziel-Ton
+Zwischen Ausgabe- und Ziel-Ton wechseln · A
+Von 2 s vor bis 2 s nach dem ausgewählten Übergang abspielen · P
+▶ Über Übergang
+Ausgewählten Clip wiederholen
+⟳ Schleife
+Geschwindigkeit
+Wiedergabegeschwindigkeit
+Ausgewählter Clip
+Clip in der Zeitleiste auswählen.
+Timing
+Ausgabe-Beginn
+Ausgabe-Ende
+Quelle beginnt bei
+Oben eingegebene Werte übernehmen (Eingabe)
+Eingaben übernehmen
+Ton dieses Clips verschieben
+Ton verschieben
+Ein Bild früher · ,
+10 ms früher · Alt+,
+10 ms später · Alt+.
+Ein Bild später · .
+Bearbeiten
+Clip an der Abspielposition teilen · S
+✂ Teilen (S)
+Mit dem vorherigen Clip verbinden; er übernimmt das frühere Timing
+⇤ Mit vorherigem verbinden
+Anfang auf die Abspielposition kürzen; die Lücke nutzt Ziel-Ton · Q
+Anfang kürzen (Q)
+Ende auf die Abspielposition kürzen; die Lücke nutzt Ziel-Ton · W
+Ende kürzen (W)
+Markierten Bereich oder ausgewählten Clip aus der Ausgabe entfernen: Bild und Ton. Alles Folgende rückt nach vorn · Umschalt+Entf
+⌫ Lückenlos löschen (Bild + Ton)
+Ton für diesen Clip
+Hier den Quellton verwenden
+Hier den eigenen Ton des Ziels verwenden
+Zwischenablage
+In-Punkt an der Abspielposition setzen · I
+In (I)
+Out-Punkt an der Abspielposition setzen · O
+Out (O)
+Ganzen Clip verwenden
+Leeren
+Ton kopieren · Strg+C
+Kopieren
+Ausschneiden; die Lücke nutzt Ziel-Ton · Strg+X
+Ausschneiden
+Ton an der Abspielposition überschreiben; das Bild bewegt sich nicht · Strg+V
+Einfügen
+Zwischenablage leer
+Prüfpunkt
+Kein Prüfpunkt nahe der Abspielposition.
+Notiz zu diesem Punkt (wird mit Ihren Änderungen gespeichert)
+Clip-Feld anzeigen
+⟨ Clip
+Zeitleiste skalieren
+Ziehen, um die Zeitleiste zu skalieren (↑/↓ bei Fokus)
+Zeitleiste
+Zeitleisten-Werkzeuge
+Auswahl: Clips ziehen, Kanten zum Kürzen ziehen · V
+↖ Auswahl
+Rasierklinge: Clip anklicken, um ihn zu schneiden · C
+✂ Rasierklinge
+Verschieben im Clip: Ton innerhalb seines Clips ziehen · Y
+↔ Verschieben
+Einrasten · N (beim Ziehen Umschalt halten, um es zu übergehen)
+◈ Einrasten: An
+Zum Anfang · Pos1
+⇤ Anfang
+Auf den ausgewählten Clip zoomen · F
+Clip einpassen
+Ganze Folge zeigen · Umschalt+F
+Alles einpassen
+Zoom
+Strg+Mausrad auf der Zeitleiste zoomt ebenfalls
+Übersicht der ganzen Folge: klicken oder ziehen zum Navigieren
+Zeitleiste: Zielvideo, Quellton, Ziel-Ton und bearbeitete Ausgabe
+Bereit.
+Prüfung nötig
+Exportprotokoll ▴
+Ausgabeordner öffnen
+Exportprotokoll
+Schließen
+Tastenkürzel
+Wiedergabe / Pause
+Ein Bild
+Zehn Bilder
+Anfang / Ende
+Über den ausgewählten Übergang abspielen
+Ausgabe ↔ Ziel-Ton wechseln
+Stoppen oder Ziehen abbrechen
+Vorheriger / nächster Prüfpunkt
+Punkt als geprüft markieren
+Auf den Clip zoomen
+Alles zeigen
+Zeitleiste zoomen
+Hinein- / herauszoomen
+Bearbeitung
+Auswahl / Rasierklinge / Verschieben
+Einrasten an / aus
+An der Abspielposition teilen
+Anfang / Ende auf die Abspielposition kürzen
+Ton 1 Bild früher / später
+Ton 10 ms früher / später
+In / Out setzen
+Ton kopieren / ausschneiden / einfügen
+Rückgängig / wiederholen
+Bereich / Clip lückenlos löschen
+Medien importieren
+Ausgewählte Medien an der Abspielposition einfügen
+Tonbearbeitungen bewegen nie das Bild. Bildbearbeitungen (lückenloses Löschen, eingefügte Medien) verschieben alles Folgende gemeinsam, sodass synchroner Ton bei seinem Bild bleibt. Änderungen bleiben bis zum Speichern automatisch erhalten.
+Rückgängig gemacht. Strg+Y stellt es wieder her.
+Wiederhergestellt.
+Bearbeitetes Video exportieren
+Zuerst Änderungen speichern (Speichern unter…), dann exportieren
+Wird exportiert…
+Gespeichert · bereit zum Export
+Ungespeicherte Änderungen
+Stille (die eingefügte Datei hat keinen Ton).
+Dieser Clip spielt den eigenen Ton des Ziels. Wählen Sie „Quellton“, um hier Quellton zuzuordnen.
+Abspielposition in den ausgewählten Clip setzen, um ihn zu teilen · S
+Videodecoder nicht verfügbar; Standbilder werden gezeigt.
+Quelle an dieser Stelle nicht verwendet
+Hier ist kein Quellton zugeordnet. Hören Sie stattdessen Ausgabe oder Ziel.
+Quelle kann nicht vor null verschoben werden.
+Ungültige Clipgrenzen.
+Ungültige Quellposition oder Geschwindigkeit.
+Der erste Clip muss bei null beginnen.
+Der letzte Clip muss am Ende der Ausgabe enden.
+Clip zu kurz oder Quellposition negativ.
+Clip aktualisiert.
+Clips verbunden. Über den Übergang anhören.
+Quellton wird verwendet; Beginn anpassen und anhören.
+Für diesen Clip wird der eigene Ton des Ziels verwendet.
+Rasierklinge: einen beliebigen Tonclip anklicken, um ihn zu schneiden.
+Verschieben im Clip: Quellton innerhalb seines Clips ziehen.
+Auswahl: Clip zum Verschieben ziehen; Kanten zum Kürzen ziehen.
+Verschieben im Clip funktioniert nur bei Quellton-Clips.
+Einen Clip von A1 oder A2 nach unten auf MIX ziehen, um ihn in die bearbeitete Ausgabe zu legen.
+Kopiert
+Verschoben
+Der Quellclip würde über das Ende seines Tons hinauslaufen.
+⟳ Schleife: An
+Entfernt · geschnitten
+Entfernt · wiederhergestellt
+Sie wird aus dem exportierten Video geschnitten.
+Sie behält Originalbild und -ton.
+Nur in der Synchronfassung
+Zielmaterial
+Übergang
+Clipgrenze
+Bearbeiteter oder berechneter Übergang zwischen Clips.
+Hier ist alles geprüft.
+Nichts anzuzeigen.
+Alle markierten Punkte geprüft
+Kein Prüfpunkt an der Abspielposition. J / L verwenden oder in die Liste klicken.
+Keine Prüfpunkte in dieser Liste.
+Zuerst zu einem Prüfpunkt gehen (J / L oder in die Liste klicken).
+Als geprüft markiert.
+Als nicht geprüft markiert.
+Diese Szene wird aus dem exportierten Video geschnitten, wie in der Synchronfassung.
+Diese Szene behält Originalbild und -ton.
+Am Anfang: prüfen, ob Vorspannmusik und Bild erhalten blieben.
+Abspielposition in den ausgewählten Clip setzen.
+Ton in die Zwischenablage ausgeschnitten. Der frei gewordene Bereich nutzt Ziel-Ton (nichts verschiebt sich).
+Speichern abgebrochen.
+Exportprotokoll ▾
+Änderungen vor dem Export speichern.
+Wird exportiert…\n
+Korrigierter Ton und nötige Videobearbeitungen werden exportiert…
+Export fehlgeschlagen. Siehe Exportprotokoll.
+Quelle zu 50 % über dem Ziel
+Übereinstimmende Bilder werden dunkel. Kanten, die mit der Bewegung springen, bedeuten falsches Timing; ruhige Umrisse sind Unterschiede im Bildausschnitt
+Quelle links der Linie · Ziel rechts
+Ziehen abgebrochen.
+Dieser Plan schneidet zensierte Szenen beim Export. Stellen Sie diese Szenen wieder her (Prüfen → Zensur), bevor Sie das Bild bearbeiten.
+Zuerst einen Clip auswählen oder In und Out setzen.
+Zuerst im Medien-Tab eine Datei auswählen.
+Einen Clip auswählen oder In und Out für den neuen Ton setzen.
+Import abgebrochen.
+Keine bearbeitbaren Clips im ausgewählten Plan.
+Ungespeicherte Änderungen wiederhergestellt. Rückgängig (Strg+Z) kehrt zum analysierten Plan zurück.
+Frühere ungespeicherte Änderungen verworfen.
+Wellenformen werden geladen… Sie können schon mit der Prüfung beginnen.
+Bereit. J / L springen durch die Übergänge, P spielt über einen, ? zeigt alle Tastenkürzel.
+Einstellungen
+Berichte und Timing-Pläne speichern
+Erweiterte Ton-Einstellungen aktivieren
+Erweiterte Untertitel-Einstellungen aktivieren
+CSV-Auftragsimport aktivieren
+Rendern gespeicherter Pläne aktivieren
+Aktivitätsprotokoll anzeigen
+Berichtsordner (optional)
+AutoSync Reports neben der Anwendung · oder beliebigen Ordner wählen
+Temporärer Arbeitsordner (optional)
+Automatisch — AutoSync Temp neben dem Zielvideo
+Leer lassen für einen AutoSync-Temp-Ordner neben dem Zielvideo. Temporäre Dateien eines Laufs werden nach Abschluss oder Fehler entfernt.
+Ordner (optional)
+Automatisch — neben dem Zielvideo · oder beliebigen Ordner wählen
+Zielordner verwenden
+Neben der Zieldatei speichern (ohne das Video zu überschreiben)
+AutoSync Outputs
+Zuerst ein Zielvideo wählen.
+Quell- oder Zieldatei wählen, um den Standard-Ausgabeordner zu bestimmen, oder mit Durchsuchen einen wählen.
+Berichtsordner der App nicht gefunden. Wählen Sie in den Einstellungen einen Berichtsordner.
+Verwaltete Warteschlange
+Nicht festgelegt
+Video ansehen und vor der Synchronisierung zuschneiden
+Vorschau nicht verfügbar
+Bild wird geladen…
+Bild nicht verfügbar
+Auf „Zuschnitt speichern“ drücken, um diese Marken zu entfernen.
+Beide Punkte setzen, das Ende nach dem Anfang.
+Wird vorbereitet…
+Verarbeitung
+Gestoppt
+Fertig · Ergebnisse prüfen
+Fertig
+Mit Fehlern beendet · siehe Aktivität
+Dateien und Spuren werden gelesen…
+Quell-/Zielmedien wählen oder einen Ausgabeordner auswählen.
+Berichtsordner festlegen oder die App neu starten, um den Standardordner zu ermitteln.
+Gespeicherten Timing-Plan wählen.
+Ton, Untertitel oder beides aktivieren.
+Vollständigen Ziel-Ton synchronisieren
+Nur-Ton-Abgleich erfordert den Modus vollständiges Ziel.
+Auftrags-CSV wählen.
+Quellvideos zur Quellspalte hinzufügen.
+Beide Tonspalten brauchen gleich viele Videos.
+Passende Dateien zu jeder Untertitelspalte hinzufügen.
+Eine Untertiteldatei mit einer gespeicherten Timing-Karte verwenden.
+Gespeicherte Timing-Karte wählen.
+Untertitelpaare und Spurwahl prüfen.
+Ausgewählte Aufträge werden verarbeitet…
+Bereit, die ausgewählten Aufträge zu synchronisieren.
+Bearbeitetes Video + passendes FLAC exportieren. Abschnitte nur im Ziel werden entfernt.
+Ton
+Untertitel
+Aufträge
+Eine Folge oder einen ganzen Ordner ablegen
+Timing-Referenz wählen, dann Dateien hinzufügen
+Zu übertragender Ton
+Anzupassendes Video
+Zeilen werden der Reihe nach gepaart. Datei auswählen, um sie umzusortieren. Alt + ↑ / ↓ verschiebt eine Zeile; Entf entfernt sie.
+Nutzt vortrainierte AST-Klangeinbettungen sowie DINOv2 für schwachen Szenenabgleich. Installieren Sie zuerst AI Sync in der Einrichtung; Downloads sind optional und die erste Analyse ist langsamer.
+Der Standardabgleich nutzt Audio-Fingerabdrücke und Videoszenen.
+Ausgewählte Aufträge starten
+Quell-Tonspur
+Referenzton des Ziels
+Spuren werden erkannt…
+Keine Tonspuren gefunden
+Fehlgeschlagen
+Berichte öffnen
+Auftragseinstellungen
+Abgleich
+Methode
+Zensierte oder geschnittene Synchronfassung
+Untertitel für wiederhergestellte Szenen (optional)
+Untertitel der Originalfassung: Zeilen in wiederhergestellten Szenen werden separat gespeichert
+Entfernte Szenen behalten das Originalbild und spielen den Originalton, in der Lautstärke an die Synchronfassung angepasst. Neu geschnittene Stellen werden zur Prüfung aufgelistet.
+Entfernte Szenen werden wie in der Synchronfassung aus dem exportierten Video geschnitten. Jede Szene lässt sich in Vorschau & Bearbeiten ändern.
+Listet jede von der Synchronfassung entfernte oder neu geschnittene Szene im Bericht und in Vorschau & Bearbeiten auf, wo Sie jede einzeln ändern können.
+Speichern in
+Jede Dateizeile hat ein eigenes Spurmenü; öffnen Sie dies, um das ausgewählte Paar im Detail zu bearbeiten.
+Spuren des ausgewählten Paares
+Erweitert
+Zeilen umsortieren
+Untertitel
+Funktionen
+Optionale Werkzeuge. Ausgeschaltete erweiterte Optionen verwenden ihre Standardwerte.
+Ordner
+Engine
+Einzelne Folge
+Originalfassung
+Optional · Ton des Quellvideos verwenden
+Referenzton
+Optional · Ton des Zielvideos verwenden
+Neuer Ausgabeordner
+Übergeordneten Ordner für einen neuen Lauf wählen
+Durchsuchen
+Separate Tondateien verwenden (optional)
+Stapel-CSV
+jobs.csv auswählen
+Stapel-Ausgabeordner
+Übergeordneten Ordner für diesen Stapel wählen
+Verzögerung Quellton (s)
+Verzögerung Referenz (s)
+Hauptteil-Beginn (Zielsekunden, optional)
+Hauptteil-Ende (Zielsekunden, optional)
+Manuelle Schnittzeiten (kommagetrennt)
+Zuschnitt Quelle für Abgleich (w:h:x:y)
+Zuschnitt Ziel für Abgleich (w:h:x:y)
+Szenenschwelle
+Codec des gekürzten Videos
+Verarbeitung…
+Einrichtung fehlgeschlagen · siehe Aktivität
+Gestoppt · Teildateien können verbleiben
+Fehlgeschlagen · siehe Aktivitätsprotokoll
+Anzahl unterschiedlich. Videos vor dem Start hinzufügen oder entfernen.
+Ordner ablegen, um zu beginnen.
+Folgennummern stimmen überein. Prüfen Sie die Paare unter jeder Überschrift.
+Paarung folgt der Zeilenreihenfolge. Mit „Paarung prüfen & umsortieren“ ändern.
+Videos werden aus Ordnern gelesen…
+In dieser Auswahl wurden keine unterstützten Videodateien gefunden.
+Folgennummern fehlen, sind doppelt oder unterschiedlich. Ordnen Sie die Dateien mit den Pfeilen manuell zu.
+Die abgelegten Dateipfade konnten nicht gelesen werden. Versuchen Sie „Dateien hinzufügen“ oder „Ordner wählen“.
+Hier eine Datei ablegen oder Stapelaufträge für mehrere Dateien verwenden.
+Zu synchronisierender Untertitel
+Untertiteldatei oder MKV mit der Spur
+Synchronisierter Referenz-Untertitel
+Untertitel, der bereits zum Ziel passt
+Quell-Encode
+Video passend zum ursprünglichen Untertitel-Timing
+Zielvideo / -ton
+Anzupassendes Video oder Ton
+Gespeicherte Timing-Karte
+Übergeordneten Ordner wählen
+Textkodierung
+Quell-FPS (MicroDVD)
+Ziel-FPS (MicroDVD)
+Zuschnitt Quelle (optional w:h:x:y)
+Zuschnitt Ziel (optional w:h:x:y)
+Sushi-Suchfenster (Sekunden)
+Sushi-Maximalfenster (Sekunden)
+Whisper-Modell
+Sprache im Ziel (optional, z. B. en)
+Vor- / Abspann des Ziels
+Untertitelspur
+Referenz-Untertitelspur
+Ziel-Tonspur
+Zuerst eine Datei wählen
+Spuren nicht erkennbar — siehe Aktivität
+Vor- / Abspann des Ziels behalten
+Abhängigkeiten werden installiert…
+Vorschau wird vorbereitet…
+Ausgewähltes Paar wird für Vorschau & Bearbeiten analysiert…
+Vorschau & Bearbeiten wird geöffnet…
+Vorschau & Bearbeiten geöffnet
+Vorschau abgebrochen
+Zu synchronisierende Untertitel
+Quell-Encodes
+Referenz-Untertitel
+Nicht alle Folgennummern zuordenbar. Listen manuell umsortieren.
+Listen leeren
+Keine unterstützten Untertitel-/Mediendateien in dieser Auswahl.
+Diese Datei entfernen
+Quellton / -video
+Synchronisierte Referenz-Untertitel
+Ziel-Ton / -Videos
+Ziel-Encodes
+Untertitelpaare prüfen und das Bestätigungsfeld ankreuzen.
+Eine gespeicherte Timing-Karte nimmt jeweils nur eine Untertiteldatei an.
+Alle Untertitel-Stapelspalten brauchen gleich viele Dateien.
+Warten, bis die Datei- und Spurerkennung abgeschlossen ist.
+Wird gestartet…
+⚙ Einstellungen
+KI-gestützt (experimentell)
+Ton-Synchronisierung ist für diesen Lauf ausgeschaltet.
+Abbrechen
+Marken löschen
+Vorschau schließen
+Abgeschlossene Aufträge und Prüfhinweise erscheinen hier.
+Flüssige Zielvorschau wird im Hintergrund erstellt…
+Aus dem Video schneiden
+Erstes Bild
+Bild
+Bild →
+Zum Ende
+Zu Bildnummer
+Zum Anfang
+Zu Zeitpunkt
+H.264-Voreinstellung
+Ich habe Untertitelpaare und Spurwahl geprüft.
+Ton-Aufträge einbeziehen
+Untertitel-Aufträge einbeziehen
+Auftrag
+Vor der Synchronisierung nur den markierten Bereich behalten. Video und Ton werden zusammen gekürzt; Originaldateien bleiben unverändert. Der Anfang ist enthalten, das Ende nicht. Mit „Videoende“ wird das letzte Bild einbezogen. Quell- und Zielzuschnitt sind unabhängig. Bilder zählen ab 1. Die Vorschau ist stumm.
+Letztes Bild
+Modusdetails
+Nächstes Bild (Pfeil rechts)
+Aus (die Quelle ist vollständig)
+Gesamtfortschritt
+Vorheriges Bild (Pfeil links)
+Video-Zeitstempel werden gelesen…
+Bereit
+Berichte
+Mit Originalton wiederherstellen
+Ergebnisse dieses Laufs
+Zuschnitt speichern
+Video durchsuchen
+Zeigen
+Standard (Vorgabe)
+Status
+Untertitel-Synchronisierung ist für diesen Lauf ausgeschaltet.
+Sync-Modus
+Zeit
+Vor der Synchronisierung kürzen
+Ende kürzen
+Anfang kürzen
+Ton-Synchronisierung einschalten
+Untertitel-Synchronisierung einschalten
+Videoende
+Wenn die Synchronfassung Szenen entfernt hat
+subtitle_map.json oder ein AutoSync-Plan
+← Bild
+Spuren für Paar {0}. Zeile wählen, um ein anderes Paar zu bearbeiten. Unveränderte Paare nutzen ihre erste Tonspur.
+{0} Dateien
+{0} sichtbar
+{0} / {1} geprüft
+{0} zur Prüfung markiert
+Clip {0} von {1}
+Ungespeicherte Änderungen vom {0} für diesen Plan gefunden.
+Automatisch — {0}
+Tonversatz: Quelle {0} spielt bei Ausgabe {1} · Tempo {2}
+Tonversatz: Quelle {0} spielt bei Ausgabe {1}
+· Quellton · {0}
+· Ziel-Ton · {0}
+github.com/EVA0111 öffnen
+GitHub · EVA0111 ↗
+Menü
+Datei
+Medien importieren…
+Bild als PNG speichern
+Rückgängig
+Wiederholen
+Ton ausschneiden
+Ton kopieren
+Ton einfügen
+Am Abspielkopf teilen
+Mit vorherigem verbinden
+Bereich ripple-löschen
+In-Punkt setzen
+Out-Punkt setzen
+In/Out löschen
+Bild
+Medien in V1 einfügen (Ripple)
+Medien auf die gewählte Videospur legen
+Gewählten Spur-Clip entfernen
+Bereich mit Bewegung füllen
+Bereich schwarz füllen
+V1 duplizieren (Kopie darüber)
+Gewählte Spur duplizieren
+Leere Videospur hinzufügen
+Gewählte Spur löschen
+Gewählte Spur sperren / entsperren
+V1 sperren / entsperren
+MIX sperren / entsperren
+Gewählte Spur ein- / ausblenden
+Marker
+Marker hinzufügen / entfernen
+Vorheriger Punkt
+Nächster Punkt
+Ansicht
+Clip oder Bereich einpassen
+Hilfe
+Ihre Marker (K setzt oder entfernt einen am Abspielkopf)
+Ziehen Sie Dateien aus dem Explorer ins Fenster, um sie zu importieren. Ziehen Sie ein Element aus dem Pool auf V1 (einfügen), V2 (überlagern) oder MIX (Ton).
+Gewählte Datei (Bild und Ton) am Abspielkopf in V1 einfügen; alles danach rückt nach hinten · B
+In V1 einfügen
+Gewähltes Bild am Abspielkopf auf die gewählte Videospur legen: Es verdeckt die Spuren darunter, der Ton bleibt unverändert · Shift+B
+Auf Spur legen
+Seinen Ton verwenden
+Ausgabebild am Abspielkopf als PNG speichern · Ctrl+Shift+S
+📷 Bild
+Vollbild (Doppelklick auf das Bild) · Alt+Enter
+Markierten In/Out-Bereich abspielen · Shift+Space
+▶ In→Out
+In/Out-Bereich oder gewählten Clip in Schleife abspielen
+Marker am Abspielkopf hinzufügen oder entfernen · K
+◆ Marker
+−1 Bild
+−10 ms
++10 ms
++1 Bild
+Ton bearbeiten
+Bild (In/Out-Bereich oder Clip)
+◫ Mit Bewegung füllen (M)
+Bild im markierten Bereich (oder im gewählten Clip) schwarz machen; der Ton bleibt unverändert · Shift+M
+■ Schwarz füllen
+Lautstärke
+Pegel (dB)
+Einblenden (ms)
+Ausblenden (ms)
+Lautstärke anwenden
+In — · Out —
+In/Out-Bereich abspielen
+Marker hinzufügen / entfernen
+Bild als PNG speichern
+Auf den Clip (oder den In/Out-Bereich) zoomen
+Bereich mit Bewegung aus dem Bild am In-Punkt füllen
+Bereich schwarz füllen
+Gewählte Medien am Abspielkopf in V1 einfügen
+Gewählte Medien auf die gewählte Videospur legen
+Gewählten Spur-Clip entfernen
+Gewählte Spur duplizieren (standardmäßig V1)
+Tonbearbeitungen verschieben nie das Bild. Bildbearbeitungen (Ripple-Löschen, eingefügte Medien) verschieben alles danach gemeinsam; eine Bewegungsfüllung ersetzt nur das Bild in ihrem Bereich, sodass synchronisierter Ton auf seinem Bild bleibt. Änderungen werden automatisch behalten, bis Sie speichern.
+V{0} ist gesperrt. Klicken Sie auf sein 🔒 im Spurkopf, um es zu entsperren.
+{0} ist gesperrt. Klicken Sie auf sein 🔒 im Spurkopf, um es zu entsperren.
+Hochauflösende Wellenform nicht verfügbar: {0}
+Videovorschau für {0} konnte nicht abgespielt werden.
+Proxy-Erstellung für {0} fehlgeschlagen: {1}
+Tonvorschau fehlgeschlagen: {0}
+Tonvorschau: {0}
+Setzen Sie zuerst In und Out (I / O).
+Sie hören den Originalton des Ziels.
+Sie hören die bearbeitete Ausgabe.
+Ton von Clip {0} um {1} ms nach hinten verschoben. Zum Prüfen über den Übergang hören.
+Ton von Clip {0} um {1} ms nach vorn verschoben. Zum Prüfen über den Übergang hören.
+Der Pegel muss zwischen −60 und +24 dB liegen.
+Blenden müssen positiv sein und in den Clip passen ({0} ms).
+Clip {0}: +{1} dB, Einblenden {2} ms.
+Clip {0}: +{1} dB, Ausblenden {2} ms.
+Clip {0}: +{1} dB.
+Clip {0}: {1} dB, Einblenden {2} ms.
+Clip {0}: {1} dB, Ausblenden {2} ms.
+Clip {0}: {1} dB.
+Clip bei {0} geteilt.
+Einrasten an. Halten Sie beim Ziehen Shift, um es zu übergehen.
+Einrasten aus. Halten Sie beim Ziehen Shift, um es zu übergehen.
+Hier kann nicht geschnitten werden: {0}
+Slip: Material +{0} s
+Slip: Material {0} s
+Slip: +{0} ms
+Slip: {0} ms
+Timeline-Bearbeitung abgelehnt: {0}
+Wiedergabegeschwindigkeit {0}×.
+In/Out-Bereich in Schleife.
+Gewählter Clip in Schleife.
+Schleife aus.
+Marker entfernt.
+Marker bei {0} gesetzt. Geben Sie im Inspektor eine Notiz dazu ein.
+{0} bei {1}. P spielt darüber, A vergleicht mit dem Zielton, R wenn geprüft.
+Spielt 2 s vor und nach {0}. A vergleicht mit dem Zielton.
+Der markierte Bereich überschneidet sich nicht mit dem gewählten Clip.
+{0} s kopiert. Bewegen Sie den Abspielkopf und fügen Sie ein, um nur den Ton zu überschreiben.
+Kopieren fehlgeschlagen: {0}
+{0} s eingefügt, ohne das Bild zu verschieben. Rückgängig: Ctrl+Z.
+Einfügen fehlgeschlagen: {0}
+Anfang bis zum Abspielkopf getrimmt. Der frei gewordene Bereich nutzt den Zielton; das Bild bleibt unverändert.
+Ende bis zum Abspielkopf getrimmt. Der frei gewordene Bereich nutzt den Zielton; das Bild bleibt unverändert.
+Trimmen fehlgeschlagen: {0}
+Ausschneiden fehlgeschlagen: {0}
+Gespeichert: {0}. Der Export schreibt die korrigierte Ausgabe in diesen Ordner.
+Speichern fehlgeschlagen: {0}
+Export fehlgeschlagen: {0}
+Export abgeschlossen: {0}. Speichern Sie erneut, um einen weiteren Export zu erstellen.
+Ripple-Löschen fehlgeschlagen: {0}
+Schwarzfüllung fehlgeschlagen: {0}
+Bewegungsfüllung fehlgeschlagen: {0}
+Das Bild ist hier schwarz.
+Bild gespeichert: {0}
+Bild nicht gespeichert.
+Bild konnte nicht gespeichert werden: {0}
+Vollbild nicht verfügbar: {0}
+Spurbearbeitung abgelehnt: {0}
+{0} gesperrt: Seine Clips können nicht geändert werden.
+{0} entsperrt.
+V{0} gesperrt.
+V{0} entsperrt.
+V{0} ausgeblendet: wird weder angezeigt noch exportiert.
+V{0} eingeblendet.
+Bis zu 12 Videospuren.
+Duplizieren nicht möglich: {0}
+Wählen Sie zuerst eine Videospur über V1.
+Konnte nicht auf V{0} gelegt werden: {1}
+{0} abgelegte Datei(en) konnten nicht als Video, Ton oder Bild gelesen werden.
+{0} hat kein Bild; legen Sie es auf MIX ab, um seinen Ton zu verwenden.
+{0} hat keinen Ton; legen Sie es auf eine Videospur ab.
+Ablegen fehlgeschlagen: {0}
+Import fehlgeschlagen: {0}
+Einfügen fehlgeschlagen: {0}
+Der markierte Bereich spielt jetzt {0}. Das Bild bleibt unverändert.
+Dieser Ton konnte nicht verwendet werden: {0}
+{0} Dateien importiert. Am Abspielkopf einfügen (B) oder den Ton für einen Bereich verwenden.
+{0} Datei importiert. Am Abspielkopf einfügen (B) oder den Ton für einen Bereich verwenden.
+Einige importierte Medien wurden nicht gefunden: {0}
+Wellenform für {0} nicht verfügbar: {1}
+{0} Punkte zur Prüfung markiert. L für den nächsten, P zum Abspielen darüber, ? für alle Tastenkürzel.
+{0} Punkt zur Prüfung markiert. L für den nächsten, P zum Abspielen darüber, ? für alle Tastenkürzel.
+Editor konnte nicht geladen werden: {0}
+Spielt {0} ab {1}.
+hier nicht verwendet
+Kein {0}-Video verfügbar
+Flüssige {0}-Vorschau wird im Hintergrund erstellt…
+Vorschau nicht verfügbar: {0}
+Importierte Datei nicht gefunden: {0}
+❚❚ Pause
+{0} Übergänge
+{0} bei {1} ({2}). {3}
+{0} bei {1}. {2}
+{0} s kopiert
+Warte auf das {0}-Bild: {1}
+Bild · wird für {0} s eingefügt
+{0} · auf V1, V2 oder MIX ziehen
+◇ Einrasten: Aus
+Nur Synchronfassung · neu aufgebaut
+Ersetzte Einstellung · neu aufgebaut
+Ersetzte Einstellung
+Die Synchronfassung hat diese Szene ({0} s) entfernt. Sie wird aus dem exportierten Video geschnitten.
+Die Synchronfassung hat diese Szene ({0} s) entfernt. Sie behält Originalbild und -ton.
+Die Synchronfassung zeigt hier {0} s eingefrorenes oder wiederholtes Material; es wird aus den Bildern des Originals neu aufgebaut, der Ton der Synchronfassung bleibt.
+Die Synchronfassung zeigt hier {0} s lang eine andere Einstellung; das exportierte Video zeigt sie ebenfalls, aus den Bildern des Originals neu aufgebaut.
+Die Synchronfassung zeigt hier {0} s lang eine andere Einstellung.
+Ihr Marker (K setzt oder entfernt einen am Abspielkopf).
+Clipanfang getrimmt.
+Clipende getrimmt.
+In V1 einfügen (Ripple)
+Seinen Ton auf MIX verwenden
+Einrichtung gestoppt
+Einrichtung abgeschlossen
+Quelle · Zeile {0}
+Ziel · Zeile {0}
+{0} Quelle · {1} Ziel — Anzahl unterschiedlich. Fügen Sie vor dem Start Videos hinzu oder entfernen Sie welche.
+{0} Quelle · {1} Ziel — Legen Sie Ihre Ordner ab, um zu beginnen.
+{0} Quelle · {1} Ziel — Episodennummern stimmen überein. Prüfen Sie die Paare unter jeder Überschrift.
+{0} Quelle · {1} Ziel — Die Paarung folgt der Zeilenreihenfolge. Ändern Sie sie mit „Paarung prüfen & neu ordnen“.
+Geben Sie eine Zeile zwischen 1 und {0} ein.
+plan.json auswählen
+Ordner-Stapel
+Berichte und erweiterte Optionen finden Sie in den Einstellungen.
+{0}-Synchronisierung ist für diesen Lauf ausgeschaltet.
+{0}-Synchronisierung einschalten
+{0} zu prüfen
+Paarung prüfen & neu ordnen
+Abgleichmethode
+Spureinstellungen für das gewählte Paar
+Version der Synchronfassung nachbilden (Szenen schneiden; Standbilder und Wiederholungen aus dem Original neu aufbauen)
+Trimmen {0} – {1}
+Quelle · {0}
+Ziel · {0}
+Dauer {0}
+Bild {0} / {1}
+Sekunden oder HH:MM:SS.mmm innerhalb dieses Videos eingeben.
+Ganze Bildnummer von 1 bis {0} eingeben.
+Trimmbereich: {0} – {1}. Zum Bearbeiten klicken.
+Wählen Sie einen gültigen {0}-Trimmbereich.
+Vorschau {0}: {1}
+Gewähltes Videobild
+{0} / {1} Aufträge fertig · {2}%
+{0} / {1} Aufträge fertig
+Fertig · {0} Ergebnis(se) zu prüfen
+{0} Video(s) werden vor der Synchronisierung getrimmt. Video und Ton nutzen exakt denselben Bereich. Synchronisierungsmodi gelten innerhalb dieses Bereichs.
+Ausgaben können nicht im Berichtsordner gespeichert werden. Wählen Sie einen separaten Ausgabeort.
+Wählen Sie, welche optionalen Funktionen angezeigt und genutzt werden. Deaktivierte erweiterte Optionen verwenden ihre Standardwerte.
+Ausgabe speichern
+Leer lassen, um neben dem Ziel zu speichern, oder einen beliebigen Ordner bzw. ein Laufwerk wählen. Vorhandene Dateien werden nie überschrieben.
+{0}. Spurauswahl für Zeile {1} angezeigt. Klicken Sie auf einen Dateinamen, um eine andere Zeile zu wählen; mit den Pfeilen neu ordnen. Andere Zeilen nutzen ihre erste Spur.
+Diese Datei verschieben
+Untertitel-Stapel
+Diese Videospur gibt es nicht.
+Dort liegt kein Clip auf dieser Spur.
+Nur Bilder und Videos können auf eine Videospur.
+Setzen Sie den Abspielkopf in den Clip, um ihn zu teilen.
+Eine Füllung hat kein Material zum Verschieben.
+Ein Standbild hat nichts zum Verschieben.
+Der Clip würde vor dem Anfang seiner Datei beginnen.
+Der Clip würde vor dem Anfang des Zielvideos beginnen.
+Markieren Sie einen Bereich (In und Out) oder wählen Sie einen Clip zum Füllen.
+Unbekannte Füllung.
+Das Bild am In-Punkt ist ein importierter Clip; die Füllung braucht dort Zielmaterial.
+Markieren Sie einen Bereich (In und Out) oder wählen Sie einen Clip zum Löschen.
+Die gesamte Ausgabe kann nicht gelöscht werden.
+Nur Clips mit Bild können ins Video eingefügt werden.
+Diese Datei hat keinen Ton.
+Markieren Sie einen Bereich (In und Out) oder wählen Sie einen Clip für den neuen Ton.
+Der gewählte Teil des Clips ist leer oder länger als die Datei.
+Die Bearbeitung hat eine Lücke oder Überlappung im Ton erzeugt.
+Der Ton deckt das bearbeitete Video nicht ab.
+Die Bearbeitung hat eine Lücke oder Überlappung im Video erzeugt.
+Das Video deckt die Ausgabe nicht ab.
+Die Bearbeitung hat überlappende oder außerhalb liegende Clips auf V{0} erzeugt.
+Ungültige Tonsegmente oder Ausgabedauer.
+Ungültiger Bereich {0}
+Bereiche müssen lückenlos, geordnet, nicht leer und innerhalb der Ausgabe-Timeline sein (Bereich {0}).
+Ungültige Bereichsart {0}
+Ungültige importierte Medien in Bereich {0}
+Ungültige importierte Tonspur in Bereich {0}
+Ungültiger Pegel oder ungültige Blenden in Bereich {0}
+Ungültige Quellzeit oder Geschwindigkeit in Bereich {0}
+Die Bereiche müssen die gesamte Ausgabe-Timeline abdecken.
+Ungültige Timeline des bearbeiteten Videos.
+Videostücke müssen lückenlos und nicht leer sein (Stück {0}).
+Ungültige Position eines importierten Clips (Stück {0}).
+Ungültige Bewegungsfüllung (Stück {0}).
+Videostück {0} liegt außerhalb des Zielvideos.
+Die Videostücke müssen die bearbeitete Ausgabe abdecken.
+Ungültige Videospuren.
+Ungültige Videospur V{0}.
+Clips müssen geordnet und innerhalb der Ausgabe sein{0}
+Ungültiger importierter Clip{0}
+Ungültige Füllung{0}
+Material außerhalb des Zielvideos{0}
+Nicht vertrauenswürdige Editor-Anfrage.
+Kein Plan geladen.
+Ungültige Wiedergabezeit.
+Unbekannte Tonspur.
+Die Länge von {0} kann nicht gelesen werden
+{0} hat weder Bild noch Ton.
+Unbekannte importierte Medien.
+Abgleichsplan existiert nicht: {0}
+Die gewählte Datei enthält keinen AutoSync-Abgleich.
+Die ursprüngliche Quelltondatei fehlt: {0}
+Die ursprüngliche Zieldatei fehlt. Öffnen Sie einen Plan mit gültigen Medienpfaden.
+Die Vorschauanalyse läuft bereits.
+Wählen Sie vor der Vorschau ein Quell- und Zielpaar.
+Die Vorschauanfrage ist zu groß.
+Wählen Sie ein gültiges {0}-Video.
+Wählen Sie einen vorhandenen Ausgabeordner.
+Der AutoSync-Analysator konnte nicht gestartet werden: {0}
+Abgleichsanalyse fehlgeschlagen (Exit {0}). Prüfen Sie das Protokoll in AutoSync. {1}
+Der Analysator wurde beendet, ohne plan.json in {0} zu speichern
+Der Wellenformbereich muss zwischen 0 und 120 Sekunden liegen.
+Ungültige Videospur.
+Das Originalvideo fehlt.
+Video-Proxy fehlgeschlagen: {0}
+Ungültige Spur für das Standbild.
+Die Videodatei fehlt.
+Ungültige Clip-Bearbeitung.
+Ungültige Ausgabedauer.
+Unbekannte Clip-Operation.
+Ungültige Vorschauspur.
+Ungültige Vorschaudauer oder Wiedergaberate.
+Kein Ton an dieser Zeitposition.
+Ungültige Medienliste.
+Speichern ist während des Exports nicht möglich.
+Wählen Sie einen gültigen Namen für den Ausgabeordner.
+Hier existiert bereits ein Ausgabeordner. Wählen Sie einen anderen Namen: {0}
+Export läuft bereits.
+Speichern Sie zuerst Ihren bearbeiteten Abgleich.
+Speichern Sie zuerst den bearbeiteten Plan.
+Abspielbarer Proxy für {0} wird erstellt (nur einmal pro Datei)…
+Vom Benutzer bearbeiteter Sync-Plan. Übergänge der Ausgabe prüfen.
+Vorschau & Bearbeiten analysiert das gesamte Ziel, ohne Vor- oder Abspann automatisch zu trimmen oder Video zu entfernen.
+Der Abgleich wird gespeichert in {0}
+Abgleich gespeichert in {0}
+Unbekannter Dateityp
+Beenden Sie den laufenden Sync-Auftrag, bevor Sie Vorschau & Bearbeiten öffnen.
+Ungültige Anfrage für Vorschau & Bearbeiten.
+Eine Synchronisierung oder Analyse für Vorschau & Bearbeiten läuft bereits.
+Ungültiger Auftrag.
+Ungültige Warteschlange.
+Ungültige Einrichtungsoption.
+Noch kein Ausgabeordner verfügbar.
+Berichte wurden nicht gespeichert. Aktivieren Sie „Berichte speichern“ in den Einstellungen für künftige Läufe.
+Diese Datei bzw. dieser Ordner wurde noch nicht erstellt.
+Kein Berichtsordner verfügbar.
+Der Berichtsordner liegt außerhalb dieses Laufs.
+Der Berichtsordner fehlt.
+Untertitel oder Container
+Legen Sie lokale Dateien oder Ordner ab.
+Der Ordner ist zu groß. Wählen Sie einen Episodenordner.
+Fügen Sie mindestens ein Episodenpaar hinzu.
+Jede Zeile braucht ein vorhandenes Quell- und Zielvideo.
+Ein Video wird mehrfach verwendet. Entfernen Sie doppelte Zeilen.
+Wählen Sie einen neuen Ausgabeordner für den Stapel.
+Wählen Sie eine vorhandene lokale Mediendatei.
+FFprobe wurde nicht gefunden. Installieren Sie FFmpeg oder legen Sie ffprobe.exe neben AutoSync.
+Ungültige FFprobe-Antwort: {0}
+Vorschau abgebrochen.
+Wählen Sie eine lokale Videodatei.
+Wählen Sie eine Videodatei.
+Keine verwendbaren Video-Zeitstempel gefunden.
+Ungültiges Vorschaubild.
+Dieses Bild konnte nicht dekodiert werden. Versuchen Sie ein benachbartes Bild.
+Ungültige Platzierung.
+Die kopierte Tonzuordnung ist ungültig.
+Nicht unterstützter Ton-Clip.
+Wählen Sie zuerst einen Ton-Clip.
+Setzen Sie einen In- und Out-Punkt innerhalb des gewählten Bereichs.
+Wählen Sie einen Clip.
+Setzen Sie den Abspielkopf in den gewählten Clip.
+Ungültige Trimmkante.
+Kopieren Sie vor dem Einfügen einen Clip.
+Wählen Sie zuerst einen Ton-Clip.
+Dieser Clip kann nicht gezogen werden.
+Slip ist für Quellton-Clips verfügbar.
+Ungültiger Quellversatz.
+Wählen Sie einen Clip zum Trimmen.
+Wählen Sie eine Clipkante.
+Kein früherer Quellton verfügbar.
+Klicken Sie in einen Clip, um zu schneiden.
+Ungültige Vorschaueinstellungen.
+Das temporäre Verzeichnis muss ein Ordnerpfad sein.
+Wählen Sie einen absoluten Pfad für den temporären Ordner.
+Wählen Sie eine Zieldatei oder einen eigenen temporären Ordner.
+Der temporäre Ort ist kein Verzeichnis.
+In {0} · Out {1}
+{0} · Bild + Ton
+{0} · nur Bild
+{0} · nur Ton
+Clip {0}: neutraler Pegel.
+Clip {0}: neutraler Pegel, Einblenden {1} ms.
+Clip {0}: neutraler Pegel, Ausblenden {1} ms.
+Clip {0}: {1} dB, Einblenden {2} ms, Ausblenden {3} ms.
+Clip {0}: neutraler Pegel, Einblenden {1} ms, Ausblenden {2} ms.
+Clip entfernt; dort zeigt sich die Spur darunter.
+V{0}-Clip {1} · {2}–{3}. Ziehen zum Verschieben, Kante ziehen zum Trimmen, Razor (C) teilt, Slip (Y) ändert sein Material, Delete entfernt ihn.
+V{0}-Clip geteilt.
+V{0}-Clip bei {1} geteilt.
+Clip nach {0} verschoben.
+Material um {0} s verschoben.
+V{0} hinzugefügt.
+V{0} gelöscht; seine Clips sind weg (Rückgängig: Ctrl+Z).
+{0} nach V{1} darüber kopiert, Schnitt für Schnitt. Sperren Sie das Original zum Schutz; bearbeiten Sie die Kopie frei — der oberste sichtbare Clip wird abgespielt und exportiert.
+{0} liegt ab {2} auf V{1}. Es verdeckt die Spuren darunter; der Ton bleibt unverändert. Rückgängig: Ctrl+Z.
+Auf V{0} legen bei {1}
+In V1 einfügen (Ripple) bei {0}
+Seinen Ton auf MIX verwenden bei {0}
+V{0}: {1}–{2} ist schwarz. Rückgängig: Ctrl+Z.
+V{0}: {1}–{2} hält das Bild am In-Punkt, in Bewegung. Rückgängig: Ctrl+Z.
+Das Bild in {0}–{1} ist jetzt schwarz. Ton unverändert. Rückgängig: Ctrl+Z.
+Das Bild in {0}–{1} ist jetzt das Bild am In-Punkt, in Bewegung gehalten (beim Export erstellt; die Vorschau zeigt das Bild). Ton unverändert. Rückgängig: Ctrl+Z.
+{0} s Bild und Ton entfernt; alles danach rückte nach vorn. Rückgängig: Ctrl+Z.
+{0} ({1} s) bei {2} eingefügt. Alles danach rückte nach hinten.
+Razor-Schnitt bei {0}. Ctrl+Z macht ihn rückgängig.
+Quellton um {0} ms nach hinten verschoben (Slip).
+Quellton um {0} ms nach vorn verschoben (Slip).
+Clipanfang auf {0} getrimmt. Der frei gewordene Bereich nutzt den Zielton.
+Clipende auf {0} getrimmt. Der frei gewordene Bereich nutzt den Zielton.
+Clip nach {0} verschoben. Das Bild bleibt unverändert.
+Clip nach {0} kopiert. Das Bild bleibt unverändert.
+Sie hören {0}.
+Clip {0} von {1} · importierter Ton · {2}
+Duplizieren
+Spur löschen
+Exportieren
+Spuren
+Vollbild
+Oberflächensprache
+Pegel und Blenden auf den gewählten Clip anwenden (Enter); in der Vorschau hörbar und beim Export angewendet
+Timing-Änderung; {0}; Übergang prüfen
+Nur in der Quelle: {0} s übersprungen; {1}; Übergang prüfen
+bildgenau gefundener Übergang
+per Ton gefundener Übergang im vom Bild begrenzten Bereich
+leiseste Stelle des Quelltons im vom Bild begrenzten Bereich
+Übergang geschätzt in einem bewegungsarmen Bereich von {0} s
+Bildgeprüftes Material nur im Ziel ({0} s): {1}; Zielton verwendet; prüfen
+kein Quellbild
+Standeinstellung länger gezeigt, an der leisesten Stelle des Zieltons platziert
+Bildgeprüftes Material nur im Ziel; gewählten Zielton verwenden
+Bildgeprüfter Eyecatch/Titel nur im Ziel; gewählten Zielton verwenden
+Video nur im Ziel entfernt; neuen Übergang prüfen
+Zielabschnitte ohne Quellton wurden entfernt. Prüfen Sie das bearbeitete Video, auch Anfang und Ende.
+Material nur in der Synchronfassung ({0} s) aus gehaltenen/wiederholten Zielbildern neu aufgebaut; Ton der Synchronfassung behalten; prüfen
+Von der Synchronfassung ersetzte Einstellungen ({0} s) aus den Zielbildern neu aufgebaut, die sie stattdessen zeigt; prüfen
+Quellton nicht verfügbar; Rückgriff auf die Referenz nötig
+Gemeinsame Vorspannmusik: abgeglichenen Quellton statt Zielton verwenden
+Streuung der Anpassung {0} s; Synchronität prüfen
+wenige Treffer; geschätztes Timing, Quellton beibehalten

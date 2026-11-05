@@ -17,7 +17,7 @@ def audio_streams(path): return [s for s in vc.probe(path)['streams'] if s['code
 def wav_features(path,stream,work,label):
     say('Reading '+label+' audio...')
     pcm=work/(label+'.f32')
-    vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-i',str(path),'-map',f'0:a:{stream}','-ac','1','-ar','8000','-f','f32le',str(pcm)])
+    vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-i',str(path),'-map',f'0:a:{stream}','-af',vc.AUDIO_ON_TIMESTAMPS,'-ac','1','-ar','8000','-f','f32le',str(pcm)])
     a=np.fromfile(pcm,np.float32);pcm.unlink()
     if len(a)<80000: raise RuntimeError('Audio is shorter than 10 seconds.')
     f,t,z=signal.stft(a,8000,nperseg=512,noverlap=352)
@@ -249,11 +249,21 @@ def requires_explicit_reference_fallback(segments):
 
 
 def censored_render_plan(plan,out):
-    """The plan to render: scenes a censored dub removed and marked "cut" are removed."""
+    """The plan to render: scenes a censored dub removed and marked "cut" are removed.
+
+    Preview & Edit allows only motion fills on such a plan (they keep every
+    time in place); they are laid on after the cuts and rebuilds.
+    """
     import censorship
-    if not plan.get('censorship') or plan.get('video_edits') or not censorship.needs_cut(plan):return plan
-    from video_edits import remove_missing
-    edited=remove_missing(plan)
+    if not plan.get('censorship') or not censorship.needs_cut(plan):return plan
+    kept=(plan.get('video_edits') or {}).get('kept') or []
+    if any(abs(float(k['start'])-float(k['output_start']))>1e-3 for k in kept):return plan   # ripple edits: not combinable
+    shift=plan.get('main_trim',{}).get('target_start',0.)+plan.get('input_trims',{}).get('target',{}).get('start',0.)
+    # Edits that keep every time in place: fills, imported clips, footage from video tracks.
+    laid=[k for k in kept if k.get('fill') or k.get('media') or abs(float(k['original_start'])-shift-float(k['start']))>1e-3]
+    from video_edits import remove_missing,apply_fills
+    base={k:v for k,v in plan.items() if k!='video_edits'}
+    edited=apply_fills(remove_missing(base),laid)
     (Path(out)/'edited_plan.json').write_text(json.dumps(edited,indent=2),encoding='utf-8')
     (Path(out)/'video_edits.json').write_text(json.dumps(edited['video_edits'],indent=2),encoding='utf-8')
     return edited
@@ -268,6 +278,24 @@ def restored_subtitle_file(subtitles,rendered,out):
 def language_switch(segments,j):
     """The join before segment j switches between source (dub) and target audio."""
     return (segments[j-1]['kind']=='audio')!=(segments[j]['kind']=='audio')
+
+def crossfade(a,b):
+    """Blend two renderings of the same output samples: a fades out, b fades in.
+
+    Equal-power curves, corrected for how alike the two sides are (their
+    correlation rho): the blend's power is wa^2 + wb^2 + 2 rho wa wb, so
+    dividing by its root keeps the level constant whether the sides are the
+    same sound (a join inside continuous audio: the curves become linear),
+    unrelated (plain equal power), or partly out of phase. The correction is
+    capped at 2x, so sides that cancel are never boosted past that.
+    """
+    n=len(a);t=(np.arange(n,dtype=np.float64)+.5)/n
+    a64,b64=a.astype(np.float64),b.astype(np.float64)
+    den=float(np.sqrt(np.sum(a64*a64)*np.sum(b64*b64)))
+    rho=float(np.sum(a64*b64))/den if den>0 else 0.
+    wa,wb=np.cos(t*np.pi/2),np.sin(t*np.pi/2)
+    norm=1/np.sqrt(np.maximum(wa*wa+wb*wb+2*rho*wa*wb,.25))
+    return (a64*(wa*norm)[:,None]+b64*(wb*norm)[:,None]).astype(np.float32)
 
 def switch_gains(plan,pcm,audio,stream,ref,refstream,td,context=3.):
     """Gain for each restored censored scene: dub loudness / target loudness nearby.
@@ -324,7 +352,11 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
         start=float(section['target_start']);end=float(section['target_end'])
         if not np.isfinite([start,end]).all() or end<=start or abs(start-cursor)>.0001:
             raise RuntimeError('Plan segments must be finite, contiguous, ordered, and non-overlapping.')
-        if section.get('kind') not in ('audio','reference','verified_gap','target_outer'):raise RuntimeError('Unknown segment type.')
+        if section.get('kind') not in ('audio','reference','verified_gap','target_outer','media'):raise RuntimeError('Unknown segment type.')
+        if section['kind']=='media':
+            # Imported clip (Preview & Edit): its own audio, or silence (image / silent video).
+            if not Path(str(section.get('media',''))).is_file():raise RuntimeError('Imported media file is missing: '+str(section.get('media')))
+            if not np.isfinite(float(section.get('media_start',0))) or float(section.get('media_start',0))<0:raise RuntimeError('Invalid imported media position in plan.')
         if section['kind']=='audio':
             ss=float(section['source_start']);sp=float(section['speed'])
             if not np.isfinite([ss,sp]).all() or ss<0 or not .5<=sp<=2:raise RuntimeError('Invalid source position or speed in plan.')
@@ -343,7 +375,7 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
     output=out/'synced.flac'
     if output.exists():raise RuntimeError('Output already exists. Use a new output folder.')
     with tempfile.TemporaryDirectory(prefix='render_',dir=out,ignore_cleanup_errors=True) as td:
-        td=Path(td);parts=[]
+        td=Path(td)
         from pcm_audio import PCMCache
         pcm=PCMCache(td,ch)
         # Censored dubs switch language at restored scenes: match the restored
@@ -352,73 +384,137 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
         gains=switch_gains(plan,pcm,audio,stream,ref,refstream,td) if smooth else {}
         for i,g in gains.items():
             say(f"Restored scene {plan['segments'][i]['target_start']:.2f}s: original audio {20*np.log10(g):+.1f} dB to match the dub")
-        for i,s in enumerate(plan['segments']):
+        segs=plan['segments']
+        def where(s):
+            """(file, track, first second, speed) the segment's audio comes from."""
+            if s['kind']=='audio':return audio,stream,float(s['source_start']),float(s['speed'])
+            if s['kind']=='target_outer':return plan['target_video'],plan.get('outer_stream',0),s.get('reference_target_start',s['target_start'])-plan.get('outer_shift',0),1.
+            if s['kind']=='media':return s['media'],(None if s.get('media_stream') is None else int(s['media_stream'])),float(s.get('media_start',0)),1.
+            return ref,refstream,s.get('reference_target_start',s['target_start'])-plan.get('reference_shift',0),1.
+        samples=[round(x['target_end']*48000)-round(x['target_start']*48000) for x in segs]
+        # Joins are crossfades: each side keeps playing its own audio for a few
+        # milliseconds past the join and the two are blended around the exact
+        # join time, so timing is unchanged and no join dips to silence. Where a
+        # side has no audio to borrow (file start or end, target audio that
+        # starts late or ends early) the join keeps a short fade instead.
+        def extendable(s,before,secs):
+            path,track,ss,sp=where(s)
+            if track is None:return True                       # silence (an image or silent clip)
+            need=secs*sp
+            if before:return ss-need>=0
+            return ss+(s['target_end']-s['target_start'])*sp+need<=pcm.length(path,track)-1e-6
+        half=[0]*len(segs)                                    # half-width (samples) of the crossfade before segment j
+        for j in range(1,len(segs)):
+            h=min(1440 if smooth and language_switch(segs,j) else 480,samples[j-1]//2,samples[j]//2)
+            if h>0 and extendable(segs[j-1],False,h/48000) and extendable(segs[j],True,h/48000):half[j]=h
+        joined=td/'joined.f32';pending=None
+        dest=joined.open('wb')
+        try:
+         for i,s in enumerate(segs):
             start,end=s['target_start'],s['target_end'];dur=end-start
             if dur<=0:raise RuntimeError('Invalid segment duration.')
-            n=round(end*48000)-round(start*48000)
-            path,track,ss,sp=(audio,stream,s['source_start'],s['speed']) if s['kind']=='audio' else (ref,refstream,s.get('reference_target_start',start)-plan.get('reference_shift',0),1)
-            if s['kind']=='target_outer':path,track,ss,sp=plan['target_video'],plan.get('outer_stream',0),s.get('reference_target_start',start)-plan.get('outer_shift',0),1.
-            if ss<0:raise RuntimeError('Reference fallback begins before available reference audio.')
-            # Do not hide short decodes with apad. Inspect decoded length before retiming.
-            raw=td/'chunk.f32'
-            pre=post=0.
-            if s['kind']=='audio' and abs(sp-1.)>=1e-10:
-                # Stretch with up to 0.5 s of real context on each side, then keep the
-                # exact middle: atempo's start/end latency falls outside the segment.
-                pre=min(ss,.5);post=max(0.,min(.5,pcm.length(path,track)-(ss+dur*sp)))
-            pcm.cut(path,track,ss-pre,dur*sp+pre+post,raw)
-            if s['kind']=='verified_gap':
-                data=np.fromfile(raw,np.float32).reshape(-1,ch)
-                blocks=[np.mean(z*z) for z in np.array_split(data,max(1,len(data)//960))]
-                if np.mean(data*data)>4e-6 or max(blocks)>2e-5:raise RuntimeError('Target pause audio is no longer near-silent; refusing automatic replacement.')
-            frames=raw.stat().st_size//(4*ch)
-            if frames/48000<dur*sp+pre+post-.10:raise RuntimeError(f'Source decode too short near {start:.2f}s. No silent padding was added.')
-            if s['kind']=='target_outer' and i==len(plan['segments'])-1 and 0<n-frames<=4800:
-                # Preserve target music timing when its audio ends a few ms before video.
-                # This is the target's existing empty tail, never a missing source section.
-                with raw.open('ab') as f:f.write(bytes((n-frames)*ch*4))
-                frames=n
-            dst=td/f'{i:04}.f32';parts.append(dst)
-            # atempo can return a few ms less: constrain duration with exact final resampling,
-            # never with silent padding. Overall length adjustment is normally <0.1%.
-            stretched=td/'stretch.f32'
-            # Under 0.2 s with no context, atempo's latency dominates; plain resampling
-            # below is exact and its pitch change over such a clip is inaudible.
-            short=dur*sp+pre+post<.2
-            if abs(sp-1.)<1e-10 or short:shutil.copyfile(raw,stretched)
+            n=samples[i];hl=half[i];hr=half[i+1] if i+1<len(segs) else 0;N=hl+n+hr
+            path,track,ss,sp=where(s)
+            if s['kind']=='media' and track is None:
+                fixed=np.zeros((N,ch),np.float32)
             else:
-                vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-f','f32le','-ar','48000','-ac',str(ch),'-i',str(raw),'-af',f'atempo={sp:.10f}','-f','f32le',str(stretched)])
-            x=np.memmap(stretched,dtype=np.float32,mode='r').reshape(-1,ch)
-            try:
-                if pre+post and not short:
-                    lead=round(pre/sp*48000);x=x[lead:lead+n]
-                # 2% relative, but at least 10 ms: atempo latency dominates very short clips.
-                if not short and abs(len(x)-n)>max(.02*n,480):raise RuntimeError('Unexpected time-stretch length error.')
-                from fractions import Fraction
-                ratio=Fraction((n*100000 + len(x)-1)//len(x),100000)
-                fixed=np.array(x) if len(x)==n else signal.resample_poly(np.asarray(x),ratio.numerator,ratio.denominator,axis=0)[:n]
-            finally:
-                # Windows cannot delete a file that is still memory-mapped; an
-                # open map would replace the real error with a cleanup failure.
-                del x
-            if len(fixed)!=n:raise RuntimeError('Exact duration correction failed.')
-            if i in gains:
-                fixed*=np.float32(gains[i])
+                # A target whose audio starts a little after its picture (stream start
+                # offsets) is silent there in the target itself: reproduce that, never
+                # for source audio and never for more than a second.
+                lead=0
+                if ss<0 and s['kind']!='audio' and ss>-1. and -ss<dur:
+                    lead=round(-ss*48000);dur-=-ss;start+=-ss;ss=0.
+                if ss<0:raise RuntimeError('Reference fallback begins before available reference audio.')
+                # Do not hide short decodes with apad. Inspect decoded length before retiming.
+                raw=td/'chunk.f32'
+                ext_pre,ext_post=hl*sp/48000,hr*sp/48000         # the crossfades' borrowed audio, source seconds
+                stretch=abs(sp-1.)>=1e-10
+                pre,post=ext_pre,ext_post
+                if stretch:
+                    # Stretch with up to 0.5 s of real context on each side, then keep the
+                    # exact middle: atempo's start/end latency falls outside the segment.
+                    pre=max(ext_pre,min(ss,.5));post=max(ext_post,min(.5,pcm.length(path,track)-(ss+dur*sp)))
+                # Likewise at the end: target audio that stops before its picture
+                # (case 9: 2.4 s) is silent there in the target. At most 5 s.
+                tail=0
+                if s['kind']!='audio':
+                    have=pcm.length(path,track)-ss
+                    if 0<have<dur and dur-have<=5.:tail=round((dur-have)*48000);dur=have
+                pcm.cut(path,track,ss-pre,dur*sp+pre+post,raw)
+                if tail:
+                    with raw.open('ab') as f:f.write(bytes(tail*ch*4))
+                    dur+=tail/48000
+                if lead:
+                    body=np.fromfile(raw,np.float32);np.concatenate([np.zeros(lead*ch,np.float32),body]).tofile(raw);del body
+                    dur+=lead/48000
+                if s['kind']=='verified_gap':
+                    data=np.fromfile(raw,np.float32).reshape(-1,ch)
+                    blocks=[np.mean(z*z) for z in np.array_split(data,max(1,len(data)//960))]
+                    if np.mean(data*data)>4e-6 or max(blocks)>2e-5:raise RuntimeError('Target pause audio is no longer near-silent; refusing automatic replacement.')
+                frames=raw.stat().st_size//(4*ch)
+                if frames/48000<dur*sp+pre+post-.10:raise RuntimeError(f'Source decode too short near {start:.2f}s. No silent padding was added.')
+                if s['kind']=='target_outer' and i==len(segs)-1 and 0<N-frames<=4800:
+                    # Preserve target music timing when its audio ends a few ms before video.
+                    # This is the target's existing empty tail, never a missing source section.
+                    with raw.open('ab') as f:f.write(bytes((N-frames)*ch*4))
+                    frames=N
+                # Under 0.2 s with no context, atempo's latency dominates; plain resampling
+                # below is exact and its pitch change over such a clip is inaudible.
+                short=dur*sp<.2
+                stretched=td/'stretch.f32'
+                if stretch and not short:
+                    vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-f','f32le','-ar','48000','-ac',str(ch),'-i',str(raw),'-af',f'atempo={sp:.10f}','-f','f32le',str(stretched)])
+                    x=np.memmap(stretched,dtype=np.float32,mode='r').reshape(-1,ch)
+                    first=round(pre/sp*48000)-hl
+                else:
+                    # Unstretched (or too short to stretch): the context is source samples.
+                    shutil.copyfile(raw,stretched)
+                    x=np.memmap(stretched,dtype=np.float32,mode='r').reshape(-1,ch)
+                    first=round((pre-ext_pre)*48000)
+                    if short and stretch:x=x[first:first+round((dur*sp+ext_pre+ext_post)*48000)];first=0
+                try:
+                    if stretch and not short:x=x[first:first+N]
+                    elif first:x=x[first:]
+                    # 2% relative, but at least 10 ms: atempo latency dominates very short clips.
+                    if not short and abs(len(x)-N)>max(.02*N,480):raise RuntimeError('Unexpected time-stretch length error.')
+                    # atempo can return a few ms less: constrain duration with exact final resampling,
+                    # never with silent padding. Overall length adjustment is normally <0.1%.
+                    from fractions import Fraction
+                    ratio=Fraction((N*100000 + len(x)-1)//len(x),100000)
+                    fixed=np.array(x) if len(x)==N else signal.resample_poly(np.asarray(x),ratio.numerator,ratio.denominator,axis=0)[:N]
+                finally:
+                    # Windows cannot delete a file that is still memory-mapped; an
+                    # open map would replace the real error with a cleanup failure.
+                    del x
+                raw.unlink();stretched.unlink()
+            if len(fixed)!=N:raise RuntimeError('Exact duration correction failed.')
+            # Matched restored-scene level, and the clip gain set in Preview & Edit.
+            g=float(gains.get(i,1.))*10**(float(s.get('gain_db',0) or 0)/20)
+            if abs(g-1.)>1e-6:
+                fixed*=np.float32(g)
                 peak=float(np.max(np.abs(fixed))) if len(fixed) else 0.
-                if peak>.98:fixed*=np.float32(.98/peak)   # never clip a boosted scene
-            # Five-millisecond fades at segment joins; 25 ms where a censored dub
-            # switches between dub and original audio.
-            segs=plan['segments']
-            def fade_at(j):return min((1200 if smooth and language_switch(segs,j) else 240),n//2)
-            if i>0:f=fade_at(i);fixed[:f]*=np.linspace(0,1,f,dtype=np.float32)[:,None]
-            if i<len(segs)-1:f=fade_at(i+1);fixed[-f:]*=np.linspace(1,0,f,dtype=np.float32)[:,None]
-            fixed.astype(np.float32).tofile(dst);del fixed
-            raw.unlink();stretched.unlink();say(f'Rendered {i+1}/{len(plan["segments"])} sections')
-        joined=td/'joined.f32'
-        with joined.open('wb') as dest:
-            for part in parts:
-                with part.open('rb') as src:shutil.copyfileobj(src,dest,4*1024*1024)
-                part.unlink()
+                if peak>.98:fixed*=np.float32(.98/peak)   # never clip a boosted clip
+            # Fades set in Preview & Edit apply to the clip itself; a join without a
+            # crossfade fades out and in over 5 ms (25 ms where a censored dub
+            # switches between dub and original audio).
+            core=fixed[hl:hl+n]
+            def fade_at(j):return 0 if half[j] else min((1200 if smooth and language_switch(segs,j) else 240),n//2)
+            fi=min(round(float(s.get('fade_in_ms',0) or 0)*48),n);fo=min(round(float(s.get('fade_out_ms',0) or 0)*48),n)
+            f=max(fade_at(i) if i>0 else 0,fi)
+            if f:core[:f]*=np.linspace(0,1,f,dtype=np.float32)[:,None]
+            f=max(fade_at(i+1) if i<len(segs)-1 else 0,fo)
+            if f:core[-f:]*=np.linspace(1,0,f,dtype=np.float32)[:,None]
+            fixed=fixed.astype(np.float32)
+            body=0
+            if hl:
+                a,b=pending,fixed[:2*hl];pending=None
+                dest.write(crossfade(a,b).tobytes());body=2*hl
+            if hr:
+                dest.write(fixed[body:N-2*hr].tobytes());pending=fixed[N-2*hr:].copy()
+            else:dest.write(fixed[body:].tobytes())
+            del fixed,core
+            say(f'Rendered {i+1}/{len(segs)} sections')
+        finally:dest.close()
         temp=td/'synced.flac'
         vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-f','f32le','-ar','48000','-ac',str(ch),'-i',str(joined),'-c:a','flac','-sample_fmt','s32',str(temp)])
         actual=float(vc.probe(temp)['format']['duration'])
@@ -427,14 +523,10 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
     return output
 
 def should_verify_export(method, reference_features, plan):
-    """Audio-evidence plans get the same sampled output check in both modes.
-
-    AI-assisted output prepends a method label without changing the need to
-    verify decoded audio against the independent target reference.
-    """
+    """Audio-evidence plans get a sampled output check against the target reference."""
     return (reference_features is not None
             and not plan.get('video_edits')
-            and method.split('AI-assisted: ')[-1].startswith(('audio matches','picture timeline')))
+            and method.startswith(('audio matches','picture timeline')))
 
 def verify_export(output,reference_features,anchors,out):
     say('Checking exported audio against matched reference windows...')
@@ -465,8 +557,8 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
     import picture_timeline as pt
     tl=pt.build(source_video,target,vc.binary('ffmpeg'),vc.binary('ffprobe'),say)
     si,ti=tl.diagnostics['s_info'],tl.diagnostics['t_info']
-    # Decoded frame k sits at the FILE origin + k/fps (ffmpeg pads to the file
-    # start), so: source audio time = source frame seconds + origin - audio start.
+    # Decoded frame k shows the picture at the video's first timestamp (origin)
+    # + k/fps, so: source audio time = source frame seconds + origin - audio start.
     shift=-delay
     if Path(audio).resolve()==Path(source_video).resolve():shift+=si['origin']-si['audio_starts'][stream]
     else:shift+=si['origin']-si['start']   # external audio: t=0 is the source's first picture
@@ -477,11 +569,14 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
     def audio_cut(p,m,t,lo,hi):
         # Join inside a static/dark span bounded by picture evidence: dense audio
         # evidence first; otherwise the point where the least source sound is cut.
-        oa,ob=p['offset']/pt.FPS+shift,m['offset']/pt.FPS+shift
+        # Offsets at the join itself (a section may drift or run at its own rate).
+        oa,ob=pt.offset_at(p,lo*pt.FPS)/pt.FPS+shift,pt.offset_at(m,hi*pt.FPS)/pt.FPS+shift
         ts=ti['origin']-ti['start']   # frame seconds -> target video seconds (reference features)
         if ref_t is not None:
-            c=locate_cut(dict(speed=tl.ratio,offset=oa-tl.ratio*ts,last=lo+ts+4),dict(speed=tl.ratio,offset=ob-tl.ratio*ts,first=hi+ts-4),ref_t,energy_t,sf)
-            if c['confidence']=='supported' and lo<=c['time']-ts<=hi:return c['time']-ts,'audio-located join inside the picture-bounded span'
+            # Search a second past each picture bound: a cut at the span's edge still
+            # needs audio on both sides of it. The pictures bound the answer.
+            c=locate_cut(dict(speed=tl.ratio,offset=oa-tl.ratio*ts,last=lo+ts+3),dict(speed=tl.ratio,offset=ob-tl.ratio*ts,first=hi+ts-3),ref_t,energy_t,sf)
+            if c['confidence']=='supported' and lo-.04<=c['time']-ts<=hi+.04:return c['time']-ts,'audio-located join inside the picture-bounded span'
         times=np.arange(lo,hi+1e-9,.02)
         def level(src):
             i=np.clip(np.round(src*50).astype(int),2,len(se)-3)
@@ -495,7 +590,14 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
         i0=np.clip(np.round((np.asarray(starts)+ts)*50).astype(int),0,len(energy_t))
         i1=np.clip(i0+max(1,int(round(length*50))),0,len(energy_t))
         return (c[i1]-c[i0])/np.maximum(i1-i0,1)
-    segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut,target_shift=ti['origin']-ti['start'],quiet=quiet)
+    def audio_place(p,m,starts,length):
+        # Target-only footage inside a held shot: where source audio stops/resumes matching the target's.
+        from cut_detection import place_insert
+        ts=ti['origin']-ti['start'];starts=np.asarray(starts)
+        oa=pt.offset_at(p,starts[0]*pt.FPS)/pt.FPS+shift;ob=pt.offset_at(m,(starts[-1]+length)*pt.FPS)/pt.FPS+shift
+        return place_insert(dict(speed=tl.ratio,offset=oa-tl.ratio*ts),dict(speed=tl.ratio,offset=ob-tl.ratio*ts),starts+ts,length,ref_t,energy_t,sf)
+    segments,models,notes=pt.to_plan_segments(tl,duration,sl,shift,audio_cut=audio_cut,target_shift=ti['origin']-ti['start'],quiet=quiet,audio_place=audio_place)
+    dub_only_pictures(tl,segments,shift,ti['origin']-ti['start'],source_video,target)
     rows=[[t,m['speed']*t+m['offset'],1.] for m in models for t in np.arange(m['first'],m['last']+1e-6,2.)]
     anchors=np.asarray(rows,dtype=float).reshape(-1,3)
     visual=anchors.copy();visual[:,1]-=shift+delay
@@ -507,6 +609,70 @@ def picture_plan(source_video,target,audio,stream,delay,duration,sl,ref,energy,s
         return f'{cw}:{ch}:{int(round(x0*w))}:{int(round(y0*h))}'
     say(f'Picture timeline: {len(models)} timed sections; '+', '.join(f"{n['start']:.2f}s" for n in notes if 'splice' in n)[:600])
     return segments,models,notes,anchors,visual,tl.ratio,crop(tl.geometry['source'],si),crop(tl.geometry['target'],ti),ref_t,energy_t
+
+def dub_only_pictures(tl,segments,shift,ts,source_video,target):
+    """Attach to audio segments the target pictures a censored dub shows instead of the target's own.
+
+    A censored dub covers a removed scene with a freeze or a repeat of nearby
+    shots: either as extra material (a forward source skip; ``dub_pictures``
+    on the segment after it) or in place of the censored shots at the same
+    length (``dub_replaced`` spans inside a segment). Censored-dub "recreate"
+    rebuilds both from the target's own pictures (see censorship.py).
+
+    Coarse features only propose where; the dub's frames are matched to the
+    target's at 160x120 along a coherent path (pt.FineDub), so a freeze holds
+    the frame it froze, a repeat plays forward, and a replacement counts only
+    where the dub shows a clearly different picture (not the same shot a few
+    frames off) that the target has. Material the target lacks stays skipped.
+    """
+    import picture_timeline as pt
+    d=tl.diagnostics;FS,FT,DS=d['FS'],d['FT'],d['DS'];F=pt.FPS
+    fd=pt.FineDub(source_video,d['s_info'],tl.geometry['source'],target,d['t_info'],tl.geometry['target'],FS,FT,vc.binary('ffmpeg'))
+    def pieces(path,D,tidx,T):
+        out=[]
+        for f,g,n,sway in fd.pieces(path,D,tidx,T):
+            x=dict(frame=f,length=round(n/F,6),hold=g-f<=2)
+            if not x['hold']:x['span']=round((g-f+1)/F,6)
+            if sway:x['sway']=[round(sway[0]/F,6),round(sway[1]/F,6)]
+            out.append(x)
+        return out
+    prev=None
+    for s in segments:
+        if s['kind']!='audio':continue
+        try:
+            if prev is not None:
+                end=prev['source_start']+(prev['target_end']-prev['target_start'])*prev['speed'];skip=s['source_start']-end
+                if skip>.25:
+                    near=int(round((s['target_start']-ts)*F))
+                    src=np.arange(int(round((end-shift)*F)),int(round((s['source_start']-shift)*F)))
+                    src=src[(src>=0)&(src<len(FS))]
+                    if len(src):
+                        path,ps,D,tidx,T,_=fd.align(src,near)
+                        if np.percentile(ps,10)>=.7:       # the target has these pictures
+                            got=pieces(path,D,tidx,T)
+                            for x in got:x['at']=round(x.pop('frame')/F+ts-s['target_start'],6)
+                            s['dub_pictures']=dict(source_length=round(skip,6),pieces=got)
+            f=np.arange(int(np.ceil((s['target_start']-ts)*F)),int(np.floor((s['target_end']-ts)*F)))
+            f=f[(f>=0)&(f<len(FT))]
+            src=np.round((s['source_start']+(f/F+ts-s['target_start'])*s['speed']-shift)*F).astype(int)
+            spans=[]
+            for i0,i1 in pt.replaced_candidates(FS,FT,DS,f,src):
+                a,b=max(0,i0-12),min(len(f),i1+12)
+                ok=(src[a:b]>=0)&(src[a:b]<len(FS))
+                if not ok.all():continue
+                path,ps,D,tidx,T,ms=fd.align(src[a:b],int(f[i0]),mapped=f[a:b])
+                # Replaced: the dub shows another target picture, clearly unlike the mapped one.
+                dev=(np.abs(path-f[a:b])>2)&(ms<.6)&(ps>=.7)&(ps>ms+.1)
+                for r0,r1 in pt.runs_of(dev,gap=12,min_len=10):
+                    got=pieces(path[r0:r1],D[r0:r1],tidx,T)
+                    for x in got:x['rel']=round((x.pop('frame')-f[a+r0])/F,6)
+                    spans.append(dict(source=round(s['source_start']+(f[a+r0]/F+ts-s['target_start'])*s['speed'],6),
+                                      length=round((r1-r0)/F,6),pieces=got))
+            if spans:s['dub_replaced']=sorted(spans,key=lambda x:x['source'])
+        except (RuntimeError,ValueError,OSError) as e:
+            say(f'Censored-dub pictures unavailable near {s["target_start"]:.1f}s: {e}')
+        prev=s
+
 
 def run_job(job,args):
     from input_trims import prepare
@@ -539,7 +705,6 @@ def _run_job(job,args):
     if target and reference and Path(reference)==Path(target).resolve():
         p=vc.probe(target);v=next(x for x in p['streams'] if x['codec_type']=='video');a=[x for x in p['streams'] if x['codec_type']=='audio'][rs]
         refshift+=float(a.get('start_time',0))-float(v.get('start_time',0))
-    ai_mode=getattr(args,'sync_method','standard')=='ai_assisted'
     picture=None
     # Both videos present: the source audio belongs to the source PICTURE, so map
     # target pictures to source pictures. Audio anchors remain the fallback.
@@ -550,7 +715,6 @@ def _run_job(job,args):
             warnings.append('Picture timeline unavailable; using audio matching: '+str(e));say(warnings[-1])
     if picture is not None:
         segments,models,review,anchors,visual,speed,source_crop,target_crop,ref,energy=picture;method='picture timeline'
-        if ai_mode:warnings.append('Picture timeline established timing; AI models were not needed for this pair.')
     else:
         source_crop=args.source_crop;target_crop=args.target_crop
         if source_video and target and not args.audio_only:
@@ -566,24 +730,6 @@ def _run_job(job,args):
                 visual=vc.matches(st,sv,tt,tv);visual[:,1]-=delay
             except (RuntimeError,ValueError,KeyError,OSError) as e:warnings.append('Visual scan unavailable: '+str(e))
         visual=manual_ranges.select(visual,source_bounds)
-        neural_visual=np.empty((0,3))
-        neural_audio=np.empty((0,3))
-        if ai_mode:
-            from ai_sync import _dependencies,learned_visual_anchors
-            _dependencies()  # Explicit failure with installation instructions; never silently fall back.
-            say('AI-assisted synchronization enabled (AST acoustic model + optional DINOv2 scene rescue).')
-            if len(visual)<8 and source_video and target and not args.audio_only:
-                # The visual model only assists if classic scene matching could not
-                # establish timing. Do not displace established visual evidence.
-                try:
-                    trial_speed=estimate_rate(visual,sf,ref)
-                except RuntimeError:
-                    trial_speed=1.  # Scene model can still recover rate from candidate pairs.
-                neural_visual=learned_visual_anchors(source_video,target,trial_speed,delay,say)
-                neural_visual=manual_ranges.select(neural_visual,source_bounds)
-                if len(neural_visual)>=8:
-                    visual=neural_visual
-                    warnings.append('AI visual fallback used; review source/target frames at proposed joins.')
         speed=estimate_rate(visual,sf,ref);say(f'Estimated source/target speed: {speed:.9f}')
         aa=audio_anchors(sf,ref,speed) if ref is not None else np.empty((0,3))
         if len(aa):aa[:,0]+=refshift
@@ -600,14 +746,6 @@ def _run_job(job,args):
                 visual=vc.matches(st,sv,tt,tv);visual[:,1]-=delay
         visual=manual_ranges.select(visual,source_bounds)
         aa=manual_ranges.select(aa,source_bounds)
-        if ai_mode and ref is not None:
-            from ai_sync import learned_audio_anchors,combine_standard_and_learned
-            neural_audio=learned_audio_anchors(audio,stream,reference,rs,sf,rf,speed,refshift,say)
-            neural_audio=manual_ranges.select(neural_audio,source_bounds)
-            original_count=len(aa)
-            aa=combine_standard_and_learned(aa,neural_audio,speed)
-            say(f'AI-assisted anchors: {len(neural_audio)} verified, {len(aa)-original_count} additional accepted.')
-            warnings.append('AI model proposes matches only. Confirmed timing uses original audio correlation; review uncertain cuts.')
         # Use strong audio evidence for dubbing-specific offsets; visuals establish rate and fallback.
         if len(aa)>=8 and np.ptp(aa[:,0])>min(duration*.4,120):
             anchors=remove_outliers(aa,speed);method='audio matches, with visual rate estimate' if len(visual) else 'audio matches'
@@ -670,10 +808,9 @@ def _run_job(job,args):
             return cut
         segments,models,review=build_plan(anchors,speed,duration,sl,ref,energy,sf,refine_cut,visual if method.startswith('audio') else None)
         if len(used)!=len(manual_times):raise ValueError('A supplied --cut-times value is outside detected cut search intervals. Check target seconds against the report.')
-    if ai_mode:method='AI-assisted: '+method
-    plan=dict(source_crop=source_crop,target_crop=target_crop,source_cuts=source_cuts(segments),audio=audio,audio_stream=stream,reference=reference,reference_stream=rs,reference_shift=refshift,source_video=source_video,target_video=target,duration=duration,method=method,sync_method='ai_assisted' if ai_mode else 'standard',segments=segments,models=models,review=review,warnings=warnings)
+    plan=dict(source_crop=source_crop,target_crop=target_crop,source_cuts=source_cuts(segments),audio=audio,audio_stream=stream,reference=reference,reference_stream=rs,reference_shift=refshift,source_video=source_video,target_video=target,duration=duration,method=method,segments=segments,models=models,review=review,warnings=warnings)
     np.savez_compressed(out/'matching_diagnostics.npz',visual=visual,anchors=anchors)
-    # Recover shared source opening music for both Standard and AI matching.
+    # Recover shared source opening music.
     # Keep-target-OP/ED deliberately uses the target's outside soundtrack.
     if not args.main_only and not args.keep_target_op_ed:
         from video_edits import recover_shared_opening
@@ -713,7 +850,7 @@ def _run_job(job,args):
         segments=plan['segments'];review=plan['review']
     if getattr(args,'censored_dub',None):
         import censorship
-        plan=censorship.annotate(plan,args.censored_dub);segments=plan['segments'];review=plan['review']
+        plan=censorship.annotate(plan,args.censored_dub,getattr(args,'recreate_fill','motion'));segments=plan['segments'];review=plan['review']
     if getattr(args,'remove_unmatched_video',False):
         from video_edits import remove_missing,map_anchors,protect_opening
         plan=protect_opening(plan,sf,ref,sl)
@@ -764,8 +901,19 @@ def _run_job(job,args):
         elif args.keep_target_op_ed:
             from main_episode import export_full_video
             video=export_full_video(plan,output,out);say(f'Saved {video}. Complete target video with target opening/ending and synced source main audio.')
-        else:say(f'Saved {output}. Mux at 0 ms delay.')
+        else:say(f'Saved {output}. '+mux_advice(target))
     return out
+
+def mux_advice(target):
+    """FLAC time 0 is the target's first picture. Muxers rebase a file to its
+    earliest timestamp, so when the picture starts later than that (AAC
+    priming, a dropped first frame) the FLAC needs that much delay."""
+    try:
+        info=vc.probe(target);v=next(s for s in info['streams'] if s['codec_type']=='video')
+        lead=float(v.get('start_time') or 0)-float(info['format'].get('start_time') or 0)
+    except Exception:lead=0.
+    if abs(lead)<.0005:return 'Mux at 0 ms delay.'
+    return f'Mux with {lead*1000:+.0f} ms delay: the target picture starts {lead*1000:.0f} ms into its file.'
 
 def dialog(title,directory=False,multiple=False):
     from tkinter import Tk,filedialog
@@ -823,9 +971,9 @@ def main():
     p.add_argument('--scene-threshold',type=float,default=.15)
     p.add_argument('--audio-only',action='store_true');p.add_argument('--analyze-only',action='store_true')
     p.add_argument('--timing',choices=['picture','audio'],default='picture',help='picture: map target pictures to source pictures (default when both videos are given); audio: legacy cross-soundtrack anchors')
-    p.add_argument('--sync-method',choices=['standard','ai_assisted'],default='standard',help='Optional pretrained AST audio features and DINOv2 visual rescue; install AI Sync in Settings first')
     p.add_argument('--remove-unmatched-video',action='store_true',help='Remove target sections with no source audio and export edited video + FLAC')
-    p.add_argument('--censored-dub',choices=('restore','cut'),help='Source is a censored or re-edited dub: report every scene it removed and either restore it with the original audio or cut it from the video (per scene in Preview & Edit)')
+    p.add_argument('--censored-dub',choices=('restore','cut','recreate'),help='Source is a censored or re-edited dub: report every scene it removed and either restore it with the original audio or cut it from the video (per scene in Preview & Edit); recreate also cuts them and rebuilds the dub freezes and repeats from the target pictures, so all dub audio is kept')
+    p.add_argument('--recreate-fill',choices=('motion','freeze'),default='motion',help='Censored-dub recreate: where the dub froze a frame, play that shot back and forth around it (motion, default) or hold the frame (freeze)')
     p.add_argument('--restored-subtitles',help='Subtitles for the original (target) version: write restored_scenes.srt with the lines inside restored scenes')
     p.add_argument('--reference-fallback',action='store_true',help='Use target soundtrack only for missing source bounds; may switch languages')
     p.add_argument('--cut-times',default='',help='Known target join times in seconds, comma separated; applies to detected cuts')

@@ -29,7 +29,9 @@ FPS = 25                 # decode grid
 W, H = 64, 48            # decode size (full frame; crops applied in numpy)
 STEP = .5                # target sample spacing (s)
 CLIP = np.arange(-25, 26, 5)          # +-1 s every 0.2 s, in frames
-KNOWN = (1., 25 / 24, 25025 / 24000, 24 / 25, 24000 / 25025)
+KNOWN = (1., 25 / 24, 25025 / 24000, 24 / 25, 24000 / 25025, 1001 / 1000, 1000 / 1001)
+RATE_CHECK = 2e-4       # rate error matched sections must show before a re-solve (real releases: < 6e-5)
+RATE_SNAP = 3e-4        # a corrected rate this close to a standard ratio is that ratio
 MATCH = .82              # clip score above which a match is evidence
 JUMP, BACK, FAR, NULL = 1.5, 3.0, 4.0, .6
 
@@ -50,23 +52,56 @@ def stream_info(path, ffprobe='ffprobe'):
         a, b = map(float, sar.split(':')); sar = a / b if a > 0 and b > 0 else 1.
     except ValueError:
         sar = 1.
-    # Decoded frame k sits at origin + k/FPS: ffmpeg rebases to the FILE start
-    # and pads the first picture back to it, whatever the video stream's start.
-    return dict(start=float(v.get('start_time') or 0), origin=float(d.get('format', {}).get('start_time') or 0),
+    # Decoded frame k shows the picture at origin + k/FPS, origin being the
+    # video stream's own first timestamp: decode() starts its grid there. (A
+    # grid from the FILE start is off by a fraction of a frame whenever the
+    # video does not start exactly there, e.g. -0.021 s AAC priming in MKV, and
+    # the fps filter then rounds every picture to a neighbouring slot.)
+    file_start = float(d.get('format', {}).get('start_time') or 0)
+    # FFmpeg reports the first frame relative to the file start.
+    video_start = file_start + first_frame_time(path, ffprobe, float(v.get('start_time') or file_start) - file_start)
+    return dict(start=video_start, origin=video_start, file_start=file_start,
                 aspect=w * sar / h, width=w, height=h,
                 audio_starts=[float(s.get('start_time') or 0) for s in d['streams'] if s['codec_type'] == 'audio'])
+
+
+def first_frame_time(path, ffprobe='ffprobe', fallback=0.):
+    """Presentation time (from the file start) of the first frame FFmpeg decodes.
+
+    decode() starts its grid there (setpts=PTS-STARTPTS). The stream start
+    time can be earlier: Zorro's MPEG-4 (packets without PTS, B-frames)
+    reports 0 while FFmpeg presents its first picture at 0.083 s, which put
+    every match two frames off. Measured with the same FFmpeg decode.
+    """
+    import re
+    ffmpeg = str(ffprobe).replace('ffprobe', 'ffmpeg')
+    try:
+        p = subprocess.run([ffmpeg, '-hide_banner', '-nostdin', '-i', str(path), '-map', '0:v:0', '-frames:v', '1',
+                            '-an', '-sn', '-vf', 'showinfo', '-f', 'null', '-'],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
+        m = re.search(r'pts_time:\s*(-?[\d.]+)', p.stderr.decode('utf-8', 'replace'))
+        if m:
+            return float(m.group(1))
+    except Exception:
+        pass
+    return fallback
 
 
 def decode(path, ffmpeg='ffmpeg'):
     """uint8 (n, H, W) frames on a fixed 25 fps grid from the first video PTS."""
     out = _run([ffmpeg, '-v', 'error', '-nostdin', '-i', str(path), '-map', '0:v:0', '-an', '-sn',
-                '-vf', f'fps={FPS},scale={W}:{H}:flags=area,format=gray', '-f', 'rawvideo', '-pix_fmt', 'gray', '-'])
+                '-vf', f'setpts=PTS-STARTPTS,fps={FPS},scale={W}:{H}:flags=area,format=gray', '-f', 'rawvideo',
+                '-pix_fmt', 'gray', '-'])
     return np.frombuffer(out, np.uint8).reshape(-1, H, W)
 
 
-def decode_span(path, start, duration, ffmpeg='ffmpeg'):
-    """uint8 (n, H, W) frames at FINE fps for [start, start + duration) file seconds."""
-    out = _run([ffmpeg, '-v', 'error', '-nostdin', '-ss', f'{max(0., start):.6f}', '-i', str(path),
+def decode_span(path, start, duration, ffmpeg='ffmpeg', file_start=0.):
+    """uint8 (n, H, W) frames at FINE fps for [start, start + duration) stream seconds.
+
+    Input -ss counts from the file start (FFmpeg adds the format start time),
+    so a stream timestamp is converted by subtracting `file_start`.
+    """
+    out = _run([ffmpeg, '-v', 'error', '-nostdin', '-ss', f'{max(0., start - file_start):.6f}', '-i', str(path),
                 '-t', f'{duration:.6f}', '-map', '0:v:0', '-an', '-sn',
                 '-vf', f'fps={FINE},scale={W}:{H}:flags=area,format=gray', '-f', 'rawvideo', '-pix_fmt', 'gray', '-'])
     return np.frombuffer(out, np.uint8).reshape(-1, H, W)
@@ -109,6 +144,33 @@ def features(frames, rect):
     return f, detail
 
 
+def _framing_score(fs, ft, dt):
+    sim = ft[dt > 6] @ fs.T
+    if not len(sim):
+        return None
+    return float(np.mean(np.sort(sim.max(axis=1))[len(sim) // 3:]))
+
+
+def zoom_rects(rect, scales=(.94, .88, .82, .76), shift=(-2, -1, 0, 1, 2)):
+    """Centred-ish sub-rectangles of `rect` at the same aspect: one side zoomed in.
+
+    Broadcast overscan, pan-and-scan and remaster re-framing show the same
+    picture enlarged by a few to ~25 percent, often off centre. Shifts are in
+    whole decoded pixels.
+    """
+    x0, y0, x1, y1 = rect
+    out = []
+    for sc in scales:
+        w, h = (x1 - x0) * sc, (y1 - y0) * sc
+        for dx in shift:
+            for dy in shift:
+                cx = (x0 + x1) / 2 + dx / W; cy = (y0 + y1) / 2 + dy / H
+                r = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+                if r[0] >= x0 - 1e-9 and r[1] >= y0 - 1e-9 and r[2] <= x1 + 1e-9 and r[3] <= y1 + 1e-9:
+                    out.append(r)
+    return out
+
+
 def _best_geometry(S, T, s_info, t_info):
     s_rects = geometry_candidates(active_rect(S), s_info['aspect'], t_info['aspect'] * 1.)
     t_rects = geometry_candidates(active_rect(T), t_info['aspect'], s_info['aspect'] * 1.)
@@ -119,12 +181,28 @@ def _best_geometry(S, T, s_info, t_info):
         fs, ds = features(ss, sr)
         for tr in t_rects:
             ft, dt = features(ts, tr)
-            sim = ft[dt > 6] @ fs.T
-            if not len(sim):
-                continue
-            score = float(np.mean(np.sort(sim.max(axis=1))[len(sim) // 3:]))
-            if best is None or score > best[0]:
+            score = _framing_score(fs, ft, dt)
+            if score is not None and (best is None or score > best[0]):
                 best = (score, sr, tr)
+    if best is None or best[0] > .9:
+        return best
+    # A weak framing may be one side zoomed in: try cropping the other side.
+    score0, sr0, tr0 = best
+    fs, _ = features(ss, sr0)
+    for tr in zoom_rects(tr0):  # source shows less: crop the target
+        ft, dt = features(ts, tr)
+        score = _framing_score(fs, ft, dt)
+        if score is not None and score > best[0] + .02:
+            best = (score, sr0, tr)
+    ft, dt = features(ts, tr0)
+    sub = ss[::4]  # ranking only; the winner is re-scored on every sample
+    for sr in zoom_rects(sr0):  # target shows less: crop the source
+        fsub, _ = features(sub, sr)
+        score = _framing_score(fsub, ft, dt)
+        if score is not None and score > best[0] + .02:
+            full = _framing_score(features(ss, sr)[0], ft, dt)
+            if full > best[0] + .02:
+                best = (full, sr, tr0)
     return best
 
 
@@ -140,17 +218,38 @@ def estimate_ratio(FT, DT, FS, DS):
             alt = sim[row].copy(); alt[max(0, j - FPS * 2):j + FPS * 2] = -1
             if v > .93 and v - alt.max() > .05 and DS[j] > 6:
                 pts.append((i / FPS, j / FPS))
-    slopes = []
+    slopes, width = [], []
     for a in range(len(pts)):
         for b in range(a + 1, min(len(pts), a + 40)):
             du = pts[b][0] - pts[a][0]
             if 20 < du < 200:
                 sl = (pts[b][1] - pts[a][1]) / du
                 if .8 < sl < 1.25:
-                    slopes.append(sl)
+                    slopes.append(sl); width.append(.08 / du)
     if len(slopes) < 10:
         raise RuntimeError('Too few unambiguous picture matches to establish the edition rate.')
-    med = float(np.median(slopes))
+    return slope_mode(np.array(slopes), np.array(width))
+
+
+def slope_mode(slopes, width):
+    """The rate most match pairs agree on, each within its own timing tolerance.
+
+    Pairs inside one continuous stretch all give the true rate; pairs across a
+    cut or insert are off by (edit length / spacing). With many edits those are
+    most pairs, and they all lean one way (cuts up, inserts down), so a median
+    drifts towards the duration ratio. The mode of the tolerance intervals does
+    not: only the true rate is shared by many pairs.
+    """
+    ends = np.concatenate([slopes - width, slopes + width])
+    step = np.concatenate([np.ones(len(slopes)), -np.ones(len(slopes))])
+    order = np.lexsort((-step, ends))  # at equal values, open before close
+    cover = np.cumsum(step[order])
+    k = int(np.argmax(cover))
+    best = (ends[order][k] + ends[order][min(k + 1, len(ends) - 1)]) / 2
+    agree = np.abs(slopes - best) <= width
+    if agree.sum() < 10:
+        raise RuntimeError('Too few unambiguous picture matches to establish the edition rate.')
+    med = float(np.median(slopes[agree]))
     near = min(KNOWN, key=lambda x: abs(x - med))
     return near if abs(near - med) < 1.5e-3 else med
 
@@ -161,21 +260,37 @@ def clip_scores(FT, FS, i, offsets_frames, r):
     ok_t = (ti >= 0) & (ti < len(FT))
     q = FT[ti[ok_t]]
     out = np.full(len(offsets_frames), -1.)
-    for k, o in enumerate(offsets_frames):
-        sj = np.round(r * ti[ok_t] + o).astype(int)
-        ok = (sj >= 0) & (sj < len(FS))
-        if ok.sum() >= len(CLIP) * .7:
-            out[k] = float(np.mean(np.sum(q[ok] * FS[sj[ok]], axis=1)))
+    if not len(offsets_frames):
+        return out
+    # All offsets at once; the same per-row arithmetic as one offset at a time.
+    sj = np.round(r * ti[ok_t][None, :] + np.asarray(offsets_frames)[:, None]).astype(int)
+    ok = (sj >= 0) & (sj < len(FS))
+    full = ok.all(axis=1) & (ok.shape[1] >= len(CLIP) * .7)
+    if full.any():
+        out[full] = np.mean(np.sum(q[None] * FS[sj[full]], axis=2), axis=1)
+    for k in np.flatnonzero(~full):
+        if ok[k].sum() >= len(CLIP) * .7:
+            out[k] = float(np.mean(np.sum(q[ok[k]] * FS[sj[k][ok[k]]], axis=1)))
     return out
 
 
-def candidates(FT, DT, FS, DS, r, samples, top=8):
-    """Per sample: dict offset(frames, int) -> clip score."""
-    cand = [dict() for _ in samples]
+_TOP = None            # (FT, FS weak references, samples, top, frames): the last top_frames result
+
+
+def top_frames(FT, FS, samples, top=8):
+    """Per sample: its best single-frame source matches, at least 1 s apart.
+
+    Independent of the rate, so the rates tried for one episode share it.
+    """
+    global _TOP
+    key = (samples.tobytes(), top)
+    if _TOP and _TOP[0]() is FT and _TOP[1]() is FS and _TOP[2] == key:
+        return _TOP[3]
+    out = []
     for start in range(0, len(samples), 256):
         idx = samples[start:start + 256]
         sim = FT[idx] @ FS.T
-        for row, i in enumerate(idx):
+        for row in range(len(idx)):
             s = sim[row]
             order = np.argpartition(-s, 80)[:80]; order = order[np.argsort(-s[order])]
             chosen = []
@@ -184,16 +299,33 @@ def candidates(FT, DT, FS, DS, r, samples, top=8):
                     chosen.append(int(j))
                 if len(chosen) >= top:
                     break
-            offs = [int(round(j - r * i)) for j in chosen]
-            for o, v in zip(offs, clip_scores(FT, FS, i, offs, r)):
-                cand[start + row][o] = v
+            out.append(chosen)
+    import weakref
+    _TOP = (weakref.ref(FT), weakref.ref(FS), key, out)
+    return out
+
+
+def candidates(FT, DT, FS, DS, r, samples, top=8):
+    """Per sample: dict offset(frames, int) -> clip score."""
+    cand = [dict() for _ in samples]
+    for k, (i, chosen) in enumerate(zip(samples, top_frames(FT, FS, samples, top))):
+        offs = [int(round(j - r * i)) for j in chosen]
+        for o, v in zip(offs, clip_scores(FT, FS, i, offs, r)):
+            cand[k][o] = v
     # Static shots: the true offset may not be a top single-frame match. Offer
     # every offset that is strongly supported within +-30 s to all samples there.
     strong = [(k, max(c, key=c.get)) for k, c in enumerate(cand) if c and max(c.values()) > .9]
     span = int(30 / STEP)
+    import bisect
+    at = [kk for kk, _ in strong]
     for k, i in enumerate(samples):
-        local = {o for kk, o in strong if abs(kk - k) <= span}
-        extra = [o for o in local if all(abs(o - x) > 1 for x in cand[k])]
+        local = {o for _, o in strong[bisect.bisect_left(at, k - span):bisect.bisect_right(at, k + span)]}
+        if not local:
+            continue
+        loc = list(local)
+        have = np.fromiter(cand[k], int, len(cand[k]))
+        far = np.all(np.abs(np.array(loc)[:, None] - have[None, :]) > 1, axis=1)
+        extra = [o for o, f in zip(loc, far) if f]
         for o, v in zip(extra, clip_scores(FT, FS, i, extra, r)):
             cand[k][o] = v
     return cand
@@ -202,31 +334,34 @@ def candidates(FT, DT, FS, DS, r, samples, top=8):
 def solve(cand, r, match=MATCH, jump=JUMP, allowed=None):
     """Viterbi over offsets (+ target-only state None). Returns offset or None per sample."""
     n = len(cand)
-    states = [sorted(o for o in c if allowed is None or allowed(o)) + [None] for c in cand]
-    def reward(k, o):
-        return 0. if o is None else float(np.clip(cand[k][o] - match, -.5, .2))
-    def cost(a, b):
-        if a is None or b is None:
-            return 0. if a is b else NULL
-        d = (b - a) / FPS          # source seconds
-        if abs(d) <= 1.5 / FPS:
-            return .02 * abs(b - a)
-        c = jump if d > 0 else BACK
-        return c + (FAR if abs(d) > 60 else 0.)
-    score = np.array([reward(0, o) for o in states[0]])
+    states = [sorted(o for o in c if allowed is None or allowed(o)) for c in cand]
+    # Rewards: clip score above the match level; the target-only state (last) earns 0.
+    rewards = [np.append(np.clip(np.array([cand[k][o] for o in s], float) - match, -.5, .2), 0.)
+               for k, s in enumerate(states)]
+    offs = [np.array(s, float) for s in states]
+
+    def transitions(a, b):
+        """Cost of moving from offsets a to offsets b (rows: b), target-only state last on both."""
+        step = b[:, None] - a[None, :]
+        d = step / FPS             # source seconds
+        t = np.where(np.abs(d) <= 1.5 / FPS, .02 * np.abs(step),
+                     np.where(d > 0, jump, BACK) + np.where(np.abs(d) > 60, FAR, 0.))
+        out = np.full((len(b) + 1, len(a) + 1), NULL)
+        out[:-1, :-1] = t
+        out[-1, -1] = 0.
+        return out
+    score = rewards[0]
     back = []
     for k in range(1, n):
-        prev = states[k - 1]; cur = states[k]
-        trans = np.array([[cost(a, b) for a in prev] for b in cur])
-        total = score[None, :] - trans
+        total = score[None, :] - transitions(offs[k - 1], offs[k])
         arg = total.argmax(axis=1)
-        score = total[np.arange(len(cur)), arg] + np.array([reward(k, o) for o in cur])
+        score = total[np.arange(len(total)), arg] + rewards[k]
         back.append(arg)
     path = [int(np.argmax(score))]
     for arg in reversed(back):
         path.append(int(arg[path[-1]]))
     path.reverse()
-    return [states[k][s] for k, s in enumerate(path)]
+    return [states[k][s] if s < len(states[k]) else None for k, s in enumerate(path)]
 
 
 def runs_from_path(path, samples):
@@ -250,17 +385,30 @@ def refine_offset(FT, FS, DT, r, sample_frames, offset):
         return float(offset)
     grid = np.arange(-1.5, 1.51, .25)
     scores = []
+    TI = np.asarray(idx)[:, None] + CLIP[None, :]
     for g in grid:
-        o = offset + g; tot = 0.; cnt = 0
-        for i in idx:
-            ti = i + CLIP; pos = r * ti + o
-            a = np.floor(pos).astype(int); w = (pos - a)[:, None]
-            ok = (a >= 0) & (a + 1 < len(FS)) & (ti >= 0) & (ti < len(FT))
-            if ok.sum() < 5:
-                continue
-            x = FS[a[ok]] * (1 - w[ok]) + FS[a[ok] + 1] * w[ok]
-            x /= np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-6)
-            tot += float(np.mean(np.sum(FT[ti[ok]] * x, axis=1))); cnt += 1
+        o = offset + g
+        # Every sample frame at once; per-frame means added in the original order.
+        pos = r * TI + o
+        a = np.floor(pos).astype(int); w = (pos - a)[..., None]
+        ok = (a >= 0) & (a + 1 < len(FS)) & (TI >= 0) & (TI < len(FT))
+        full = ok.all(axis=1)
+        means = np.zeros(len(idx))
+        if full.any():
+            af, wf, tf = a[full], w[full], TI[full]
+            x = FS[af] * (1 - wf) + FS[af + 1] * wf
+            x /= np.maximum(np.linalg.norm(x, axis=2, keepdims=True), 1e-6)
+            means[full] = np.mean(np.sum(FT[tf] * x, axis=2), axis=1)
+        tot = 0.; cnt = 0
+        for k in range(len(idx)):
+            if not full[k]:
+                if ok[k].sum() < 5:
+                    continue
+                m = ok[k]; ak, wk = a[k][m], w[k][m]
+                x = FS[ak] * (1 - wk) + FS[ak + 1] * wk
+                x /= np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-6)
+                means[k] = float(np.mean(np.sum(FT[TI[k][m]] * x, axis=1)))
+            tot += float(means[k]); cnt += 1
         scores.append(tot / max(cnt, 1))
     scores = np.array(scores); k = int(np.argmax(scores))
     shift = 0.
@@ -271,15 +419,40 @@ def refine_offset(FT, FS, DT, r, sample_frames, offset):
     return float(offset + grid[k] + shift * .25)
 
 
-def frame_scores(FT, FS, r, lo, hi, offset):
-    """Per target frame in [lo, hi): similarity under a mapping (+-1 frame tolerance)."""
+def frame_scores(FT, FS, r, lo, hi, offset, tol=1):
+    """Per target frame in [lo, hi): similarity under a mapping (+-tol frame tolerance)."""
     ti = np.arange(lo, hi)
     out = np.zeros(len(ti))
-    for d in (-1, 0, 1):
+    for d in range(-tol, tol + 1):
         sj = np.round(r * ti + offset + d).astype(int)
         ok = (sj >= 0) & (sj < len(FS))
         v = np.full(len(ti), -1.); v[ok] = np.sum(FT[ti[ok]] * FS[sj[ok]], axis=1)
         out = np.maximum(out, v)
+    return out
+
+
+def block_similarity(A, B, keep=2 / 3):
+    """Per row: mean correlation of the best `keep` share of 24 picture blocks (4x4
+    feature cells each). A mosaic, blur or painted patch over part of the frame
+    lowers only its own blocks; another picture lowers nearly all of them."""
+    def blocks(X):
+        X = X.reshape(len(X), 4, 4, 6, 4).transpose(0, 1, 3, 2, 4).reshape(len(X), 24, 16)
+        X = X - X.mean(axis=2, keepdims=True)
+        return X / np.maximum(np.linalg.norm(X, axis=2, keepdims=True), 1e-6)
+    c = np.sort(np.sum(blocks(A) * blocks(B), axis=2), axis=1)[:, ::-1]
+    return c[:, :max(1, int(round(24 * keep)))].mean(axis=1)
+
+
+def block_scores(FT, FS, r, lo, hi, offset, tol=1):
+    """frame_scores with block_similarity: robust to part of the frame being altered."""
+    ti = np.arange(lo, hi)
+    out = np.full(len(ti), -1.)
+    for d in range(-tol, tol + 1):
+        sj = np.round(r * ti + offset + d).astype(int)
+        ok = (sj >= 0) & (sj < len(FS))
+        if ok.any():
+            v = np.full(len(ti), -1.); v[ok] = block_similarity(FT[ti[ok]], FS[sj[ok]])
+            out = np.maximum(out, v)
     return out
 
 
@@ -292,7 +465,11 @@ def place_cut(FT, FS, DT, r, lo, hi, oa, ob):
     lo = max(0, lo); hi = min(len(FT), hi)
     if hi - lo < 2:
         return lo, lo, lo
-    a = frame_scores(FT, FS, r, lo, hi, oa); b = frame_scores(FT, FS, r, lo, hi, ob)
+    # The +-1 frame tolerance must not let the two mappings share source frames:
+    # a 2-frame skip (a micro cut) would score alike under both and the
+    # pictures would bound the join to noise. Close mappings are scored exactly.
+    tol = 1 if abs(ob - oa) >= 3 else 0
+    a = frame_scores(FT, FS, r, lo, hi, oa, tol); b = frame_scores(FT, FS, r, lo, hi, ob, tol)
     informative = (DT[lo:hi] > 6) & (np.abs(a - b) > .05)
     if not informative.any():
         # No frame tells the mappings apart: the gap's centre, whole span uncertain.
@@ -435,6 +612,34 @@ def absorb_jitter(sections, short=20, near=6, agree=1.5):
         if len(merged) == len(s):
             changed = False
         s = merged
+    return s
+
+
+def absorb_unsupported(sections, FT, FS, DT, r, agree=1.5, longest=30 * FPS):
+    """A matched run between two agreeing neighbours, at an offset of its own that
+    its pictures do not prefer, is no edit: give it the neighbours' offset.
+
+    In a slow or near-static shot several offsets fit the samples; the solver can
+    pick one a second away for a few samples, which reads as a removed scene
+    followed by a source skip that cancel (a false censored scene). Only when the
+    neighbours' mapping fits the run's informative frames at least as well as
+    its own does it take over; a real recap or reorder fits only its own.
+    """
+    s = [dict(x) for x in sections]
+    matches = [i for i, x in enumerate(s) if x['kind'] == 'match']
+    for a, b, c in zip(matches, matches[1:], matches[2:]):
+        L, M, N = s[a], s[b], s[c]
+        if (abs(L['offset'] - N['offset']) > agree or abs(M['offset'] - L['offset']) <= agree or
+                M['last'] - M['first'] > longest):
+            continue
+        lo, hi = M['first'], M['last'] + 1
+        inf = DT[lo:hi] > 6
+        if inf.sum() < FPS // 2:
+            continue
+        own = frame_scores(FT, FS, r, lo, hi, M['offset'])[inf]
+        both = frame_scores(FT, FS, r, lo, hi, L['offset'])[inf]
+        if both.mean() > MATCH and both.mean() >= own.mean():
+            M['offset'] = L['offset']; M['unsupported'] = True
     return s
 
 
@@ -748,18 +953,16 @@ def build(source_video, target_video, ffmpeg='ffmpeg', ffprobe='ffprobe', progre
     FS, DS = features(S, geo[1]); FT, DT = features(T, geo[2]); del S, T
     progress(f'Picture timeline: framing score {geo[0]:.3f}; source crop {np.round(geo[1], 3).tolist()}, target crop {np.round(geo[2], 3).tolist()}')
     def verify(t0, t1, s0, s1):
-        # Frame seconds are relative to each FILE origin (see stream_info).
-        TF = features(decode_span(target_video, t_info['origin'] + t0, t1 - t0, ffmpeg), geo[2])[0]
-        SF = features(decode_span(source_video, s_info['origin'] + s0, s1 - s0, ffmpeg), geo[1])[0]
+        # Frame seconds are relative to each video's first picture (see stream_info).
+        TF = features(decode_span(target_video, t_info['origin'] + t0, t1 - t0, ffmpeg, t_info['file_start']), geo[2])[0]
+        SF = features(decode_span(source_video, s_info['origin'] + s0, s1 - s0, ffmpeg, s_info['file_start']), geo[1])[0]
         return TF, SF
     return from_features(FS, DS, FT, DT, dict(score=geo[0], source=geo[1], target=geo[2]), s_info, t_info, progress,
                          verify=verify)
 
 
-def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, ratio=None, verify=None):
-    """Solve the timeline from unit-norm frame features (25 fps grids)."""
-    r = ratio or estimate_ratio(FT, DT, FS, DS)
-    progress(f'Picture timeline: source/target rate {r:.9f}')
+def solve_sections(FT, DT, FS, DS, r):
+    """Matched and target-only sections (constant offsets) at one source/target rate."""
     samples = np.arange(int(FPS * STEP), len(FT) - int(FPS * STEP), int(FPS * STEP))
     cand = candidates(FT, DT, FS, DS, r, samples)
     path = solve(cand, r)
@@ -784,7 +987,7 @@ def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, rati
         if x.get('gap_refined'):
             strong = [samples[k] for k in range(len(samples)) if x['first'] <= samples[k] <= x['last']]
             x['offset'] = refine_offset(FT, FS, DT, r, strong, x['offset'])
-    sections = absorb_jitter(sections)
+    sections = absorb_unsupported(absorb_jitter(sections), FT, FS, DT, r)
     merged = []
     for s in sections:
         if merged and s['kind'] == merged[-1]['kind'] == 'none':
@@ -795,6 +998,302 @@ def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, rati
                      samples=n, strong=m['strong'] + s['strong'])
         else:
             merged.append(dict(s))
+    return merged
+
+
+def section_rate_error(sections, FT, FS, DT, r, min_len=10):
+    """[(offset slope, span frames)] inside matched sections of at least min_len s.
+
+    A wrong rate leaves each section's picture sliding against its constant
+    offset. Sub-frame offsets of the first and last third measure that slide
+    precisely (real releases: within 6e-5), where sparse frame matches cannot:
+    evenly spread small cuts make long-spaced match pairs lean like a speed
+    change, and 0.1 % is below the standard-ratio snap.
+    """
+    out = []
+    for x in sections:
+        if x['kind'] != 'match' or x['last'] - x['first'] < min_len * FPS:
+            continue
+        # 2 s clear of the edges: a section edge can sit a sample past its cut,
+        # and clips there see the neighbouring shot's timing.
+        fr = np.arange(x['first'] + 2 * FPS, x['last'] - 2 * FPS + 1, int(FPS * STEP))
+        fr = fr[DT[fr] > 6]
+        if len(fr) < 12:
+            continue
+        k = len(fr) // 3
+        head, tail = fr[:k], fr[-k:]
+        oh = ot = None
+        for _ in range(2):  # re-centre: refine_offset searches +-1.5 frames
+            oh = refine_offset(FT, FS, DT, r, list(head), offset_at(x, head.mean()) if oh is None else oh)
+            ot = refine_offset(FT, FS, DT, r, list(tail), offset_at(x, tail.mean()) if ot is None else ot)
+        span = float(tail.mean() - head.mean())
+        out.append(((ot - oh) / span, span))
+    return out
+
+
+def corrected_rate(sections, FT, FS, DT, r):
+    """A better rate when the matched sections agree that r is off, else None."""
+    sl = section_rate_error(sections, FT, FS, DT, r)
+    if len(sl) < 3:
+        return None
+    d = np.array([x[0] for x in sl]); w = np.array([x[1] for x in sl]) ** 2
+    order = np.argsort(d)
+    med = float(d[order][np.searchsorted(np.cumsum(w[order]) / w.sum(), .5)])
+    agree = w[np.abs(d - med) <= max(.5 * abs(med), RATE_CHECK)].sum() / w.sum()
+    if abs(med) < RATE_CHECK or agree < .6:
+        return None
+    new = r + med
+    near = min(KNOWN, key=lambda x: abs(x - new))
+    new = near if abs(near - new) < RATE_SNAP else new
+    return None if abs(new - r) < 1e-9 else new
+
+
+STILL = 6e-4             # a section slides less than this at its true rate (real releases: <= 5e-4)
+
+
+def still_span(sections, FT, FS, DT, r):
+    """(Frames of matched sections that hold their pictures at rate r, median |slide|).
+
+    At the true rate the sections' pictures hold their offsets; at a wrong one
+    they slide by the rate error. Section length alone cannot tell: a slight
+    rate error makes small cuts look continuous, so sections at a wrong rate
+    are often longer. Counting only sections that hold still also keeps one
+    act at another rate (a long, clean section at its own rate) from deciding
+    the episode's rate.
+    """
+    sl = section_rate_error(sections, FT, FS, DT, r)
+    if not sl:
+        return 0., None
+    d = np.abs([x[0] for x in sl])
+    return float(sum(span for (_, span), x in zip(sl, d) if x < STILL)), float(np.median(d))
+
+
+def choose_rate(FT, DT, FS, DS, r0):
+    """(rate, sections, {rate: sections}) among r0 and the standard ratios within 5 %.
+
+    The pair-slope estimate r0 can be pulled off by evenly spread small cuts
+    (each pair spanning some of them leans the same way); the solved sections
+    themselves tell which rate holds the picture still within them.
+    """
+    ready = solve_rates(FT, DT, FS, DS, [r0] + list(KNOWN))
+    sols = {r0: ready[r0]}
+    for k in KNOWN:
+        if abs(k - r0) < .05 and all(abs(k - x) > 1e-9 for x in sols):
+            sols[k] = ready[k]
+    score = {x: still_span(v, FT, FS, DT, x) for x, v in sols.items()}
+    # Every solved rate goes back: other_rate_sections looks for acts at the others.
+    every = {**sols, **{k: v for k, v in ready.items() if all(abs(k - x) > 1e-9 for x in sols)}}
+    most = max(span for span, _ in score.values())
+    if most <= 0:
+        return r0, sols[r0], every
+    # Near-equal still spans (within 5 %): the rate whose sections slide least.
+    near = [x for x, (span, _) in score.items() if span >= .95 * most]
+    best = min(near, key=lambda x: score[x][1])
+    return best, sols[best], every
+
+
+# --- Solving several rates at once --------------------------------------------
+_W = {}                # a worker process's shared arrays
+
+
+def _attach(spec, samples, top, frames):
+    """Worker start: map the shared feature arrays and the shared frame matches."""
+    import weakref
+    from multiprocessing import shared_memory
+    global _TOP
+    for name, (shm_name, shape, dtype) in spec.items():
+        shm = shared_memory.SharedMemory(name=shm_name)
+        _W[name + '_shm'] = shm
+        _W[name] = np.ndarray(shape, dtype, buffer=shm.buf)
+    _TOP = (weakref.ref(_W['FT']), weakref.ref(_W['FS']), (samples.tobytes(), top), frames)
+
+
+def _solve_one(r):
+    return r, solve_sections(_W['FT'], _W['DT'], _W['FS'], _W['DS'], r)
+
+
+def _ready():
+    return 'FT' in _W
+
+
+def _can_spawn():
+    """Worker processes re-import the main program: it must be a script file or a module.
+
+    Not from stdin or an interactive session (a worker would die while starting
+    and the pool would wait forever), and never from inside a worker.
+    """
+    import os, sys
+    import multiprocessing
+    if multiprocessing.parent_process() is not None:
+        return False
+    main = sys.modules.get('__main__')
+    if getattr(getattr(main, '__spec__', None), 'name', None):
+        return True
+    path = getattr(main, '__file__', None)
+    return bool(path) and os.path.isfile(path)
+
+
+def solve_rates(FT, DT, FS, DS, rates):
+    """{rate: sections} for each rate (duplicates once), solved in parallel processes.
+
+    Each rate is solved by the same code as alone, so the result is identical;
+    only the waiting changes. The frame matches all rates share are computed
+    here once. If worker processes cannot be started, rates are solved in turn.
+    """
+    rates = [r for i, r in enumerate(rates) if all(abs(r - x) > 1e-9 for x in rates[:i])]
+    samples = np.arange(int(FPS * STEP), len(FT) - int(FPS * STEP), int(FPS * STEP))
+    frames = top_frames(FT, FS, samples)
+    import os
+    workers = min(len(rates), max(1, (os.cpu_count() or 1) // 2), int(os.environ.get('AUTOSYNC_RATE_WORKERS', '8')))
+    # Starting workers costs about a second: worth it for an episode, not a short clip.
+    if workers > 1 and len(FT) >= 600 * FPS and _can_spawn():
+        from multiprocessing import shared_memory, get_context
+        from concurrent.futures import ProcessPoolExecutor
+        shms, spec = [], {}
+        saved = {k: os.environ.get(k) for k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS')}
+        try:
+            for name, a in (('FT', FT), ('DT', DT), ('FS', FS), ('DS', DS)):
+                a = np.ascontiguousarray(a)
+                shm = shared_memory.SharedMemory(create=True, size=max(1, a.nbytes)); shms.append(shm)
+                np.ndarray(a.shape, a.dtype, buffer=shm.buf)[...] = a
+                spec[name] = (shm.name, a.shape, a.dtype.str)
+            # One math thread per worker: the workers are the parallelism.
+            os.environ.update({k: '1' for k in saved})
+            pool = ProcessPoolExecutor(workers, mp_context=get_context('spawn'), initializer=_attach,
+                                       initargs=(spec, samples, 8, frames))
+            try:
+                # A worker that dies while starting (its parent script cannot be
+                # re-imported) leaves the pool waiting forever: require a quick
+                # answer first, and stop the workers on any failure.
+                if not pool.submit(_ready).result(timeout=60):
+                    raise RuntimeError('workers did not receive the features')
+                result = dict(pool.map(_solve_one, rates))
+            except BaseException:
+                for p in list((getattr(pool, '_processes', None) or {}).values()):
+                    p.terminate()
+                pool.shutdown(wait=False, cancel_futures=True)
+                raise
+            pool.shutdown(wait=True)
+            return result
+        except Exception as e:  # no worker processes here: solve in turn
+            print(f'Picture timeline: parallel rate solving unavailable ({e}); solving in turn', flush=True)
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            for shm in shms:
+                shm.close(); shm.unlink()
+    return {r: solve_sections(FT, DT, FS, DS, r) for r in rates}
+
+
+def other_rate_sections(sections, FT, DT, FS, DS, r, progress=print, min_len=20, solved=None):
+    """Long stretches that run at another standard rate (one act from a PAL master).
+
+    At the episode rate such a stretch slides a frame or more per second, so
+    it breaks into short sections or none. Each other standard ratio is solved
+    on its own; its sections that keep one offset across short gaps (dark or
+    still frames) form a stretch. A stretch of at least min_len s replaces the
+    episode-rate solution there when it holds still at r2, its pictures match
+    on at least 20 % more of the frames, nothing at the episode rate inside it
+    is longer than half of it, and the source order stays forward. It keeps
+    the episode rate's offset form with drift knots, so its own speed is r2.
+    """
+    taken = []
+    solved = solved or {}
+    for r2 in KNOWN:
+        if abs(r2 - r) < 5e-3:
+            continue
+        got = next((v for k, v in solved.items() if abs(k - r2) < 1e-9), None)
+        stretches = []
+        for x in (got if got is not None else solve_sections(FT, DT, FS, DS, r2)):
+            if x['kind'] != 'match':
+                continue
+            g = stretches[-1] if stretches else None
+            if g and x['first'] - g['last'] <= 5 * FPS and abs(x['offset'] - g['offset']) <= 1.5:
+                n_ = g['samples'] + x['samples']
+                g.update(last=x['last'], offset=(g['offset'] * g['samples'] + x['offset'] * x['samples']) / n_,
+                         samples=n_, strong=g['strong'] + x['strong'])
+            else:
+                stretches.append(dict(x))
+        for x in stretches:
+            n = x['last'] - x['first']
+            if n < min_len * FPS or x['strong'] < 10:
+                continue
+            inside = [min(m['last'], x['last']) - max(m['first'], x['first']) for m in sections
+                      if m['kind'] == 'match' and m['last'] > x['first'] and m['first'] < x['last']]
+            if max(inside, default=0) > n / 2:
+                continue
+            fr = np.arange(x['first'], x['last'])
+            fr = fr[DT[fr] > 6]
+            if not len(fr):
+                continue
+            own = frame_scores(FT, FS, r2, x['first'], x['last'], x['offset'])[fr - x['first']] >= MATCH
+            main = np.zeros(len(fr), bool)
+            for m in sections:
+                if m['kind'] == 'match' and m['last'] > x['first'] and m['first'] < x['last']:
+                    lo, hi = max(m['first'], x['first']), min(m['last'], x['last'])
+                    sel = (fr >= lo) & (fr < hi)
+                    if sel.any():
+                        sc = frame_scores(FT, FS, r, lo, hi, offset_at(m, (lo + hi) / 2))
+                        main[sel] = sc[fr[sel] - lo] >= MATCH
+            if own.mean() < .5 or own.mean() < main.mean() + .2:
+                continue
+            sl = section_rate_error([x], FT, FS, DT, r2)
+            if not sl or abs(sl[0][0]) >= RATE_CHECK * 5:
+                continue                     # not steady at r2 either
+            taken.append((n, r2, x))
+    out = [dict(x) for x in sections]
+    for n, r2, x in sorted(taken, key=lambda v: -v[0]):
+        a, b = x['first'], x['last']
+        if any(y.get('rate') and y['first'] < b and y['last'] > a for y in out):
+            continue
+        k0, k1 = x['offset'] + (r2 - r) * a, x['offset'] + (r2 - r) * b
+        src0, src1 = r * a + k0, r * b + k1
+        before = [y for y in out if y['kind'] == 'match' and y['last'] <= a]
+        after = [y for y in out if y['kind'] == 'match' and y['first'] >= b]
+        if (before and r * before[-1]['last'] + offset_at(before[-1], before[-1]['last']) > src0 + 1.5 * FPS) or \
+                (after and r * after[0]['first'] + offset_at(after[0], after[0]['first']) < src1 - 1.5 * FPS):
+            continue                         # would replay or skip back
+        kept = []
+        for y in out:
+            if y['last'] <= a or y['first'] >= b:
+                kept.append(y); continue
+            for lo, hi in ((y['first'], min(y['last'], a - 1)), (max(y['first'], b + 1), y['last'])):
+                if hi - lo >= 2 * FPS:
+                    part = dict(y, first=lo, last=hi, samples=int((hi - lo) // (FPS * STEP)) + 1)
+                    kept.append(part)
+        kept.append(dict(kind='match', first=a, last=b, offset=(k0 + k1) / 2, samples=x['samples'],
+                         strong=x['strong'], knots=[(a, k0), (b, k1)], rate=r2, base=x['offset']))
+        out = sorted(kept, key=lambda y: y['first'])
+        progress(f'Picture timeline: {a / FPS:.1f}-{b / FPS:.1f}s runs at rate {r2:.9f} '
+                 f'(episode {r:.9f})')
+    return out
+
+
+def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, ratio=None, verify=None):
+    """Solve the timeline from unit-norm frame features (25 fps grids)."""
+    r = ratio or estimate_ratio(FT, DT, FS, DS)
+    progress(f'Picture timeline: source/target rate {r:.9f}')
+    samples = np.arange(int(FPS * STEP), len(FT) - int(FPS * STEP), int(FPS * STEP))
+    solved = {}
+    if ratio is None:
+        r1, merged, solved = choose_rate(FT, DT, FS, DS, r)
+        if r1 != r:
+            progress(f'Picture timeline: sections hold their pictures at rate {r1:.9f}, not {r:.9f}')
+            r = r1
+    else:
+        merged = solve_sections(FT, DT, FS, DS, r)
+    if ratio is None:
+        for _ in range(4):
+            new = corrected_rate(merged, FT, FS, DT, r)
+            if new is None:
+                break
+            progress(f'Picture timeline: matched sections slide against rate {r:.9f}; re-solving at {new:.9f}')
+            r = new
+            merged = solve_sections(FT, DT, FS, DS, r)
+        merged = other_rate_sections(merged, FT, DT, FS, DS, r, progress, solved=solved)
     def cut_near(i, step):
         # A cut: another matched section within 2 s (a short unmatched gap
         # between them is the join's own transition).
@@ -805,7 +1304,7 @@ def from_features(FS, DS, FT, DT, geometry, s_info, t_info, progress=print, rati
     drifted = []
     for i, s in enumerate(merged):
         got = follow_drift(s, FT, FS, DT, r, verify, cut_before=cut_near(i, -1),
-                           cut_after=cut_near(i, 1)) if s['kind'] == 'match' else None
+                           cut_after=cut_near(i, 1)) if s['kind'] == 'match' and not s.get('rate') else None
         if not got:
             drifted.append(s); continue
         drifted.extend(got)
@@ -832,6 +1331,121 @@ def edge_frame(FT, FS, r, lo, hi, offset, side):
     return lo + int(good[0]) if side == 'start' else lo + int(good[-1]) + k
 
 
+def both_fit(FT, FS, r, lo, hi, oa, ob, first, last, limit=15, back=True, ahead=True):
+    """Widen a join's search [lo, hi) over neighbouring seconds the other mapping fits as well.
+
+    Sections come from samples every STEP seconds; when two mappings differ by a
+    few frames (a micro cut) both fit those samples, so a section can run on
+    seconds past the real cut. Within [first, last) extend while the other
+    side's mapping matches at least as well as the section's own; a second its
+    own mapping clearly wins stops the search. place_cut then decides frame by
+    frame. Only a step between constant offsets is a cut to search for:
+    sub-frame steps need no search, and a drifting section (its own speed)
+    crosses over gradually, which the gap already brackets.
+    """
+    if abs(ob - oa) < 1:
+        return lo, hi
+    tol = 1 if abs(ob - oa) >= 3 else 0
+    def fits(x0, x1, other, own):
+        if x0 < first or x1 > last or x1 <= x0:
+            return False
+        o = float(np.mean(frame_scores(FT, FS, r, x0, x1, other, tol)))
+        return o > MATCH and o >= float(np.mean(frame_scores(FT, FS, r, x0, x1, own, tol)))
+    k = 0
+    while back and k < limit and fits(lo - FPS, lo, ob, oa):
+        lo -= FPS; k += 1
+    k = 0
+    while ahead and k < limit and fits(hi, hi + FPS, oa, ob):
+        hi += FPS; k += 1
+    return lo, hi
+
+
+def uncovered_span(FT, FS, DT, r, lo, hi, f1, f2, oa, ob, outer=None, low=.6, least=FPS // 4):
+    """Widen target-only frames [f1, f2) over adjacent informative frames in [lo, hi)
+    that the mapping on that side does not show (block scores under `low`).
+
+    Source accounting gives the target-only length less any source-only material
+    in the same gap; a censored dub that covers a removed scene with a shorter
+    freeze or repeat leaves exactly such frames at the scene's edges. Dark or
+    flat frames (no evidence) and frames that side's mapping shows stop the widening;
+    a widening of under `least` frames in all is dropped (dissolves, compression).
+    """
+    # Only mapping a can precede the target-only footage and only b follow it, so
+    # each side asks its own mapping (a look-alike shot may fit the other one).
+    # Block scores: a dub's mosaic or painted patch next to the scene is still
+    # its own mapping's picture, not dub-only material.
+    a = block_scores(FT, FS, r, lo, hi, oa); b = block_scores(FT, FS, r, lo, hi, ob)
+    inf = DT[lo:hi] > 6
+    # A cover is a freeze or repeat of the original's own footage: what the dub
+    # shows there is a picture the target has nearby. Source footage the target
+    # lacks altogether (another opening, a scene of its own) stays as it was:
+    # unmatched spans keep source audio.
+    ca = in_target(FT, FS, r, lo, hi, oa); cb = in_target(FT, FS, r, lo, hi, ob)
+    i, j = f1 - lo, f2 - lo
+    while i > 0 and inf[i - 1] and a[i - 1] < low and ca[i - 1]:
+        i -= 1
+    while j < hi - lo and inf[j] and b[j] < low and cb[j]:
+        j += 1
+    w1, w2 = lo + i, lo + j
+    # A dub freeze can resemble the removed scene's first or last shot (a
+    # look-alike pose), so it scores well at first. But under that side's
+    # mapping the dub's frames stand still while the original's move on.
+    # The freeze may run past the gap into the neighbouring section (it matched
+    # there): search up to `outer`, the sections' own extent.
+    o0, o1 = outer or (lo, hi)
+    w1 = min(w1, frozen_run(FT, FS, r, min(lo, o0), f1, oa, -1))
+    w2 = max(w2, frozen_run(FT, FS, r, f2, max(hi, o1), ob, 1))
+    return (w1, w2) if (f1 - w1) + (w2 - f2) >= least else (f1, f2)
+
+
+def in_target(FT, FS, r, lo, hi, offset, window=60 * FPS):
+    """Per target frame in [lo, hi): whether the source frame `offset` maps there is
+    a picture the target shows somewhere within +-window frames (score > MATCH)."""
+    ti = np.arange(lo, hi)
+    sj = np.round(r * ti + offset).astype(int)
+    ok = (sj >= 0) & (sj < len(FS))
+    out = np.zeros(len(ti), bool)
+    if ok.any():
+        t0, t1 = max(0, lo - window), min(len(FT), hi + window)
+        out[ok] = (FS[sj[ok]] @ FT[t0:t1].T).max(axis=1) > MATCH
+    return out
+
+
+def frozen_run(FT, FS, r, lo, hi, offset, step, still=.995, moved=.9, shown=.97, least=FPS // 2):
+    """Edge of a run of target frames from the insert's edge outwards (step +1:
+    from `lo` up, -1: from `hi` down) over which `offset` maps to one held source
+    picture while the target picture moves (some frame unlike the run's first,
+    similarity under `moved`) or plainly differs from it (mean under MATCH). The
+    held picture must be one the target shows nearby (a freeze of the original's
+    footage). The run ends where the held picture changes or where the target
+    shows it (similarity `shown`, or a jump of 0.3 above the run's first frame
+    to a match: the original's own frame, as when a dub freezes a shot's last
+    frame). Returns the far end of that run (exclusive for +1, inclusive start
+    for -1) or the starting edge when there is none, or when the run reaches
+    the search's end (not bounded)."""
+    ks = np.arange(lo, hi) if step > 0 else np.arange(hi - 1, lo - 1, -1)
+    if len(ks) < least:
+        return lo if step > 0 else hi
+    sj = np.round(r * ks + offset).astype(int)
+    ok = (sj >= 0) & (sj < len(FS))
+    if not ok[0] or not in_target(FT, FS, r, ks[0], ks[0] + 1, offset)[0]:
+        return lo if step > 0 else hi                 # not a freeze of the original's footage
+    # The run ends where the target shows the held picture: its own frame
+    # (`shown`), or a clear jump back to a match (the shot the dub froze).
+    stop = min(shown, max(MATCH, float(FT[ks[0]] @ FS[sj[0]]) + .3))
+    n = 0
+    while (n < len(ks) and ok[n] and float(FS[sj[0]] @ FS[sj[n]]) > still and
+           float(FT[ks[n]] @ FS[sj[n]]) < stop):
+        n += 1                                        # frames ks[0..n) show the held picture, unlike the target
+    if n < least or n >= len(ks):
+        return lo if step > 0 else hi
+    # Evidence the dub froze: the target moves on, or plainly is not the held picture.
+    fit = float(np.mean(np.sum(FT[ks[:n]] * FS[sj[:n]], axis=1)))
+    if float(np.min(FT[ks[:n]] @ FT[ks[0]])) > moved and fit >= MATCH:
+        return lo if step > 0 else hi
+    return int(ks[n - 1]) + 1 if step > 0 else int(ks[n - 1])
+
+
 def held_span(FT, FS, r, lo, hi, oa, ob, limit=30):
     """Widen [lo, hi) over adjacent frames that fit both mappings equally (a held shot)."""
     def held(x0, x1):
@@ -848,8 +1462,242 @@ def held_span(FT, FS, r, lo, hi, oa, ob, limit=30):
     return lo, hi
 
 
+# --- Censored dubs: fine (160x120) picture matching -------------------------
+# The 24x16 timing features cannot tell a mouth movement from a hand entering,
+# or one expression from the next; rebuilding what a censored dub shows needs
+# real pictures. Only the spans involved are decoded.
+FW, FH = 160, 120
+
+
+def fine_decode(path, first, n, info, rect=(0., 0., 1., 1.), ffmpeg='ffmpeg'):
+    """uint8 (n, FH, FW) gray frames for decoded-grid frames [first, first + n)."""
+    first = max(0, int(first)); n = max(1, int(n))
+    start = info['origin'] + first / FPS - info.get('file_start', 0.)
+    x0, y0, x1, y1 = rect
+    crop = '' if (x0, y0, x1, y1) == (0., 0., 1., 1.) else         f'crop=iw*{x1 - x0:.6f}:ih*{y1 - y0:.6f}:iw*{x0:.6f}:ih*{y0:.6f},'
+    out = _run([ffmpeg, '-v', 'error', '-nostdin', '-ss', f'{max(0., start):.6f}', '-i', str(path),
+                '-frames:v', str(n), '-map', '0:v:0', '-an', '-sn',
+                '-vf', f'fps={FPS},{crop}scale={FW}:{FH}:flags=area,format=gray', '-f', 'rawvideo', '-pix_fmt', 'gray', '-'])
+    f = np.frombuffer(out, np.uint8).reshape(-1, FH, FW)
+    if len(f) < n:                                    # end of file: repeat the last frame
+        f = np.concatenate([f, np.repeat(f[-1:], n - len(f), axis=0)]) if len(f) else np.zeros((n, FH, FW), np.uint8)
+    return f
+
+
+def _fine_mask():
+    m = np.ones((FH, FW), bool)
+    m[:int(FH * .22), int(FW * .7):] = False          # broadcaster logos (top right)
+    m[int(FH * .82):, int(FW * .72):] = False         # watermarks (bottom right)
+    m[int(FH * .85):, :] = False                      # burnt-in subtitles
+    return m
+
+
+FINE_MASK = _fine_mask()
+
+
+def fine_vectors(frames):
+    """Zero-mean unit-norm vectors of lightly blurred gray frames, logo corners masked."""
+    f = ndimage.uniform_filter(frames.astype(np.float32), size=(1, 3, 3))[:, FINE_MASK]
+    f -= f.mean(axis=1, keepdims=True)
+    return f / np.maximum(np.linalg.norm(f, axis=1, keepdims=True), 1e-6)
+
+
+def _border():
+    m = np.zeros((FH, FW), bool); k = max(2, int(FW * .08))
+    m[:k], m[-k:], m[:, :k], m[:, -k:] = True, True, True, True
+    return m & FINE_MASK
+
+
+FINE_BORDER = _border()
+
+
+def changed_share(a, b, level=24., region=None):
+    """Share of (unmasked, blurred) pixels in `region` (default all) differing by more than `level`."""
+    d = np.abs(ndimage.uniform_filter(a.astype(np.float32), 3) - ndimage.uniform_filter(b.astype(np.float32), 3)) > level
+    return float(np.mean(d[FINE_MASK if region is None else region]))
+
+
+def global_shift(a, b):
+    """Translation (pixels) best aligning frame b to frame a: phase correlation of gradients."""
+    def grad(x):
+        x = ndimage.uniform_filter(x.astype(np.float32), 3)
+        return np.hypot(ndimage.sobel(x, 0), ndimage.sobel(x, 1)) * FINE_MASK
+    A, B = np.fft.rfft2(grad(a)), np.fft.rfft2(grad(b))
+    R = A * np.conj(B); R /= np.maximum(np.abs(R), 1e-9)
+    c = np.fft.irfft2(R, s=a.shape)
+    y, x = np.unravel_index(int(np.argmax(c)), c.shape)
+    y = y - a.shape[0] if y > a.shape[0] // 2 else y
+    x = x - a.shape[1] if x > a.shape[1] // 2 else x
+    return float(np.hypot(x, y))
+
+
+def align_frames(D, T, tidx, jump=.3, near=None, pull=.004):
+    """Target frame (from tidx) for each dub vector in D: a coherent path.
+
+    Viterbi over candidate target frames: holding a frame or playing on to the
+    next costs nothing, any other jump costs `jump`; emission 1 - similarity.
+    A freeze stays on one frame and a repeat plays forward, instead of
+    flickering between look-alike drawings. Between near-equal candidates the
+    one closer to target frame `near` wins (`pull` per second): a dub freezes
+    or repeats footage next to its cut. Returns (path, similarity).
+    """
+    tidx = np.asarray(tidx); pos = {int(t): j for j, t in enumerate(tidx)}
+    prev_play = np.array([pos.get(int(t) - 1, -1) for t in tidx])
+    S = D @ T.T
+    E = 1 - S + (0 if near is None else pull * np.abs(tidx - near)[None, :] / FPS)
+    dp = E[0].copy(); back = []
+    for i in range(1, len(D)):
+        play = np.where(prev_play >= 0, dp[np.maximum(prev_play, 0)], np.inf)
+        best = int(np.argmin(dp))
+        cand = np.vstack([dp, play, np.full(len(dp), dp[best] + jump)])
+        k = np.argmin(cand, axis=0)
+        src = np.where(k == 0, np.arange(len(dp)), np.where(k == 1, prev_play, best))
+        back.append(src); dp = cand[k, np.arange(len(dp))] + E[i]
+    j = int(np.argmin(dp)); path = [j]
+    for src in reversed(back):
+        j = int(src[j]); path.append(j)
+    path = path[::-1]
+    return tidx[path], S[np.arange(len(D)), path]
+
+
+def path_pieces(path):
+    """[(first_frame, last_frame, count)] chunks of a frame path split at jumps (hold: first == last)."""
+    out = []
+    for i, f in enumerate(path):
+        f = int(f)
+        if out and 0 <= f - out[-1][1] <= 1:
+            out[-1] = (out[-1][0], f, out[-1][2] + 1)
+        else:
+            out.append((f, f, 1))
+    return out
+
+
+def sway_fine(T, center, share=.025, cut=.5, limit=15):
+    """(lo, hi) offsets from `center` in fine target frames T (index center = the held frame)
+    over which the held frame may play back and forth: contiguous frames that differ from it
+    in under `share` of the picture (mouths, eyes), within `limit` frames, with no camera move
+    (rocking a pan back and forth looks wrong), nothing changing along the frame border (a hand
+    or a person coming into view) and no picture cut in between."""
+    ref = T[center]; v = fine_vectors(T)
+    def ok(k, step):
+        return 0 <= k < len(T) and abs(k - center) <= limit and float(v[k] @ v[k - step]) > cut and             changed_share(T[k], ref) < share and global_shift(ref, T[k]) < 1 and             changed_share(T[k], ref, region=FINE_BORDER) < .01   # no camera move, nothing entering
+    lo = hi = center
+    while ok(lo - 1, -1):
+        lo -= 1
+    while ok(hi + 1, 1):
+        hi += 1
+    return lo - center, hi - center
+
+
+class FineDub:
+    """Fine pictures of a censored dub (source) and its original (target), decoded on demand."""
+    def __init__(self, src, s_info, s_rect, tgt, t_info, t_rect, FS, FT, ffmpeg='ffmpeg'):
+        self.src, self.si, self.sr, self.tgt, self.ti, self.tr = src, s_info, s_rect, tgt, t_info, t_rect
+        self.FS, self.FT, self.ffmpeg = FS, FT, ffmpeg
+
+    def dub(self, first, n):
+        return fine_decode(self.src, first, n, self.si, self.sr, self.ffmpeg)
+
+    def orig(self, frames):
+        """Fine target frames for sorted frame indices (decoded in merged runs)."""
+        frames = np.asarray(sorted(set(int(f) for f in frames if 0 <= f < len(self.FT))))
+        out = np.zeros((len(frames), FH, FW), np.uint8); i = 0
+        while i < len(frames):
+            j = i
+            while j + 1 < len(frames) and frames[j + 1] - frames[j] <= 25:
+                j += 1
+            run = fine_decode(self.tgt, frames[i], frames[j] - frames[i] + 1, self.ti, self.tr, self.ffmpeg)
+            out[i:j + 1] = run[frames[i:j + 1] - frames[i]]; i = j + 1
+        return frames, out
+
+    def align(self, src, near, mapped=None, window=60, top=6):
+        """Coherent target path for source frames `src` (see align_frames).
+
+        Candidates: each dub frame's best coarse matches within +-window s of
+        target frame `near`, the frames around `near`, and (for a replaced
+        span) the target frames the plan maps there, so the path keeps them
+        wherever the dub really shows them. Returns (path, sim, dub fine
+        frames, candidate frames, their fine frames, mapped sims or None).
+        """
+        lo, hi = max(0, near - window * FPS), min(len(self.FT), near + window * FPS)
+        sim = self.FS[src] @ self.FT[lo:hi].T
+        cand = set(range(max(0, near - 50), min(len(self.FT), near + 51)))
+        for row in sim:
+            for k in np.argpartition(-row, min(top, len(row) - 1))[:top]:
+                cand.update(range(lo + int(k) - 6, lo + int(k) + 7))
+        if mapped is not None:
+            for m in mapped:
+                cand.update(range(int(m) - 12, int(m) + 13))
+        tidx, T = self.orig(cand)
+        D = self.dub(src[0], src[-1] - src[0] + 1)[src - src[0]]
+        Dv, Tv = fine_vectors(D), fine_vectors(T)
+        path, ps = align_frames(Dv, Tv, tidx, near=near)
+        ms = None
+        if mapped is not None:
+            pos = {int(t): j for j, t in enumerate(tidx)}
+            ms = np.array([max(float(Dv[i] @ Tv[pos[int(m) + d]]) for d in (-1, 0, 1) if int(m) + d in pos)
+                           if any(int(m) + d in pos for d in (-1, 0, 1)) else -1. for i, m in enumerate(mapped)])
+        return path, ps, D, tidx, T, ms
+
+    def pieces(self, path, D, tidx, T, still=.985, min_hold=12):
+        """[(target_frame, last_frame, count, sway)] from a path; a held frame the dub
+        shows still for at least min_hold frames gets its safe sway (lo, hi) offsets."""
+        out, i = [], 0
+        Dv = fine_vectors(D)
+        for f, g, n in path_pieces(path):
+            sway = None
+            if g - f > 2 and (g - f + 1) / n < .3:
+                # Crawling through a few look-alike frames: the dub holds; take its most used frame.
+                vals, counts = np.unique(path[i:i + n], return_counts=True)
+                f = g = int(vals[int(np.argmax(counts))])
+            if g - f <= 2 and n >= min_hold and np.median(np.sum(Dv[i + 1:i + n] * Dv[i:i + n - 1], axis=1)) > still:
+                wf, W = self.orig(range(f - FPS, f + FPS + 1))
+                lo, hi = sway_fine(W, int(np.searchsorted(wf, f)))
+                if hi - lo >= 3:
+                    sway = (lo, hi)
+            out.append((f, g, n, sway)); i += n
+        return out
+
+
+def runs_of(flag, gap=12, min_len=10):
+    """[(i0, i1)] runs of True in `flag`, bridging gaps of up to `gap`, at least min_len long."""
+    idx, out, a = np.flatnonzero(flag), [], 0
+    while a < len(idx):
+        b = a
+        while b + 1 < len(idx) and idx[b + 1] - idx[b] <= gap + 1:
+            b += 1
+        if idx[b] + 1 - idx[a] >= min_len:
+            out.append((int(idx[a]), int(idx[b]) + 1))
+        a = b + 1
+    return out
+
+
+def replaced_candidates(FS, FT, DS, frames, src, window=60, margin=.08, low=.85, gap=25, min_len=6):
+    """[(i0, i1)] runs in `frames` where the dub's frame looks more like another target frame
+    (within +-window s) than the one the plan maps it to: coarse candidates for fine checking."""
+    ok = (src >= 1) & (src < len(FS) - 1) & (frames < len(FT))
+    flag = np.zeros(len(frames), bool)
+    for i in np.flatnonzero(ok):
+        f, j = int(frames[i]), int(src[i])
+        mapped = max(float(FT[f] @ FS[j + k]) for k in (-1, 0, 1))
+        if mapped >= low or DS[j] <= 6:
+            continue
+        lo, hi = max(0, f - window * FPS), min(len(FT), f + window * FPS)
+        s = FT[lo:hi] @ FS[j]; s[max(0, f - 12 - lo):max(0, f + 13 - lo)] = -1
+        flag[i] = s.max() > mapped + margin
+    runs, idx, a = [], np.flatnonzero(flag), 0
+    while a < len(idx):
+        b = a
+        while b + 1 < len(idx) and idx[b + 1] - idx[b] <= gap:
+            b += 1
+        if idx[b] + 1 - idx[a] >= min_len:
+            runs.append((int(idx[a]), int(idx[b]) + 1))
+        a = b + 1
+    return runs
+
+
 def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place_cut, audio_cut=None, target_shift=0.,
-                     quiet=None):
+                     quiet=None, audio_place=None):
     """Convert sections into contiguous AutoSync segments in target seconds.
 
     Internally times are decoded-frame seconds (frame k = k/FPS).
@@ -857,6 +1705,9 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
     target_shift: target time (video-relative) = target frame seconds + target_shift.
     quiet(starts, length): mean target-audio loudness of windows starting at the
     given frame seconds, or None; places inserts inside held shots.
+    audio_place(p, m, starts, length): index of the start (frame seconds) the
+    audio singles out for target-only footage between sections p and m, or
+    None; tried before `quiet`.
     Returns (segments, models, notes).
     """
     d = tl.diagnostics; FT, FS, DT = d['FT'], d['FS'], d['DT']; r = tl.ratio
@@ -886,14 +1737,32 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
         insert = L - (sb_start - sa_end) / FPS / r       # target seconds without source
         if insert < .25:
             # Continuous or a source-only cut: switch once, frame-accurately.
+            def resolve(f, s0, s1):
+                t, how, located = f / FPS, 'picture-located join', False
+                if (s1 - s0) / FPS > .2 and audio_cut is not None:
+                    # Static/dark frames between the evidence: audio decides inside the span.
+                    got = audio_cut(p, m, t, s0 / FPS, s1 / FPS)
+                    if got is not None:
+                        t, how = got; located = how.startswith('audio-located')
+                return t, how, (s1 - s0) / FPS, located
             f, s0, s1 = place(FT, FS, DT, r, gap_lo - FPS, gap_hi + FPS, oa, ob)
-            t, method = f / FPS, 'picture-located join'
-            span = (s1 - s0) / FPS
-            if span > .2 and audio_cut is not None:
-                # Static/dark frames between the evidence: audio decides inside the span.
-                got = audio_cut(p, m, t, s0 / FPS, s1 / FPS)
-                if got is not None:
-                    t, method = got
+            t, method, span, _ = resolve(f, s0, s1)
+            # A span reaching the window's edge is not bounded there by any picture:
+            # the cut may lie further out (see both_fit). Search on that side, and
+            # use the result only when it resolves the join (pictures within 3 s, or
+            # audio locating it); otherwise the original placement stands.
+            back, ahead = s0 <= max(0, gap_lo - FPS), s1 >= min(len(FT), gap_hi + FPS)
+            if (back or ahead) and not p.get('knots') and not m.get('knots'):
+                w0, w1 = both_fit(FT, FS, r, gap_lo, gap_hi, oa, ob, max(p['first'], int(np.ceil(cursor * FPS))),
+                                  m['last'], back=back, ahead=ahead)
+                if (w0, w1) != (gap_lo, gap_hi):
+                    wide = resolve(*place(FT, FS, DT, r, w0 - FPS, w1 + FPS, oa, ob))
+                    if wide[2] <= 3.:
+                        t, method, span = wide[:3]
+                    elif wide[3]:
+                        # Audio pins the cut outside the first window: take its position.
+                        # Confidence stays as the first window's evidence gives it.
+                        t, method = wide[:2]
             # Joins bounded by picture evidence within 3 s are located; wider spans
             # remain uncertain (and block when they skip source audio).
             conf = 'supported' if span <= 3. else 'uncertain'
@@ -924,11 +1793,25 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
                 # the pictures. Put the extra time where the target audio, which
                 # fills it, is quietest, so no audible sound is doubled or cut.
                 tied = np.flatnonzero(vals >= vals[x] - .5)
-                if quiet is not None and len(tied) >= FPS // 2:
+                # Audio first: the source stops matching the target where the
+                # extra footage starts and matches again where it ends.
+                got = (audio_place(p, m, (lo + tied) / FPS, n / FPS)
+                       if audio_place is not None and len(tied) >= FPS // 2 else None)
+                if got is not None:
+                    x = int(tied[got]); how = 'held shot shown longer, placed where the source audio stops and resumes matching'
+                elif quiet is not None and len(tied) >= FPS // 2:
                     loud = quiet((lo + tied) / FPS, n / FPS)
                     if loud is not None:
                         x = int(tied[int(np.argmin(loud))]); how = 'held shot shown longer, placed at the quietest target audio'
-            t1 = (lo + x) / FPS; t2 = t1 + n / FPS
+            # A censored dub may cover the removed scene with shorter material of its
+            # own (a freeze, a repeated shot): the target-only span is then longer
+            # than the source accounting says, and that material is dub-only
+            # source, skipped here (censored-dub "recreate" can rebuild it).
+            w1, w2 = uncovered_span(FT, FS, DT, r, lo, hi, lo + x, lo + x + n, oa, ob,
+                                    outer=(max(p['first'], int(np.ceil(cursor * FPS))), m['last']))
+            if (w1, w2) != (lo + x, lo + x + n):
+                how += f'; the dub shows {((lo + x - w1) + (w2 - lo - x - n)) / FPS:.2f}s of its own footage here (skipped)'
+            t1 = w1 / FPS; t2 = w2 / FPS
             pieces.append([cursor, t1, 'audio', oa, {'sec': p}])
             pieces.append([t1, t2, 'insert', None, {}])
             notes.append(dict(start=t1, end=t2, splice=t1, confidence='supported',
@@ -1009,6 +1892,12 @@ def to_plan_segments(tl, duration, source_audio_length, audio_shift, place=place
                                  reason='Picture-verified target-only footage; use selected target audio' if verified else
                                         'Target opening/ending with no source pictures'))
     for m in matches:
+        if m.get('rate'):                    # a stretch at its own rate (see other_rate_sections)
+            r2 = m['rate']
+            models.append(dict(speed=r2, offset=m['base'] / FPS + audio_shift - r2 * target_shift,
+                               first=m['first'] / FPS + target_shift, last=m['last'] / FPS + target_shift,
+                               anchors=m['strong'], p90_residual=0.))
+            continue
         models.append(dict(speed=r, offset=m['offset'] / FPS + audio_shift - r * target_shift,
                            first=m['first'] / FPS + target_shift, last=m['last'] / FPS + target_shift,
                            anchors=m['strong'], p90_residual=0.))

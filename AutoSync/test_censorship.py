@@ -111,8 +111,8 @@ class SmoothSwitch(unittest.TestCase):
     def test_restored_scene_matches_dub_loudness(self):
         rms = self.render(.2)                                                 # 8 dB quieter
         self.assertAlmostEqual(rms(5, 7) / rms(1, 3), 1., delta=.05)
-        # 25 ms fade at the switch: near-silent exactly at the join, full level 40 ms away.
-        self.assertLess(rms(3.999, 4.001), .2 * rms(1, 3))
+        # 60 ms crossfade at the switch: no gap at the join, full level 40 ms away.
+        self.assertGreater(rms(3.995, 4.005), .7 * rms(1, 3))
         self.assertGreater(rms(4.03, 4.05), .8 * rms(1, 3))
 
     def test_large_level_difference_is_matched(self):
@@ -122,6 +122,162 @@ class SmoothSwitch(unittest.TestCase):
     def test_gain_never_exceeds_20_db(self):
         rms = self.render(.025)                                               # 26 dB quieter
         self.assertAlmostEqual(rms(5, 7) / rms(1, 3), .5, delta=.05)          # 10x = +20 dB at most
+
+
+
+def recreate_episode():
+    """episode() with the engine's findings: the 2 s dub-only spot is a 1.5 s freeze of
+    target 68.0 s then 0.5 s of target 60.0-60.5 s; the dub replaced 52-54 s with a hold."""
+    p = episode()
+    p['target_video'] = 't.mkv'
+    p['segments'][4]['dub_pictures'] = dict(source_length=2., pieces=[
+        dict(at=-2., length=1.5, hold=True, sway=[-.5, .4]), dict(at=-10., length=.5, hold=False)])
+    p['segments'][3]['dub_replaced'] = [dict(source=35., length=2., pieces=[dict(rel=-1., length=2., hold=True)])]
+    return p
+
+
+class Recreate(unittest.TestCase):
+    """Censored-dub "recreate": the dub's own edit, rebuilt from the original's pictures."""
+    def test_removed_scenes_are_cut_and_dub_material_is_rebuilt(self):
+        p = censorship.annotate(recreate_episode(), 'recreate')
+        self.assertEqual(p['segments'][2]['censored_action'], 'cut')
+        self.assertTrue(censorship.needs_cut(p))
+        found = {x['kind']: x for x in censorship.scenes(p)}
+        self.assertEqual(found['dub_only']['action'], 'recreate')
+        self.assertEqual(found['replaced']['action'], 'recreate')
+        self.assertAlmostEqual(found['replaced']['start'], 52.)
+        self.assertTrue(any('rebuilt from held' in line for line in censorship.report(p)))
+        edited = remove_missing(p)
+        # 10 s removed scene cut, 2 s of dub-only material added: every dub second plays.
+        self.assertAlmostEqual(edited['duration'], 92.)
+        audio = [s for s in edited['segments'] if s['kind'] == 'audio']
+        for a, b in zip(audio, audio[1:]):
+            self.assertAlmostEqual(b['target_start'], a['target_end'])
+        ends = [(a['source_start'] + (a['target_end'] - a['target_start']) * a['speed'], b['source_start'])
+                for a, b in zip(audio, audio[1:])]
+        self.assertTrue(all(abs(x - y) < 1e-6 for x, y in ends[1:]))   # only the cut scene's own jump remains
+        rebuilt = [k for k in edited['video_edits']['kept'] if k.get('recreated')]
+        self.assertEqual([k.get('hold') for k in rebuilt], [51., 68., None])
+        self.assertAlmostEqual(rebuilt[0]['output_start'], 42.)     # replaced shot inside the dub's segment
+        self.assertAlmostEqual(rebuilt[1]['output_start'], 60.)     # dub-only freeze before the dub resumes
+        self.assertAlmostEqual(rebuilt[2]['output_start'], 61.5)
+        self.assertAlmostEqual(rebuilt[2]['original_start'], 60.)
+
+    def test_restore_and_cut_ignore_the_rebuild_data(self):
+        for action, duration in (('restore', 100.), ('cut', 90.)):
+            p = censorship.annotate(recreate_episode(), action)
+            if action == 'cut':
+                edited = remove_missing(p)
+                self.assertAlmostEqual(edited['duration'], duration)
+                self.assertFalse(any(k.get('recreated') for k in edited['video_edits']['kept']))
+            self.assertEqual({x['action'] for x in censorship.scenes(p) if x['kind'] == 'dub_only'}, {'skip'})
+
+    def test_trimmed_segment_is_not_rebuilt(self):
+        p = recreate_episode()
+        p['segments'][4].update(target_start=71., source_start=56.)   # its start moved: the skip no longer matches
+        p = censorship.annotate(p, 'recreate')
+        self.assertEqual([x['action'] for x in censorship.scenes(p) if x['kind'] == 'dub_only'], ['skip'])
+
+    def test_export_graph_has_exact_frame_counts(self):
+        import video_edits
+        p = remove_missing(censorship.annotate(recreate_episode(), 'recreate'))
+        kept = p['video_edits']['kept']
+        kept.insert(3, dict(start=0., end=0., output_start=kept[3]['output_start'], recreated=True,
+                            length=.01, hold=5.))          # rounds to no frame: left out
+        old = video_edits.target_picture
+        video_edits.target_picture = lambda path: (64, 48, '1/1', '24000/1001')
+        try:
+            _, graph = video_edits.media_graph(p)
+        finally:
+            video_edits.target_picture = old
+        import re
+        self.assertNotIn('trim=start=4.979', graph)
+        counts = [int(x) for x in re.findall(r'trim=end_frame=(\d+)', graph)]
+        self.assertEqual(sum(counts), round(92. * 24000 / 1001))
+        self.assertIn('setpts=N/(24000/1001)/TB[v]', graph)
+        self.assertIn(',reverse,', graph)                  # the freeze plays its shot back and forth
+        frozen = remove_missing(censorship.annotate(recreate_episode(), 'recreate', 'freeze'))
+        self.assertFalse(any(k.get('sway') for k in frozen['video_edits']['kept']))
+
+
+
+class EditorMotionFill(unittest.TestCase):
+    """Preview & Edit "Fill motion" ranges, laid on after censored-dub cuts and rebuilds."""
+    def test_fill_lands_on_the_cut_output_and_keeps_the_sound(self):
+        from autosync import censored_render_plan
+        p = censorship.annotate(recreate_episode(), 'recreate')
+        p['video_edits'] = dict(original_target_duration=100., removed=[], kept=[
+            dict(start=0., end=60., output_start=0., original_start=0., original_end=60.),
+            dict(start=60., end=64., output_start=60., original_start=58., original_end=62., fill='motion', hold=58.),
+            dict(start=64., end=100., output_start=64., original_start=64., original_end=100.)])
+        with tempfile.TemporaryDirectory() as d:
+            r = censored_render_plan(p, d)
+        self.assertAlmostEqual(r['duration'], 92.)                       # the cut and the rebuild still apply
+        fill = [k for k in r['video_edits']['kept'] if k.get('fill')]
+        self.assertEqual(len(fill), 1)
+        # Analysed 60-64 s sits after the 10 s cut and the 2 s rebuilt replacement offset: output 50-54 s.
+        self.assertAlmostEqual(fill[0]['output_start'], 50.)
+        self.assertAlmostEqual(fill[0]['end'] - fill[0]['start'], 4.)
+        self.assertAlmostEqual(fill[0]['hold'], 58.)
+        audio = [s for s in r['segments'] if s['kind'] == 'audio']
+        plain = [s for s in remove_missing(censorship.annotate(recreate_episode(), 'recreate'))['segments'] if s['kind'] == 'audio']
+        self.assertEqual([(s['target_start'], s['source_start']) for s in audio], [(s['target_start'], s['source_start']) for s in plain])
+
+    def test_fill_motion_stops_at_a_camera_move(self):
+        import video_edits
+        p = dict(target_video='t.mkv', video_edits=dict(kept=[
+            dict(start=0., end=2., output_start=0., original_start=5., original_end=7., fill='motion', hold=5.)]))
+        import picture_timeline as pt
+        old = pt.stream_info, pt.fine_decode
+        frames = np.zeros((31, pt.FH, pt.FW), np.uint8); frames[:, :, ::7] = 200
+        frames[16:] = np.roll(frames[16:], 3, axis=2)                     # a camera move right after the frame
+        pt.stream_info = lambda path, ffprobe=None: dict(origin=0., start=0., file_start=0.)
+        pt.fine_decode = lambda *a, **k: frames
+        try:
+            got = video_edits.fill_pieces(p)
+        finally:
+            pt.stream_info, pt.fine_decode = old
+        self.assertTrue(got[0]['recreated'])
+        self.assertAlmostEqual(got[0]['length'], 2.)
+        self.assertLessEqual(got[0].get('sway', [5., 5.])[1], 5.)          # stops where the camera move starts
+
+
+
+class EditorBlackFill(unittest.TestCase):
+    def test_black_fill_is_a_colour_source_with_exact_frames(self):
+        import video_edits, re
+        p = dict(target_video='t.mkv', duration=10., video_edits=dict(kept=[
+            dict(start=0., end=4., output_start=0., original_start=0., original_end=4.),
+            dict(start=4., end=6., output_start=4., original_start=4., original_end=6., fill='black', hold=4.),
+            dict(start=6., end=10., output_start=6., original_start=6., original_end=10.)]))
+        old = video_edits.target_picture
+        video_edits.target_picture = lambda path: (64, 48, '1/1', '25/1')
+        try:
+            _, graph = video_edits.media_graph(p)
+        finally:
+            video_edits.target_picture = old
+        self.assertIn('color=c=black:s=64x48', graph)
+        self.assertEqual(sum(int(x) for x in re.findall(r'trim=end_frame=(\d+)', graph)), 250)
+
+
+
+class EditorTrackFootage(unittest.TestCase):
+    def test_footage_from_a_video_track_lands_after_the_cuts(self):
+        from autosync import censored_render_plan
+        p = censorship.annotate(recreate_episode(), 'recreate')
+        # A duplicated, slipped track: analysed 20-25 s shows target footage from 70-75 s.
+        p['video_edits'] = dict(original_target_duration=100., removed=[], kept=[
+            dict(start=0., end=20., output_start=0., original_start=0., original_end=20.),
+            dict(start=20., end=25., output_start=20., original_start=70., original_end=75.),
+            dict(start=25., end=100., output_start=25., original_start=25., original_end=100.)])
+        with tempfile.TemporaryDirectory() as d:
+            r = censored_render_plan(p, d)
+        self.assertAlmostEqual(r['duration'], 92.)
+        moved = [k for k in r['video_edits']['kept'] if not k.get('recreated') and abs(k.get('original_start', -1) - 70.) < 1e-6
+                 and abs(k['output_start'] - 20.) < 1e-6]
+        self.assertEqual(len(moved), 1)
+        self.assertAlmostEqual(moved[0]['output_start'], 20.)            # before the cut scene: same output time
+        self.assertAlmostEqual(moved[0]['original_end'] - moved[0]['original_start'], 5.)
 
 
 if __name__ == '__main__':

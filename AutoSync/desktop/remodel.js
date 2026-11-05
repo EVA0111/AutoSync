@@ -1,10 +1,10 @@
-localStorage.removeItem('autosync-language');
-document.documentElement.lang='en';document.documentElement.dir='ltr';
 // Presentation only: existing engine payloads and file identities stay unchanged.
 const topbar=document.createElement('div');topbar.className='topbar';
 const brand=document.querySelector('.brand');const github=$('github-profile');
 const settingsButton=document.createElement('button');settingsButton.id='open-settings';settingsButton.textContent='⚙ Settings';settingsButton.onclick=()=>{workspace=workspace==='Settings'?'Sync jobs':'Settings';applyWorkspace();};
 topbar.append(brand,settingsButton,github);document.body.prepend(topbar);
+// Interface language (i18n.js loads after this file).
+document.addEventListener('DOMContentLoaded',()=>{if(globalThis.I18N)settingsButton.before(I18N.picker());});
 const nav=document.querySelector('nav');nav.className='workspace-tabs';topbar.after(nav);
 const syncNav=nav.querySelector('[data-task="Sync jobs"]');syncNav.classList.add('hidden');settingsNav.classList.add('hidden');
 for(const [key,label] of [['audio','Audio'],['subtitles','Subtitles'],['jobs','Jobs']]){const b=document.createElement('button');b.className='tab';b.dataset.tab=key;b.textContent=label;b.onclick=()=>{activeTab=key;workspace='Sync jobs';applyWorkspace();};nav.append(b);}
@@ -24,17 +24,6 @@ const help=Array.from($('batch-panel').querySelectorAll('.hint')).find(el=>el.te
 const modeBar=document.createElement('div');modeBar.className='mode-bar';modeBar.innerHTML='<label for="mode-select">Sync mode</label><select id="mode-select"></select><button id="mode-details" class="secondary">Mode details</button>';
 const modeSelect=modeBar.querySelector('select');for(const radio of document.querySelectorAll('[name=mode]'))modeSelect.add(new Option(radio.closest('.mode').querySelector('strong').textContent,radio.value));modeSelect.value=document.querySelector('[name=mode]:checked').value;
 $('mode-section').querySelector('h2').remove();$('mode-section').prepend(modeBar);$('mode-section').querySelector('.modes').classList.add('hidden');
-// The matching algorithm is independent of output choice. Standard stays the
-// default; selecting AI does not change full/main/OP-ED export behavior.
-const methodBox=document.createElement('div');methodBox.className='sync-method-selector';
-methodBox.innerHTML='<label for="sync_method">Matching method</label><select id="sync_method"><option value="standard">Standard (default)</option><option value="ai_assisted">AI-assisted (experimental)</option></select><small id="sync-method-help">Standard matching uses audio fingerprints and video scenes.</small>';
-modeBar.after(methodBox);
-$('sync_method').onchange=()=>{
- $('sync-method-help').textContent=$('sync_method').value==='ai_assisted'
- ?'Uses pretrained AST sound embeddings, plus DINOv2 for weak scene matching. Install AI Sync in Setup first; downloads are optional and the first analysis is slower.'
- :'Standard matching uses audio fingerprints and video scenes.';
- refreshReadiness();
-};
 modeSelect.onchange=()=>{const radio=Array.from(document.querySelectorAll('[name=mode]')).find(r=>r.value===modeSelect.value);radio.checked=true;radio.dispatchEvent(new Event('change'));refreshReadiness();};
 $('mode-details').onclick=()=>$('mode-section').querySelector('.modes').classList.toggle('hidden');
 document.querySelectorAll('[name=mode]').forEach(r=>r.addEventListener('change',()=>modeSelect.value=r.value));
@@ -94,13 +83,13 @@ audioSection.before(workGrid);workGrid.append(workMain,workSide);workMain.append
 function sideCard(id,title,note){const c=document.createElement('section');c.className='card';c.id=id;const h=document.createElement('h3');h.textContent=title;c.append(h);if(note){const p=document.createElement('p');p.className='card-note';p.textContent=note;c.append(p);}workSide.append(c);return c;}
 const modeCard=sideCard('mode-card','Output');
 modeCard.append($('mode-section'));$('mode-section').querySelector('.modes').classList.remove('hidden');modeBar.classList.add('hidden');
-const methodCard=sideCard('method-card','Matching');methodCard.append(methodBox);methodBox.querySelector('label').textContent='Method';
 // Censored or re-edited dubs (e.g. an old Arabic dub of a Japanese original).
 const censorCard=sideCard('censor-card','Censored or edited dub');
 censorCard.insertAdjacentHTML('beforeend','<label class="field-stack" for="censored_dub">When the dub removed scenes<select id="censored_dub">'+
  '<option value="">Off (the source is complete)</option>'+
  '<option value="restore">Restore with the original audio</option>'+
- '<option value="cut">Cut from the video</option></select></label>'+
+ '<option value="cut">Cut from the video</option>'+
+ '<option value="recreate">Recreate the dub&rsquo;s version (cut them; rebuild its freezes and repeats from the original)</option></select></label>'+
  '<p class="card-note" id="censor-help">Lists every scene the dub removed or re-cut in the report and in Preview &amp; Edit, where you can change each one.</p>'+
  '<div id="censor-fields" class="hidden"></div>');
 fileField('censor-fields',['restored_subtitles','Subtitles for restored scenes (optional)','subtitle','Original-version subtitles: lines inside restored scenes are saved separately']);
@@ -141,7 +130,7 @@ const featureGroup=settingsGroup('Features','Optional tools. Turned-off advanced
 featureGroup.append(...settings.querySelectorAll('.preference-row'));
 const folderGroup=settingsGroup('Folders');folderGroup.append($('report-fields'),$('temp-fields'));
 const setupDetails=$('setup-engine').closest('details');setupDetails.open=true;
-const engineGroup=settingsGroup('Engine & AI models',setupDetails.querySelector('p').textContent);
+const engineGroup=settingsGroup('Engine',setupDetails.querySelector('p').textContent);
 engineGroup.append($('setup-engine').parentElement);setupDetails.remove();
 settings.querySelector('h2').textContent='Settings';settings.querySelector(':scope>p').remove();
 // Run bar: progress and next step on the left, actions on the right.
@@ -160,7 +149,7 @@ const resetBeforeLayout=resetProgress;resetProgress=function(){resetBeforeLayout
 function applyLayout(){
  const sync=workspace==='Sync jobs',saved=workspace==='Saved plan',audioTab=sync&&activeTab==='audio';
  workGrid.classList.toggle('hidden',!(saved||(sync&&activeTab!=='jobs')));
- for(const c of [modeCard,methodCard,censorCard,tracksCard])c.classList.toggle('hidden',!audioTab||!$('enable-audio').checked);
+ for(const c of [modeCard,censorCard,tracksCard])c.classList.toggle('hidden',!audioTab||!$('enable-audio').checked);
  // workspace.js re-homes the advanced panel for saved plans; keep it in its card otherwise.
  if(!saved&&$('audio-advanced').parentElement!==advancedCard)advancedCard.append($('audio-advanced'));
  advancedCard.classList.toggle('hidden',saved||!audioTab||$('audio-advanced').classList.contains('hidden'));

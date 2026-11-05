@@ -15,8 +15,18 @@ function validateSegments(rows,duration){
    throw Error('Regions must be contiguous, ordered, nonempty and inside the output timeline (region '+(i+1)+').');
   previous=end;
   const kind=row.kind;
-  if(!['audio','reference','target_outer','verified_gap'].includes(kind))
+  if(!['audio','reference','target_outer','verified_gap','media'].includes(kind))
    throw Error('Invalid region kind '+kind);
+  if(kind==='media'){
+   const ms=Number(row.media_start||0);
+   if(typeof row.media!=='string'||!row.media||!Number.isFinite(ms)||ms<0)throw Error('Invalid imported media in region '+(i+1));
+   if(row.media_stream!==null&&row.media_stream!==undefined&&!(Number.isInteger(Number(row.media_stream))&&Number(row.media_stream)>=0))
+    throw Error('Invalid imported audio stream in region '+(i+1));
+  }
+  // Optional clip gain (dB) and fades (ms), applied in the preview and at export.
+  const g=row.gain_db===undefined?0:Number(row.gain_db),fi=row.fade_in_ms===undefined?0:Number(row.fade_in_ms),fo=row.fade_out_ms===undefined?0:Number(row.fade_out_ms);
+  if(!Number.isFinite(g)||g<-60||g>24||!Number.isFinite(fi)||!Number.isFinite(fo)||fi<0||fo<0||(fi+fo)/1000>end-start+1e-3)
+   throw Error('Invalid gain or fades in region '+(i+1));
   if(kind==='audio'){
    const ss=Number(row.source_start),speed=Number(row.speed);
    if(!Number.isFinite(ss)||ss<0||!Number.isFinite(speed)||speed<.5||speed>2)
@@ -44,14 +54,77 @@ function sourceTime(segments,time){
 }
 function originalTargetTime(plan,time){
  // Video edits already carry original times (input trims included); main-episode
- // trims and input trims (a marked range on the target) are offsets.
+ // trims and input trims (a marked range on the target) are offsets. Imported
+ // clips have no target time.
  for(const k of plan.video_edits?.kept||[]){
   const end=Number(k.output_start)+Number(k.end)-Number(k.start);
   if(time>=Number(k.output_start)-.001&&time<=end+.001)
-   return Number(k.original_start)+time-Number(k.output_start);
+   return k.media?null:Number(k.original_start)+time-Number(k.output_start);
  }
  const trimmed=Number(plan.input_trims?.target?.start||0);
  if(plan.main_trim)return time+Number(plan.main_trim.target_start||0)+trimmed;
  return time+trimmed;
 }
-module.exports={validateSegments,findRegion,sourceTime,originalTargetTime};
+/** Output video pieces from Preview & Edit: contiguous, inside the target, imports known. */
+function validateTimeline(timeline,plan,knownMedia){
+ const duration=Number(timeline?.duration),kept=timeline?.kept;
+ if(!Number.isFinite(duration)||duration<=0||duration>24*3600||!Array.isArray(kept)||!kept.length||kept.length>5000)
+  throw Error('Invalid edited video timeline.');
+ const shift=Number(plan.main_trim?.target_start||0)+Number(plan.input_trims?.target?.start||0);
+ const limit=Number(plan.video_edits?.original_target_duration??plan.duration)+shift+.05;
+ let at=0;
+ const result=kept.map((k,i)=>{
+  const start=Number(k.start),end=Number(k.end),out=Number(k.output_start);
+  if(![start,end,out].every(Number.isFinite)||end<=start+1e-5||Math.abs(out-at)>1e-3)
+   throw Error('Video pieces must be contiguous and nonempty (piece '+(i+1)+').');
+  at=out+end-start;
+  if(k.media){
+   knownMedia(k.media);
+   const ms=Number(k.media_start||0);
+   if(!Number.isFinite(ms)||ms<0)throw Error('Invalid imported clip position (piece '+(i+1)+').');
+   return {start,end,output_start:out,media:String(k.media),media_start:ms,label:String(k.label||'').slice(0,200)};
+  }
+  const a=Number(k.original_start),b=Number(k.original_end);
+  if(k.fill){                      // motion fill: one target picture, kept moving at export
+   if(!['motion','black'].includes(k.fill)||!Number.isFinite(Number(k.hold))||Number(k.hold)<-.05||Number(k.hold)>limit)
+    throw Error('Invalid motion fill (piece '+(i+1)+').');
+   const h=Number(k.hold);
+   return {start,end,output_start:out,original_start:h,original_end:h+end-start,fill:k.fill,hold:h};
+  }
+  if(!Number.isFinite(a)||!Number.isFinite(b)||a<-.05||b>limit||Math.abs(b-a-(end-start))>1e-3)
+   throw Error('Video piece '+(i+1)+' is outside the target video.');
+  return {start,end,output_start:out,original_start:a,original_end:b};
+ });
+ if(Math.abs(at-duration)>1e-3)throw Error('Video pieces must cover the edited output.');
+ return {duration,kept:result};
+}
+/** Video tracks above V1 from Preview & Edit: ordered, non-overlapping clips inside the output;
+ * each shows target footage (inside the target video), an imported file, or a fill. */
+function validateTracks(rows,plan,duration,knownMedia){
+ if(rows===undefined||rows===null)return [];
+ if(!Array.isArray(rows)||rows.length>16)throw Error('Invalid video tracks.');
+ const shift=Number(plan.main_trim?.target_start||0)+Number(plan.input_trims?.target?.start||0);
+ const limit=Number(plan.video_edits?.original_target_duration??plan.duration)+shift+.05;
+ return rows.map((t,n)=>{
+  if(!t||!Array.isArray(t.clips)||t.clips.length>5000)throw Error('Invalid video track V'+(n+2)+'.');
+  let end=0;
+  const clips=t.clips.map((c,i)=>{
+   const at=Number(c?.at),length=Number(c?.length),where=' (V'+(n+2)+', clip '+(i+1)+').';
+   if(![at,length].every(Number.isFinite)||at<end-1e-3||length<=0||at+length>Number(duration)+1e-3)throw Error('Clips must be ordered and inside the output'+where);
+   end=at+length;
+   if(c.media!==undefined){
+    const ms=Number(c.media_start||0);if(typeof c.media!=='string'||!Number.isFinite(ms)||ms<0)throw Error('Invalid imported clip'+where);
+    knownMedia(c.media);return {at,length,media:c.media,media_start:ms,label:String(c.label||'').slice(0,200),image:!!c.image};
+   }
+   if(c.fill!==undefined){
+    const h=Number(c.hold);if(!['motion','black'].includes(c.fill)||!Number.isFinite(h)||h<-.05||h>limit)throw Error('Invalid fill'+where);
+    return {at,length,fill:c.fill,hold:h};
+   }
+   const tg=Number(c.target);
+   if(!Number.isFinite(tg)||tg<-.05||tg+length>limit)throw Error('Footage outside the target video'+where);
+   return {at,length,target:tg};
+  });
+  return {clips,locked:!!t.locked,hidden:!!t.hidden};
+ });
+}
+module.exports={validateSegments,validateTimeline,validateTracks,findRegion,sourceTime,originalTargetTime};

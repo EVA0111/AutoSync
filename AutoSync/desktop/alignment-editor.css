@@ -179,3 +179,36 @@ dialog .small-note{margin-top:12px}
 .censor-actions .segmented button#censor-restore.on{background:#1f4d47}
 #issue-list li.censor .dot{background:#f0786e}
 #issue-list li.dubonly .dot{background:#e8c07a}
+
+/* Left panel tabs and the media bin */
+.pane{display:flex;flex-direction:column;min-height:0;flex:1}
+.pane[hidden]{display:none}
+.media-actions{padding:4px 10px 8px;display:flex}
+.media-actions button{flex:1}
+#media-list{list-style:none;margin:0;padding:0 6px;overflow-y:auto;flex:1;min-height:0}
+#media-list li{display:grid;grid-template-columns:22px 1fr;gap:1px 7px;padding:6px;border-radius:6px;border:1px solid transparent;cursor:pointer}
+#media-list li:hover{background:#1d2836}
+#media-list li.on{background:#2b2a1f;border-color:#8a6d3a}
+#media-list .kind{grid-row:span 2;font-size:15px;line-height:1.2;text-align:center}
+#media-list .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#media-list .meta{font-size:11px;color:var(--muted)}
+#media-empty{padding:0 12px}
+.media-foot{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#ripple-delete{margin-top:6px;width:100%}
+
+/* Right-to-left languages: time and pictures still run left to right. */
+[dir=rtl] canvas,[dir=rtl] #timeline-area,[dir=rtl] .transport,[dir=rtl] #pictures,[dir=rtl] .ltr,[dir=rtl] input[type=number],[dir=rtl] output{direction:ltr}
+.ui-language{max-width:150px}
+/* Review filters: the row lives inside its pane and wraps when the panel is narrow. */
+#review-pane>.segmented{margin:0 10px;display:flex;flex-wrap:wrap}#review-pane>.segmented button{flex:1 1 auto;padding:4px 6px}
+/* Menu bar */
+.menubar{display:flex;gap:2px;margin-left:14px;align-self:center}
+.menu{position:relative}.menu>summary{list-style:none;cursor:pointer;padding:4px 9px;border-radius:6px;color:var(--muted)}
+.menu>summary::-webkit-details-marker{display:none}.menu[open]>summary,.menu>summary:hover{background:#22344a;color:#fff}
+.menu-items{position:absolute;z-index:40;top:calc(100% + 4px);left:0;min-width:250px;background:#16212e;border:1px solid var(--line-2);border-radius:8px;padding:5px;box-shadow:0 12px 30px #0008;display:flex;flex-direction:column}
+.menu-items button{display:flex;justify-content:space-between;gap:18px;border:0;background:transparent;text-align:left;padding:6px 9px;border-radius:5px}
+.menu-items button:hover{background:#27465f}.menu-items kbd{opacity:.65;font-size:11px}.menu-items hr{border:0;border-top:1px solid var(--line-2);margin:4px 2px}
+/* Media pool: thumbnails, drag onto the timeline */
+#media-list li{cursor:grab;grid-template-columns:64px 1fr;align-items:center}#media-list li img.kind{width:64px;height:36px;object-fit:cover;border-radius:4px;background:#000}
+#media-pane .small-note{padding:0 12px}
+.media-foot{grid-template-columns:1fr 1fr 1fr!important}

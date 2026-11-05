@@ -34,16 +34,14 @@ class GUICommands(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Main end must be after main start'):
             build_command(self.v,'Single episode')
 
-    def test_ai_assisted_and_standard_exports_both_get_sampled_audio_check(self):
+    def test_audio_evidence_exports_get_sampled_audio_check(self):
         from autosync import should_verify_export
         ref=object()
         plan={'segments':[{'kind':'audio'}]}
         self.assertTrue(should_verify_export('audio matches, with visual rate estimate',ref,plan))
-        self.assertTrue(should_verify_export('AI-assisted: audio matches, with visual rate estimate',ref,plan))
         self.assertFalse(should_verify_export('visual fallback',ref,plan))
-        self.assertFalse(should_verify_export('AI-assisted: visual fallback',ref,plan))
-        self.assertFalse(should_verify_export('AI-assisted: audio matches',None,plan))
-        self.assertFalse(should_verify_export('AI-assisted: audio matches',ref,{'video_edits':{'kept':[]}}))
+        self.assertFalse(should_verify_export('audio matches',None,plan))
+        self.assertFalse(should_verify_export('audio matches',ref,{'video_edits':{'kept':[]}}))
 
     def test_saved_plan_skips_input_validation(self):
         self.v.update(source='',target='',plan=str(self.file),video_codec='ffv1')

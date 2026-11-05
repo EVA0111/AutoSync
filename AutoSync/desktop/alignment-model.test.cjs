@@ -53,3 +53,36 @@ test('Target trims: editor target time maps back to the original target file',()
  assert.equal(originalTargetTime(edited,10),40);
  assert.equal(originalTargetTime({},10),10);
 });
+
+test('edited video timeline is validated before saving',()=>{
+ const {validateTimeline}=require('./alignment-model.cjs');
+ const plan={duration:100,segments:[]};
+ const known=new Set(['C:/m/clip.mp4']);
+ const media=p=>{if(!known.has(p))throw Error('Unknown imported media.');};
+ const ok=validateTimeline({duration:103,kept:[
+  {start:0,end:50,output_start:0,original_start:0,original_end:50},
+  {start:50,end:53,output_start:50,media:'C:/m/clip.mp4',media_start:1},
+  {start:50,end:100,output_start:53,original_start:50,original_end:100}]},plan,media);
+ assert.equal(ok.kept.length,3);assert.equal(ok.duration,103);
+ assert.throws(()=>validateTimeline({duration:103,kept:[{start:0,end:103,output_start:0,original_start:0,original_end:103}]},plan,media),/outside the target/);
+ assert.throws(()=>validateTimeline({duration:10,kept:[{start:0,end:10,output_start:0,media:'C:/other.mp4'}]},plan,media),/Unknown imported/);
+ assert.throws(()=>validateTimeline({duration:20,kept:[{start:0,end:10,output_start:0,original_start:0,original_end:10},{start:10,end:20,output_start:11,original_start:10,original_end:20}]},plan,media),/contiguous/);
+});
+
+test('motion fills pass validation with their held frame',()=>{
+ const {validateTimeline}=require('./alignment-model.cjs');
+ const plan={duration:100,segments:[]},media=()=>{};
+ const ok=validateTimeline({duration:100,kept:[{start:0,end:20,output_start:0,original_start:0,original_end:20},
+  {start:20,end:24,output_start:20,original_start:20,original_end:24,fill:'motion',hold:20},
+  {start:24,end:100,output_start:24,original_start:24,original_end:100}]},plan,media);
+ assert.equal(ok.kept[1].fill,'motion');assert.equal(ok.kept[1].hold,20);
+ assert.throws(()=>validateTimeline({duration:100,kept:[{start:0,end:100,output_start:0,original_start:0,original_end:100,fill:'blur',hold:3}]},plan,media),/motion fill/);
+});
+
+test('clip gain and fades are validated',()=>{
+ const {validateSegments}=require('./alignment-model.cjs');
+ const row={kind:'reference',target_start:0,target_end:2};
+ assert.equal(validateSegments([{...row,gain_db:-6,fade_in_ms:500,fade_out_ms:500}],2)[0].gain_db,-6);
+ assert.throws(()=>validateSegments([{...row,gain_db:40}],2),/gain or fades/);
+ assert.throws(()=>validateSegments([{...row,fade_in_ms:1500,fade_out_ms:1000}],2),/gain or fades/);
+});

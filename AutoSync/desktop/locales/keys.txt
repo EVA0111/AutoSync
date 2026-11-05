@@ -1,0 +1,1021 @@
+Sync jobs
+Saved plan
+Choose your output
+Full target audio
+Sync audio to the complete target. Export FLAC.
+Main episode only
+Remove differing opening and ending. Export video + FLAC.
+Keep opening & ending
+Keep the target’s opening/ending audio. Sync the main episode.
+Your files
+Source = audio you want · Target = video to match
+Pair your episodes
+Source = audio to use · Target = video to match. Subfolders are included.
+Source video
+Add folder
+Add files
+Source videos
+Drop source files or a folder here
+Select a file
+Move up one row (Alt+Up)
+↑ Up
+Move to the first row
+⇈ Top
+Row number
+Move to row number
+Move to
+Move to the last row
+⇊ Bottom
+Move down one row (Alt+Down)
+↓ Down
+Remove selected file (Delete)
+× Remove
+Target video
+Target videos
+Drop target files or a folder here
+Match episode numbers
+Clear both columns
+Add videos to both columns.
+Source row 1 pairs with target row 1, and so on. Select a file in either list, then use the middle controls. Alt + ↑ / ↓ reorders; Delete removes.
+Use an existing CSV instead
+Use CSV batch
+Select a CSV with source, target, audio and a unique output folder for each episode.
+Open example CSV
+Track numbers and delays come from each CSV row. Manual boundaries and cut times apply to every episode in the batch. Folder batches use the selected tracks and delays for all pairs.
+Render a saved plan
+Use the existing timing map without analyzing the episode again.
+The plan’s mode and original file paths are used. Move previous exported media out of its output folder before rendering again.
+Timing reference
+1 · Another already-synced subtitle
+2 · Source encode → target encode
+3 · Target audio only (speech recognition)
+Sushi — audio matching (ASS / SRT)
+Reuse a saved timing map
+Sushi needs subtitles timed to the source and matching audio in both versions. Supports ASS / SRT. Styling is preserved; check silent signs and frame-by-frame typesetting in the DRAFT output.
+Subtitle options
+Different languages / translated dialogue (multilingual AI matching)
+For speech or multilingual matching, install Subtitle AI in Settings. Models download on first use.
+Lossless text formats: ASS/SSA, SRT, VTT, SBV, MicroDVD SUB, MPL2, SAMI and flat TTML/DFXP. PGS SUP works with encode matching or a saved map. VobSub and other binary formats require conversion; OCR is not included. Embedded ASS/SRT/VTT/PGS tracks can be extracted from MKV.
+Audio cannot directly time silent signs. Typesetting without picture evidence, unmapped cues and uncertain cuts are flagged. A DRAFT retains original timing for unmapped cues; review it before muxing. Positions are preserved, not resized for different crops/aspect ratios.
+Audio tracks
+Advanced settings
+Timing overrides & export
+Audio-only matching (full-target mode)
+Use reference where source audio is missing (may switch language)
+Remove target sections with no source audio (export edited video + FLAC)
+Allow uncertain cuts — guessed joins need manual review
+All times are seconds. Crop settings affect matching only.
+Analyze only
+Ready when you are
+Stop
+Preview & Edit
+Start syncing →
+Activity
+Open report
+Open output
+Choose your files, select a mode, and start. Progress and review warnings will appear here.
+Setup
+The portable app includes Python and FFmpeg. Optional subtitle AI downloads additional packages and models.
+Check / set up engine
+Install subtitle AI
+Install AI Sync models
+Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.
+AutoSync v1.4.0 · Preview & Edit
+Opening an alignment plan…
+— to review
+No changes
+Undo · Ctrl+Z
+↶ Undo
+Redo · Ctrl+Y
+↷ Redo
+Save the edited plan to any folder · Ctrl+S
+Save As…
+Export corrected audio (save first)
+Export corrected audio
+Keyboard shortcuts · ?
+Unsaved edits from a previous session were found.
+Restore edits
+Discard
+Review points and media
+Left panel
+Joins and points to review
+Review
+Imported video, audio and images
+Media
+Hide this panel
+Filter review list
+All
+Only points the analysis marked as uncertain or worth a look
+Flagged
+Only points not yet marked as checked
+Not checked
+Scenes a censored or re-edited dub removed or re-cut
+Censorship
+Review points
+This scene:
+Keep this scene with the original audio
+Restore (original audio)
+Remove this scene from the exported video, as the dub did
+Cut from video
+Previous review point · J
+◀ Prev
+Mark the current point as checked · R
+✓ Checked
+Next review point · L
+Next ▶
+Add video, audio or image files · Ctrl+I
+＋ Import media…
+Imported media
+Import video, audio or images, then place them at the playhead. Picture edits ripple: everything after them moves together with its synced audio.
+Insert the selected file (picture and sound) at the playhead; everything after moves later · B
+Insert at playhead
+Play the selected file's audio over the marked range, or the selected clip; the picture stays
+Use its audio here
+Show the review list
+Review ⟩
+Video comparison
+Comparison view
+Source and target side by side
+Side by side
+Source over target at 50 %
+Overlay
+Bright where the pictures differ; dark and still means in sync
+Difference
+Drag the slider to wipe between source and target
+Wipe
+Wipe position
+Source left · target right
+Source
+Source video playback
+Source frame
+Loading source video…
+Target
+Target video playback
+Target frame
+Imported clip
+Imported image
+Loading target video…
+Playback
+Back 10 frames · Shift+←
+Back one frame · ←
+Play / pause · Space
+▶ Play
+Forward one frame · →
+Forward 10 frames · Shift+→
+Output time
+Listen to
+The edited output
+Output
+The original source audio
+The target's own audio
+Edited output
+Source audio
+Target audio
+Swap between output and target audio · A
+Play from 2 s before to 2 s after the selected join · P
+▶ Across join
+Loop the selected clip
+⟳ Loop
+Speed
+Playback speed
+Selected clip
+Select a clip in the timeline.
+Timing
+Output start
+Output end
+Source starts at
+Apply the values typed above (Enter)
+Apply typed values
+Move this clip's audio
+Move audio
+One frame earlier · ,
+10 ms earlier · Alt+,
+10 ms later · Alt+.
+One frame later · .
+Edit
+Split the clip at the playhead · S
+✂ Split (S)
+Merge with the clip before; it continues the earlier timing
+⇤ Join previous
+Trim the start to the playhead; the gap uses target audio · Q
+Trim start (Q)
+Trim the end to the playhead; the gap uses target audio · W
+Trim end (W)
+Remove the marked range, or the selected clip, from the output: picture and sound. Everything after moves earlier · Shift+Delete
+⌫ Ripple delete (picture + sound)
+Audio for this clip
+Use the source audio here
+Use the target's own audio here
+Clipboard
+Mark In at the playhead · I
+In (I)
+Mark Out at the playhead · O
+Out (O)
+Use the whole clip
+Clear
+Copy the audio · Ctrl+C
+Copy
+Cut; the gap uses target audio · Ctrl+X
+Cut
+Overwrite audio at the playhead; the picture does not move · Ctrl+V
+Paste
+Clipboard empty
+Review point
+No review point near the playhead.
+Note for this point (kept with your edits)
+Show the clip panel
+⟨ Clip
+Resize timeline
+Drag to resize the timeline (↑/↓ when focused)
+Timeline
+Timeline tools
+Select: drag clips, drag edges to trim · V
+↖ Select
+Razor: click a clip to cut it · C
+✂ Razor
+Slip: drag to move audio inside its clip · Y
+↔ Slip
+Snapping · N (hold Shift while dragging to override)
+◈ Snap: On
+Go to the start · Home
+⇤ Start
+Zoom to the selected clip · F
+Fit clip
+Show the whole episode · Shift+F
+Fit all
+Zoom
+Ctrl+scroll on the timeline also zooms
+Whole episode overview: click or drag to navigate
+Timeline: target video, source audio, target audio and edited output
+Ready.
+Needs review
+Export log ▴
+Open output folder
+Export log
+Close
+Keyboard shortcuts
+Play / pause
+One frame
+Ten frames
+Start / end
+Play across the selected join
+Swap output ↔ target audio
+Stop, or cancel a drag
+Previous / next review point
+Mark the point as checked
+Zoom to the clip
+Show everything
+Zoom the timeline
+Zoom in / out
+Editing
+Select / Razor / Slip
+Snapping on / off
+Split at the playhead
+Trim start / end to the playhead
+Audio 1 frame earlier / later
+Audio 10 ms earlier / later
+Mark In / Out
+Copy / cut / paste audio
+Undo / redo
+Ripple delete range / clip
+Import media
+Insert the selected media at the playhead
+Audio edits never move the picture. Picture edits (ripple delete, inserted media) move everything after them together, so synced audio stays on its picture. Edits are kept automatically until you save.
+Undone. Ctrl+Y redoes it.
+Redone.
+Export edited video
+Save your edits first (Save As…), then export
+Exporting…
+Saved · ready to export
+Unsaved changes
+Silence (the inserted file has no sound).
+This clip plays the target's own audio. Choose “Source audio” to map source audio here.
+Move the playhead inside the selected clip to split it · S
+Video decoder unavailable; showing still frames.
+Source not used at this point
+No source audio is mapped here. Listen to Output or Target instead.
+Cannot shift source before zero.
+Invalid clip boundaries.
+Invalid source position or speed.
+The first clip must start at zero.
+The last clip must end at the output duration.
+Clip too short or source position negative.
+Clip updated.
+Joined clips. Listen across the join.
+Using source audio; adjust its start and listen.
+Using the target's own audio for this clip.
+Razor: click any audio clip to cut it.
+Slip: drag source audio to move it inside its clip.
+Select: drag a clip to move it; drag its edges to trim.
+Slip works on source-audio clips only.
+Drag a clip from A1 or A2 down to MIX to place it into the edited output.
+Copied
+Moved
+The source clip would run past the end of its audio.
+⟳ Loop: On
+Removed · cut
+Removed · restored
+It is cut from the exported video.
+It keeps the original picture and audio.
+Dub-only material
+Target footage
+Join
+Clip boundary
+Edited or computed join between clips.
+Everything here is checked.
+Nothing to show.
+All flagged points checked
+No review point at the playhead. Use J / L or click the list.
+No review points in this list.
+Move to a review point first (J / L or click the list).
+Marked as checked.
+Marked as not checked.
+This scene will be cut from the exported video, as in the dub.
+This scene keeps the original picture and audio.
+At the start: check that the opening music and picture were kept.
+Move the playhead inside the selected clip.
+Cut the audio to the clipboard. The freed range uses target audio (nothing shifts).
+Save cancelled.
+Export log ▾
+Save your edits before exporting.
+Exporting…\n
+Exporting corrected audio and any required video edits…
+Export failed. See the export log.
+Source at 50 % over the target
+Matching pictures go dark. Edges that jump with motion mean the timing is off; steady outlines are framing differences
+Source left of the line · target right
+Drag cancelled.
+This plan cuts censored scenes at export. Restore those scenes (Review → Censorship) before editing the picture.
+Select a clip or mark In and Out first.
+Select a file in the Media tab first.
+Select a clip or mark In and Out for the new audio.
+Import cancelled.
+No editable clips in the selected plan.
+Restored your unsaved edits. Undo (Ctrl+Z) returns to the analysed plan.
+Discarded the earlier unsaved edits.
+Loading waveforms… You can start reviewing now.
+Ready. J / L step through the joins, P plays across one, ? shows all shortcuts.
+Settings
+Save reports and timing plans
+Enable advanced audio settings
+Enable advanced subtitle settings
+Enable CSV job import
+Enable saved-plan rendering
+Show activity log
+Reports root (optional)
+AutoSync Reports beside the application · or choose any folder
+Temporary work folder (optional)
+Auto — AutoSync Temp beside target video
+Leave blank for an AutoSync Temp folder beside the target video. Per-run scratch files are removed on completion or failure.
+Folder (optional)
+Auto — next to target video · or choose any folder
+Use target folder
+Save beside the target file (without overwriting the video)
+AutoSync Outputs
+Choose a target video first.
+Choose a source or target file to determine the default output folder, or Browse to select one.
+Cannot locate the app reports folder. Choose a reports folder in Settings.
+Managed queue
+Not set
+Preview video and trim before syncing
+Preview unavailable
+Loading frame…
+Frame unavailable
+Press Save trim to remove these marks.
+Mark both points, with the end after the start.
+Preparing…
+Processing
+Stopped
+Finished · results need review
+Finished
+Finished with errors · see activity
+Reading files and tracks…
+Choose source/target media or select an output folder.
+Set a reports folder or restart the app to resolve its default directory.
+Choose a saved timing plan.
+Enable Audio, Subtitles, or both.
+Sync full target audio
+Audio-only matching requires full-target mode.
+Choose the job CSV.
+Add source videos to the Source column.
+Both audio columns need the same number of videos.
+Add matching files to every subtitle column.
+Use one subtitle file with a saved timing map.
+Choose the saved timing map.
+Check the subtitle pairs and track choices.
+Processing the selected jobs…
+Ready to sync the selected jobs.
+Export edited video + matching FLAC. Target-only sections are removed.
+Audio
+Subtitles
+Jobs
+Drop one episode or a whole folder
+Choose a timing reference, then add your files
+Audio to transfer
+Video to match
+Rows pair in order. Select a file to reorder it. Alt + ↑ / ↓ moves a row; Delete removes it.
+Uses pretrained AST sound embeddings, plus DINOv2 for weak scene matching. Install AI Sync in Setup first; downloads are optional and the first analysis is slower.
+Standard matching uses audio fingerprints and video scenes.
+Start selected jobs
+Source audio track
+Target reference audio
+Detecting tracks…
+No audio tracks found
+Failed
+Open reports
+Job settings
+Matching
+Method
+Censored or edited dub
+Subtitles for restored scenes (optional)
+Original-version subtitles: lines inside restored scenes are saved separately
+Removed scenes keep the original picture and play the original audio, matched in loudness to the dub. Re-cut spots are listed for review.
+Removed scenes are cut from the exported video, as in the dub. Change any scene in Preview & Edit.
+Lists every scene the dub removed or re-cut in the report and in Preview & Edit, where you can change each one.
+Save to
+Each file row has its own track menu; open this to edit the selected pair in detail.
+Tracks for the selected pair
+Advanced
+Reorder rows
+Subtitle
+Features
+Optional tools. Turned-off advanced options use their defaults.
+Folders
+Engine
+Single episode
+Original edition
+Optional · use source video audio
+Reference audio
+Optional · use target video audio
+New output folder
+Choose a parent folder for a new run
+Browse
+Use separate audio files (optional)
+Batch CSV
+Select jobs.csv
+Batch output folder
+Choose a parent folder for this batch
+Source audio delay (s)
+Reference delay (s)
+Main start (target seconds, optional)
+Main end (target seconds, optional)
+Manual cut times (comma-separated)
+Source matching crop (w:h:x:y)
+Target matching crop (w:h:x:y)
+Scene threshold
+Trimmed video codec
+Processing…
+Setup failed · see activity
+Stopped · partial files may remain
+Failed · see activity log
+Counts differ. Add or remove videos before starting.
+Drop your folders to begin.
+Episode numbers match. Review the pairs below each heading.
+Pairing follows row order. Use Review pairing & reorder to change it.
+Reading videos from folders…
+No supported video files found in that selection.
+Episode numbers are missing, duplicated, or different. Pair the files manually using the arrows.
+Could not read the dropped file paths. Try Add files or Choose folder.
+Drop one file here, or use Batch jobs for multiple files.
+Subtitle to sync
+Subtitle file or MKV containing the track
+Synced reference subtitle
+Subtitle already matching the target
+Source encode
+Video matching the original subtitle timing
+Target video / audio
+Video or audio to match
+Saved timing map
+Choose a parent folder
+Text encoding
+Source FPS (MicroDVD)
+Target FPS (MicroDVD)
+Source crop (optional w:h:x:y)
+Target crop (optional w:h:x:y)
+Sushi search window (seconds)
+Sushi maximum window (seconds)
+Whisper model
+Target speech language (optional, e.g. en)
+Target opening / ending
+Subtitle track
+Reference subtitle track
+Target audio track
+Choose a file first
+Cannot detect tracks — see activity
+Keep target opening / ending
+Installing dependencies…
+Preparing Preview…
+Analyzing the selected pair for Preview & Edit…
+Opening Preview & Edit…
+Preview & Edit opened
+Preview cancelled
+Subtitles to sync
+Source encodes
+Reference subtitles
+Cannot match all episode numbers. Reorder the lists manually.
+Clear lists
+No supported subtitle/media files in that selection.
+Remove this file
+Source audio / video
+Synced reference subtitles
+Target audio / videos
+Target encodes
+Review the subtitle pairs and tick the confirmation box.
+A saved timing map accepts one subtitle file at a time.
+All subtitle batch columns need the same number of files.
+Wait for file and track detection to finish.
+Starting…
+⚙ Settings
+AI-assisted (experimental)
+Audio syncing is turned off for this run.
+Cancel
+Clear marks
+Close preview
+Completed jobs and review warnings will appear here.
+Creating a smooth target preview in the background…
+Cut from the video
+First frame
+Frame
+Frame →
+Go to end
+Go to frame number
+Go to start
+Go to timestamp
+H.264 preset
+I checked the subtitle pairs and track choices.
+Include audio jobs
+Include subtitle jobs
+Job
+Keep only the marked range before syncing. Video and audio are trimmed together; original files stay unchanged. Start is included; end is excluded. Use “Video end” to include the last frame. Source and target trims are independent. Frames start at 1. Preview is silent.
+Last frame
+Mode details
+Next frame (Right arrow)
+Off (the source is complete)
+Overall job progress
+Previous frame (Left arrow)
+Reading video timestamps…
+Ready
+Reports
+Restore with the original audio
+Results from the current run
+Save trim
+Seek video
+Show me
+Standard (default)
+Status
+Subtitle syncing is turned off for this run.
+Sync mode
+Time
+Trim before syncing
+Trim end
+Trim start
+Turn on audio syncing
+Turn on subtitle syncing
+Video end
+When the dub removed scenes
+subtitle_map.json or an AutoSync plan
+← Frame
+Tracks for pair {0}. Select a row to edit another pair. Unchanged pairs use their first audio track.
+{0} files
+{0} shown
+{0} / {1} checked
+{0} flagged to check
+Clip {0} of {1}
+Unsaved edits from {0} were found for this plan.
+Auto — {0}
+Audio offset: source {0} plays at output {1} · speed {2}
+Audio offset: source {0} plays at output {1}
+· source audio · {0}
+· target audio · {0}
+Open github.com/EVA0111
+GitHub · EVA0111 ↗
+Menu
+File
+Import media…
+Save frame as PNG
+Undo
+Redo
+Cut audio
+Copy audio
+Paste audio
+Split at playhead
+Join with previous
+Ripple delete range
+Mark In
+Mark Out
+Clear In/Out
+Picture
+Insert media on V1 (ripple)
+Put media on the selected video track
+Remove selected track clip
+Fill range with motion
+Fill range with black
+Duplicate V1 (copy above it)
+Duplicate selected track
+Add empty video track
+Delete selected track
+Lock / unlock selected track
+Lock / unlock V1
+Lock / unlock MIX
+Show / hide selected track
+Markers
+Add / remove marker
+Previous point
+Next point
+View
+Fit clip or range
+Help
+Your markers (K adds or removes one at the playhead)
+Drag files from Explorer into the window to import them. Drag a pool item onto V1 (insert), V2 (overlay) or MIX (sound).
+Insert the selected file (picture and sound) on V1 at the playhead; everything after moves later · B
+Insert on V1
+Put the selected picture on the selected video track at the playhead: it covers the tracks below, the sound is unchanged · Shift+B
+Put on track
+Use its sound
+Save the output picture at the playhead as a PNG · Ctrl+Shift+S
+📷 Frame
+Full screen (double-click the picture) · Alt+Enter
+Play the marked In/Out range · Shift+Space
+▶ In→Out
+Loop the In/Out range, or the selected clip
+Add or remove a marker at the playhead · K
+◆ Marker
+−1 fr
+−10 ms
++10 ms
++1 fr
+Edit audio
+Picture (In/Out range or clip)
+◫ Fill motion (M)
+Make the picture in the marked range (or the selected clip) black; the sound does not change · Shift+M
+■ Fill black
+Volume
+Gain (dB)
+Fade in (ms)
+Fade out (ms)
+Apply volume
+In — · Out —
+Play the In/Out range
+Add / remove a marker
+Save the frame as PNG
+Zoom to the clip (or the In/Out range)
+Fill the range with motion from the frame at In
+Fill the range with black
+Insert the selected media on V1 at the playhead
+Put the selected media on the selected video track
+Remove the selected track clip
+Duplicate the selected track (V1 by default)
+Audio edits never move the picture. Picture edits (ripple delete, inserted media) move everything after them together; a motion fill only replaces the picture in its range, so synced audio stays on its picture. Edits are kept automatically until you save.
+V{0} is locked. Click its 🔒 in the track header to unlock it.
+{0} is locked. Click its 🔒 in the track header to unlock it.
+High-resolution waveform unavailable: {0}
+Could not play {0} video preview.
+Proxy generation failed for {0}: {1}
+Audio preview failed: {0}
+Audio preview: {0}
+Mark In and Out first (I / O).
+Listening to the target's own audio.
+Listening to the edited output.
+Audio of clip {0} moved later by {1} ms. Listen across the join to check.
+Audio of clip {0} moved earlier by {1} ms. Listen across the join to check.
+Gain must be between −60 and +24 dB.
+Fades must be positive and fit inside the clip ({0} ms).
+Clip {0}: +{1} dB, fade in {2} ms.
+Clip {0}: +{1} dB, fade out {2} ms.
+Clip {0}: +{1} dB.
+Clip {0}: {1} dB, fade in {2} ms.
+Clip {0}: {1} dB, fade out {2} ms.
+Clip {0}: {1} dB.
+Clip split at {0}.
+Snapping on. Hold Shift while dragging to override.
+Snapping off. Hold Shift while dragging to override.
+Cannot cut here: {0}
+Slip: footage +{0} s
+Slip: footage {0} s
+Slip: +{0} ms
+Slip: {0} ms
+Timeline edit rejected: {0}
+Playback speed {0}×.
+Looping the In/Out range.
+Looping the selected clip.
+Loop off.
+Marker removed.
+Marker added at {0}. Type a note for it in the inspector.
+{0} at {1}. Press P to play across it, A to compare with the target audio, R when checked.
+Playing 2 s either side of {0}. Press A to compare with the target audio.
+The marked range does not overlap the selected clip.
+Copied {0} s. Move the playhead and Paste to overwrite only the audio.
+Copy failed: {0}
+Pasted {0} s without moving the picture. Undo: Ctrl+Z.
+Paste failed: {0}
+Trimmed start to the playhead. The freed range uses target audio; the picture is unchanged.
+Trimmed end to the playhead. The freed range uses target audio; the picture is unchanged.
+Trim failed: {0}
+Cut failed: {0}
+Saved: {0}. Export writes the corrected output to that folder.
+Save failed: {0}
+Export failed: {0}
+Export finished: {0}. Save again to create another export.
+Ripple delete failed: {0}
+Fill black failed: {0}
+Fill motion failed: {0}
+The picture is black here.
+Saved frame: {0}
+Frame not saved.
+Could not save the frame: {0}
+Full screen unavailable: {0}
+Track edit rejected: {0}
+{0} locked: its clips cannot be changed.
+{0} unlocked.
+V{0} locked.
+V{0} unlocked.
+V{0} hidden: not shown or exported.
+V{0} shown.
+Up to 12 video tracks.
+Could not duplicate: {0}
+Select a video track above V1 first.
+Could not put it on V{0}: {1}
+{0} dropped file(s) could not be read as video, audio or images.
+{0} has no picture; drop it on MIX to use its sound.
+{0} has no sound; drop it on a video track.
+Drop failed: {0}
+Import failed: {0}
+Insert failed: {0}
+The marked range now plays {0}. The picture is unchanged.
+Could not use that audio: {0}
+Imported {0} files. Insert at the playhead (B) or use the audio for a range.
+Imported {0} file. Insert at the playhead (B) or use the audio for a range.
+Some imported media could not be found: {0}
+{0} waveform unavailable: {1}
+{0} points flagged for review. Press L for the next one, P to play across it, ? for all shortcuts.
+{0} point flagged for review. Press L for the next one, P to play across it, ? for all shortcuts.
+Unable to load the editor: {0}
+Plays {0} from {1}.
+not used here
+No {0} video available
+Creating a smooth {0} preview in the background…
+Preview unavailable: {0}
+Imported file not found: {0}
+❚❚ Pause
+{0} joins
+{0} at {1} ({2}). {3}
+{0} at {1}. {2}
+Copied {0} s
+Waiting for the {0} picture: {1}
+Image · inserted for {0} s
+{0} · drag onto V1, V2 or MIX
+◇ Snap: Off
+Dub-only · rebuilt
+Replaced shot · rebuilt
+Replaced shot
+The dub removed this {0} s scene. It is cut from the exported video.
+The dub removed this {0} s scene. It keeps the original picture and audio.
+The dub shows {0} s of frozen or repeated footage here; it is rebuilt from the original's frames and the dub audio is kept.
+The dub shows another shot here for {0} s; the exported video shows it too, rebuilt from the original's frames.
+The dub shows another shot here for {0} s.
+Your marker (K adds or removes one at the playhead).
+Trimmed the clip start.
+Trimmed the clip end.
+Insert into V1 (ripples)
+Use its sound on MIX
+Setup stopped
+Setup complete
+Source · row {0}
+Target · row {0}
+{0} source · {1} target — Counts differ. Add or remove videos before starting.
+{0} source · {1} target — Drop your folders to begin.
+{0} source · {1} target — Episode numbers match. Review the pairs below each heading.
+{0} source · {1} target — Pairing follows row order. Use Review pairing & reorder to change it.
+Enter a row between 1 and {0}.
+Select plan.json
+Folder batch
+Reports and advanced options are available in Settings.
+{0} syncing is turned off for this run.
+Turn on {0} syncing
+{0} to review
+Review pairing & reorder
+Matching method
+Track settings for selected pair
+Recreate the dub’s version (cut them; rebuild its freezes and repeats from the original)
+Trim {0} – {1}
+Source · {0}
+Target · {0}
+Duration {0}
+Frame {0} / {1}
+Enter seconds or HH:MM:SS.mmm within this video.
+Enter a whole frame number from 1 to {0}.
+Trim range: {0} – {1}. Click to edit.
+Choose a valid {0} trim range.
+Preview {0}: {1}
+Selected video frame
+{0} / {1} jobs finished · {2}%
+{0} / {1} jobs finished
+Finished · {0} result(s) need review
+{0} video(s) will be trimmed before syncing. Video and audio use the same exact range. Sync modes apply within that range.
+Outputs cannot be saved inside the reports folder. Choose a separate output location.
+Choose which optional features to show and use. Disabled advanced options use their defaults.
+Save output
+Leave blank to save next to the target, or choose any folder or drive. Existing files are never overwritten.
+{0}. Track choices shown for row {1}. Click a filename to select another row; reorder with arrows. Other rows use their first track.
+Move this file
+Subtitle batch
+No such video track.
+No clip on that track there.
+Only pictures and videos can go on a video track.
+Put the playhead inside the clip to split it.
+A fill has no footage to slip.
+A still image has nothing to slip.
+The clip would start before its file.
+The clip would start before the target video.
+Mark a range (In and Out) or select a clip to fill.
+Unknown fill.
+The picture at In is an imported clip; fill needs target footage there.
+Mark a range (In and Out) or select a clip to delete.
+The whole output cannot be deleted.
+Only clips with a picture can be inserted into the video.
+This file has no audio.
+Mark a range (In and Out) or select a clip for the new audio.
+The chosen part of the clip is empty or longer than the file.
+Edit produced a gap or overlap in the audio.
+Audio does not cover the edited video.
+Edit produced a gap or overlap in the video.
+Video does not cover the output.
+Edit produced overlapping or out-of-range clips on V{0}.
+Invalid audio segments or output duration.
+Invalid region {0}
+Regions must be contiguous, ordered, nonempty and inside the output timeline (region {0}).
+Invalid region kind {0}
+Invalid imported media in region {0}
+Invalid imported audio stream in region {0}
+Invalid gain or fades in region {0}
+Invalid source time or speed in region {0}
+Regions must cover the complete output timeline.
+Invalid edited video timeline.
+Video pieces must be contiguous and nonempty (piece {0}).
+Invalid imported clip position (piece {0}).
+Invalid motion fill (piece {0}).
+Video piece {0} is outside the target video.
+Video pieces must cover the edited output.
+Invalid video tracks.
+Invalid video track V{0}.
+Clips must be ordered and inside the output{0}
+Invalid imported clip{0}
+Invalid fill{0}
+Footage outside the target video{0}
+Untrusted editor request.
+No plan is loaded.
+Invalid playback time.
+Unknown audio track.
+Cannot read the length of {0}
+{0} has no picture or sound.
+Unknown imported media.
+Alignment plan does not exist: {0}
+The selected file does not contain an AutoSync alignment.
+The original source audio file is missing: {0}
+The original target file is missing. Open a plan with valid media paths.
+Preview analysis is already running.
+Choose a source and target pair before previewing.
+Preview request is too large.
+Choose a valid {0} video.
+Choose an existing output directory.
+Could not start the AutoSync analyzer: {0}
+Alignment analysis failed (exit {0}). Review the log in AutoSync. {1}
+The analyzer finished without saving plan.json to {0}
+Waveform range must be between 0 and 120 seconds.
+Invalid video track.
+Original video is missing.
+Video proxy failed: {0}
+Invalid snapshot track.
+The video file is missing.
+Invalid clip edit.
+Invalid output duration.
+Unknown clip operation.
+Invalid preview track.
+Invalid preview duration or playback rate.
+No audio at this timestamp.
+Invalid media list.
+Cannot save while export is running.
+Choose a valid output folder name.
+An output folder already exists here. Choose another name: {0}
+Export already running.
+Save your edited alignment first.
+Save the edited plan first.
+Generating playable proxy for {0} (only once per file)…
+User-edited sync plan. Verify output joins.
+Preview & Edit analyzes the entire target without automatically trimming the opening/ending or removing video.
+Alignment will be saved in {0}
+Alignment saved to {0}
+Unknown file type
+Finish the running sync job before opening Preview & Edit.
+Invalid Preview & Edit request.
+A sync or Preview & Edit analysis is already running.
+Invalid job.
+Invalid queue.
+Invalid setup option.
+No output folder is available yet.
+Reports were not saved. Enable Save reports in Settings for future runs.
+This file or folder has not been created yet.
+No report folder is available.
+Report folder is outside this run.
+Report folder is missing.
+Subtitles or container
+Drop local files or folders.
+Folder is too large. Choose an episode folder.
+Add at least one episode pair.
+Every row needs an existing source and target video.
+A video is used more than once. Remove duplicate rows.
+Choose a new batch output folder.
+Choose an existing local media file.
+FFprobe was not found. Install FFmpeg or put ffprobe.exe beside AutoSync.
+Invalid FFprobe response: {0}
+Preview cancelled.
+Choose a local video file.
+Choose a video file.
+No usable video timestamps found.
+Invalid preview frame.
+This frame could not be decoded. Try a nearby frame.
+Invalid placement.
+Copied audio mapping is invalid.
+Unsupported audio clip.
+Choose an audio clip first.
+Set an In and Out point inside the selected region.
+Select a clip.
+Put the playhead inside the selected clip.
+Invalid trim edge.
+Copy a clip before pasting.
+Select an audio clip first.
+This clip cannot be dragged.
+Slip is available for source-audio clips.
+Invalid source offset.
+Select a clip to trim.
+Choose a clip edge.
+No earlier source audio is available.
+Click inside a clip to cut.
+Invalid preview settings.
+Temporary directory must be a folder path.
+Choose an absolute temporary folder path.
+Choose a target file or a custom temporary folder.
+Temporary location is not a directory.
+In {0} · Out {1}
+{0} · picture + sound
+{0} · picture only
+{0} · sound only
+Clip {0}: unity gain.
+Clip {0}: unity gain, fade in {1} ms.
+Clip {0}: unity gain, fade out {1} ms.
+Clip {0}: {1} dB, fade in {2} ms, fade out {3} ms.
+Clip {0}: unity gain, fade in {1} ms, fade out {2} ms.
+Removed the clip; the track below shows there.
+V{0} clip {1} · {2}–{3}. Drag to move, drag an edge to trim, Razor (C) splits, Slip (Y) changes its footage, Delete removes it.
+Split the V{0} clip.
+Split the V{0} clip at {1}.
+Moved the clip to {0}.
+Slipped the footage {0} s.
+Added V{0}.
+Deleted V{0}; its clips are gone (Undo: Ctrl+Z).
+{0} copied to V{1} above it, cut for cut. Lock the original to keep it safe; edit the copy freely — the top visible clip is what plays and exports.
+{0} is on V{1} from {2}. It covers the tracks below; the sound is unchanged. Undo: Ctrl+Z.
+Put on V{0} at {1}
+Insert into V1 (ripples) at {0}
+Use its sound on MIX at {0}
+V{0}: {1}–{2} is black. Undo: Ctrl+Z.
+V{0}: {1}–{2} holds the frame at In, kept moving. Undo: Ctrl+Z.
+The picture in {0}–{1} is now black. Sound unchanged. Undo: Ctrl+Z.
+The picture in {0}–{1} is now the frame at In, kept moving (built at export; the preview shows the frame). Sound unchanged. Undo: Ctrl+Z.
+Removed {0} s of picture and sound; everything after moved earlier. Undo: Ctrl+Z.
+Inserted {0} ({1} s) at {2}. Everything after moved later.
+Razor cut at {0}. Ctrl+Z to undo.
+Moved source audio later by {0} ms (Slip).
+Moved source audio earlier by {0} ms (Slip).
+Trimmed clip start to {0}. The freed range uses target audio.
+Trimmed clip end to {0}. The freed range uses target audio.
+Moved clip to {0}. The picture is unchanged.
+Copied clip to {0}. The picture is unchanged.
+Listening to {0}.
+Clip {0} of {1} · imported audio · {2}
+Duplicate
+Delete track
+Export
+Tracks
+Full screen
+Interface language
+Apply gain and fades to the selected clip (Enter); heard in the preview and applied at export
+Timing change; {0}; preview the join
+Source-only section: skip {0}s; {1}; preview the join
+picture-located join
+audio-located join inside the picture-bounded span
+quietest source-audio point inside the picture-bounded span
+join estimated in a {0}s low-motion span
+Picture-verified target-only footage ({0}s): {1}; target audio used; preview
+no source picture
+held shot shown longer, placed at the quietest target audio
+Picture-verified target-only footage; use selected target audio
+Picture-verified target-only eyecatch/title-card; use selected target audio
+Target-only video removed; inspect the new join
+Target sections without source audio were removed. Review edited video, including start/end.
+Dub-only material ({0}s) rebuilt from held/repeated target frames; dub audio kept; preview
+Shots the dub replaced ({0}s) rebuilt from the target frames it shows instead; preview
+source audio unavailable; reference fallback needed
+Shared opening music: use aligned source audio, not target audio
+fit scatter {0}s; inspect sync
+sparse matches; estimated timing with source audio retained

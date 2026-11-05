@@ -19,7 +19,7 @@ if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repo 'dist' }
 $output = [IO.Path]::GetFullPath($OutputDirectory.Trim('"'))
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 $version = (Get-Content -LiteralPath (Join-Path $source 'package.json') -Raw | ConvertFrom-Json).version
-if ($version -ne '1.3.0') { throw "Expected AutoSync v1.3.0, found v$version" }
+if ($version -ne '1.4.0') { throw "Expected AutoSync v1.4.0, found v$version" }
 $bundle = Join-Path $output ("AutoSync-v{0}-Windows-Portable" -f $version)
 $zip = Join-Path $output ("AutoSync-v{0}-Windows-Portable.zip" -f $version)
 if ((Test-Path -LiteralPath $bundle) -or (Test-Path -LiteralPath $zip)) {
@@ -145,9 +145,8 @@ try {
   New-Item -ItemType Directory -Force -Path $engine,$python | Out-Null
   Copy-Item -Path (Join-Path $source '*.py') -Destination $engine
   Copy-Item -Path (Join-Path $source 'requirements.txt') -Destination $engine
-  Copy-Item -Path (Join-Path $source 'requirements-sync-ai.txt') -Destination $engine
   Copy-Item -Path (Join-Path $source 'jobs_example.csv') -Destination $engine
-  Copy-Item -Path (Join-Path $source 'README.md') -Destination $engine
+  Copy-Item -Path (Join-Path $repo 'README.md') -Destination $engine
   if (Test-Path (Join-Path $source 'sushi')) {
     Copy-Item -LiteralPath (Join-Path $source 'sushi') -Destination $engine -Recurse
   }
@@ -168,7 +167,7 @@ try {
   Copy-Item -LiteralPath $ffprobe.FullName -Destination (Join-Path $engine 'ffprobe.exe')
 
   Write-Host '[6/7] Checking bundled runtime...'
-  & (Join-Path $python 'python.exe') -c 'import numpy, scipy, main_episode, video_edits, output_jobs, ai_sync'
+  & (Join-Path $python 'python.exe') -c 'import numpy, scipy, main_episode, video_edits, output_jobs'
   if ($LASTEXITCODE -ne 0) { throw 'Embedded Python import check failed.' }
   & (Join-Path $python 'python.exe') (Join-Path $engine 'autosync.py') --help | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Embedded AutoSync CLI failed.' }
@@ -176,7 +175,17 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Bundled FFmpeg failed.' }
 
   Write-Host '[7/7] Creating portable ZIP...'
-  Compress-Archive -LiteralPath $bundle -DestinationPath $zip -CompressionLevel Optimal
+  # Antivirus may briefly lock the executables just run by the checks above.
+  for ($attempt = 1; ; $attempt++) {
+    try {
+      Compress-Archive -LiteralPath $bundle -DestinationPath $zip -CompressionLevel Optimal -Force -ErrorAction Stop
+      break
+    } catch {
+      if ($attempt -ge 5) { throw }
+      Write-Host "ZIP attempt $attempt failed ($($_.Exception.Message)); retrying..."
+      Start-Sleep -Seconds (3 * $attempt)
+    }
+  }
   if (-not (Test-Path -LiteralPath $zip)) { throw 'Portable ZIP was not created.' }
   $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
   Write-Host 'Portable app: ' $bundle

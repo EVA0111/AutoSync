@@ -1,15 +1,20 @@
 'use strict';
-const {contextBridge,ipcRenderer}=require('electron');
+const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('alignment',{
  getPlan:()=>ipcRenderer.invoke('align-get-plan'),
  waveform:track=>ipcRenderer.invoke('align-waveform',track),
  waveformRange:(track,start,end)=>ipcRenderer.invoke('align-waveform-range',track,start,end),
- frame:(track,time)=>ipcRenderer.invoke('align-frame',track,time),
+ frame:(track,time,media)=>ipcRenderer.invoke('align-frame',track,time,media),
  videoProxy:track=>ipcRenderer.invoke('align-video-proxy',track),
  clipEdit:(op,payload)=>ipcRenderer.invoke('align-clip-op',op,payload),
- audio:(track,start,length,speed)=>ipcRenderer.invoke('align-audio',track,start,length,speed),
- save:segments=>ipcRenderer.invoke('align-save',segments),
+ audio:(track,start,length,speed,media)=>ipcRenderer.invoke('align-audio',track,start,length,speed,media),
+ importMedia:()=>ipcRenderer.invoke('align-import'),
+ registerMedia:paths=>ipcRenderer.invoke('align-register-media',paths),
+ save:(segments,timeline,extras)=>ipcRenderer.invoke('align-save',segments,timeline,extras),
  export:()=>ipcRenderer.invoke('align-export'),
  openFolder:()=>ipcRenderer.invoke('align-open-folder'),
+ snapshot:(track,time,media)=>ipcRenderer.invoke('align-snapshot',track,time,media),
+ // Files dragged in from Explorer: their real paths (only these are registered).
+ pathsForFiles:files=>Array.from(files||[],f=>{try{return webUtils.getPathForFile(f);}catch{return '';}}).filter(Boolean),
  onEvent:callback=>{const handler=(_,data)=>callback(data);ipcRenderer.on('alignment-event',handler);return()=>ipcRenderer.removeListener('alignment-event',handler);}
 });

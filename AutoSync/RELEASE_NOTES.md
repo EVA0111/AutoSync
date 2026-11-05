@@ -1,32 +1,42 @@
-# AutoSync v1.3.0
+# AutoSync v1.4.0
 
 Windows x64 portable release by [EVA0111](https://github.com/EVA0111).
 
-## What's new in v1.3.0
+## What's new in v1.4.0
 
-### Much more accurate syncing
+### Cleaner, more accurate sound
 
-- **New picture-based engine.** AutoSync now lines the source audio up with the target's *picture*. Earlier versions followed the target's own dub track, which in real releases sits 90–250 ms away from its own picture, so lip-sync was off by that much. The old audio-based engine remains the fallback when a video is missing.
-- **Measured, not assumed.** Every change was checked by an independent tool that compares the finished output with the original source, on 8 real episode pairs × 4 output modes × Standard and AI-assisted (64 runs): **64 of 64 pass** (typical error 9–17 ms). The previous release passed 0 of 56.
-- **Handles real-world edits:** re-cut and reordered shots, scenes added or removed by one release, frozen shots held longer, gradual picture drift (followed with a gentle, inaudible speed change), different speeds (25/24, NTSC) and frame-accurate main-episode trims.
+- **No more dips at joins.** Every point where the synced audio jumps used to fade to silence for a moment (10 ms, 50 ms where a censored dub switches language). Joins are now smooth crossfades placed at the exact same time, so continuous audio stays seamless and every sample stays in sync.
+- **Tiny cuts are found.** When a release removes only a few frames, the join could land seconds away from the real cut. AutoSync now searches past the matched sections when the pictures do not pin the cut, and lets the audio decide inside that span.
+- **Safer rate detection.** The playback speed is chosen by which speed keeps the matched pictures steady, and single acts at another standard speed (for example one taken from a PAL master) are followed.
+- More engine fixes found by a new suite of synthetic test videos with exact known answers: picture timing now starts at the first frame FFmpeg shows, a target whose audio ends before its picture keeps its own silence there, and four smaller timing errors.
+
+### More than twice as fast
+
+- Analysing a 20-minute episode took 74 s and now takes 32 s on the test machine (the picture matching itself is 3 to 8 times faster). Results are identical to before: the speed comes from doing the same work more efficiently and solving candidate playback speeds side by side on several CPU cores.
 
 ### Censored or edited dubs
 
-- New **Censored or edited dub** option for old dubs that removed or re-cut scenes (for example an Arabic dub of a Japanese original). AutoSync lists every scene the dub removed and every spot it re-cut, and lets you **restore** each scene with the original audio (loudness-matched to the dub, with soft switches) or **cut** it from the video like the dub did, scene by scene in Preview & Edit. Optional subtitles for the restored scenes.
+- New **Recreate the dub's version** option: removed scenes are cut, and the freezes, repeats and replaced shots the dub used to cover them are rebuilt from the original's own pictures, with natural motion instead of frozen frames.
+- **Better censorship detection.** Removed scenes now include the frames the dub covered with its own freeze or repeat; a mosaic, blur or painted patch over part of the frame is no longer mistaken for a different scene; slow or near-still shots no longer produce false "removed scene" reports; and removed footage inside a held shot is placed by the audio. Measured on a new set of 15 synthetic censored dubs (removed and trimmed scenes, freezes, mosaics, patches, zooms): 12 pass, up from 4 of the first 11.
 
-### Redesigned Preview & Edit
+### Preview & Edit
 
-- One screen, no scrolling: a **review list** of every join and flagged point (filters, checked marks, notes), side-by-side / overlay / difference / wipe picture comparison, frame-accurate stepping and nudges, slow playback, "play across join", an overview strip, Ctrl+scroll zoom, waveforms that appear as soon as each track loads, automatic saving of your edits, and a keyboard-shortcut sheet (**?**).
+- A full video editor: any number of **video tracks** (duplicate a track and edit the copy above the locked original), a **media pool** with import and drag and drop from Explorer, **track locks**, a menu bar, and **Fill motion** for a marked range.
+- Smooth, gapless playback and a faster timeline.
+- The review list now flags only the joins that really need checking (before, every join was listed as needing review).
 
-### Cleaner main window
+### Interface languages
 
-- One top bar (Audio · Subtitles · Jobs · Settings), your files on the left and the job settings on the right, a single bottom bar that tells you the next step, and clearer Settings.
+- The whole app is available in **Arabic, German, Spanish, Persian, French, Hindi, Japanese, Korean, Portuguese and Chinese**, chosen from the top bar (right-to-left for Arabic and Persian).
 
-### Reliability
+### Removed
 
-- Fixed exports blocked by Windows briefly locking a just-written video file.
-- Fixed AI-assisted runs crashing on RTX 50-series GPUs (falls back to CPU).
-- Many smaller timing fixes; all safety checks are kept (no repeated audio, uncertain joins are flagged).
+- **AI-assisted sync** (pretrained audio and scene models) is removed: the picture-based engine gives the same or better results without it, and nothing extra needs to be downloaded. **Subtitle AI** (speech recognition and translated-dialogue matching) is unchanged.
+
+### Verification
+
+- Regression matrix on 9 real episode pairs in all 4 output modes: **36 of 36 runs pass**, measured by an independent tool that compares the finished output with the original source.
 
 ## What's included
 
@@ -36,9 +46,9 @@ Windows x64 portable release by [EVA0111](https://github.com/EVA0111).
 
 ## Installation
 
-1. Download **AutoSync-v1.3.0-Windows-Portable.zip**.
+1. Download **AutoSync-v1.4.0-Windows-Portable.zip**.
 2. Extract it into a writable location.
-3. Open **AutoSync.exe** inside the extracted **AutoSync-v1.3.0-Windows-Portable** folder.
+3. Open **AutoSync.exe** inside the extracted **AutoSync-v1.4.0-Windows-Portable** folder.
 
 New to AutoSync? Read the [wiki](https://github.com/EVA0111/AutoSync/blob/main/docs/Home.md).
 
@@ -46,4 +56,4 @@ Listen across flagged joins before distributing outputs. AutoSync never overwrit
 
 ## Source
 
-The source repository includes the portable Windows build scripts under `build/windows`. All application windows and package metadata display **v1.3.0**.
+The source repository includes the portable Windows build scripts under `build/windows`. All application windows and package metadata display **v1.4.0**.

@@ -1,0 +1,18 @@
+Regression matrix, standard method: v14 (6c2340a) vs v15b (this commit). 36/36 PASS in both; verdicts identical.
+Metric lines that differ (diff v14.log v15b.log):
+16c16
+<      7 main              standard    PASS (known target defect)                       med=13.3 p95=75.4 in100=0.9781 cov=0.517
+---
+>      7 main              standard    PASS (known target defect)                       med=13.3 p95=75.5 in100=0.9781 cov=0.5153
+30c30
+<      3 remove_unmatched  standard    PASS                                             med=16.1 p95=84.8 in100=0.9593 cov=0.4134
+---
+>      3 remove_unmatched  standard    PASS                                             med=16.3 p95=91.4 in100=0.9512 cov=0.4148
+34c34
+<      7 remove_unmatched  standard    PASS (known target defect)                       med=14.3 p95=64.9 in100=0.9704 cov=0.5017
+---
+>      7 remove_unmatched  standard    PASS (known target defect)                       med=15.5 p95=70.1 in100=0.9697 cov=0.5455
+36c36
+<      8 remove_unmatched  standard    PASS                                             med=9.8 p95=82.6 in100=0.9652 cov=0.4182
+---
+>      8 remove_unmatched  standard    PASS                                             med=9.4 p95=80.1 in100=0.9731 cov=0.4055
