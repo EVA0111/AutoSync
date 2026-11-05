@@ -279,6 +279,24 @@ def language_switch(segments,j):
     """The join before segment j switches between source (dub) and target audio."""
     return (segments[j-1]['kind']=='audio')!=(segments[j]['kind']=='audio')
 
+def crossfade(a,b):
+    """Blend two renderings of the same output samples: a fades out, b fades in.
+
+    Equal-power curves, corrected for how alike the two sides are (their
+    correlation rho): the blend's power is wa^2 + wb^2 + 2 rho wa wb, so
+    dividing by its root keeps the level constant whether the sides are the
+    same sound (a join inside continuous audio: the curves become linear),
+    unrelated (plain equal power), or partly out of phase. The correction is
+    capped at 2x, so sides that cancel are never boosted past that.
+    """
+    n=len(a);t=(np.arange(n,dtype=np.float64)+.5)/n
+    a64,b64=a.astype(np.float64),b.astype(np.float64)
+    den=float(np.sqrt(np.sum(a64*a64)*np.sum(b64*b64)))
+    rho=float(np.sum(a64*b64))/den if den>0 else 0.
+    wa,wb=np.cos(t*np.pi/2),np.sin(t*np.pi/2)
+    norm=1/np.sqrt(np.maximum(wa*wa+wb*wb+2*rho*wa*wb,.25))
+    return (a64*(wa*norm)[:,None]+b64*(wb*norm)[:,None]).astype(np.float32)
+
 def switch_gains(plan,pcm,audio,stream,ref,refstream,td,context=3.):
     """Gain for each restored censored scene: dub loudness / target loudness nearby.
 
@@ -357,7 +375,7 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
     output=out/'synced.flac'
     if output.exists():raise RuntimeError('Output already exists. Use a new output folder.')
     with tempfile.TemporaryDirectory(prefix='render_',dir=out,ignore_cleanup_errors=True) as td:
-        td=Path(td);parts=[]
+        td=Path(td)
         from pcm_audio import PCMCache
         pcm=PCMCache(td,ch)
         # Censored dubs switch language at restored scenes: match the restored
@@ -366,100 +384,137 @@ def render(plan,out,reference_fallback,allow_uncertain_cuts=False):
         gains=switch_gains(plan,pcm,audio,stream,ref,refstream,td) if smooth else {}
         for i,g in gains.items():
             say(f"Restored scene {plan['segments'][i]['target_start']:.2f}s: original audio {20*np.log10(g):+.1f} dB to match the dub")
-        for i,s in enumerate(plan['segments']):
+        segs=plan['segments']
+        def where(s):
+            """(file, track, first second, speed) the segment's audio comes from."""
+            if s['kind']=='audio':return audio,stream,float(s['source_start']),float(s['speed'])
+            if s['kind']=='target_outer':return plan['target_video'],plan.get('outer_stream',0),s.get('reference_target_start',s['target_start'])-plan.get('outer_shift',0),1.
+            if s['kind']=='media':return s['media'],(None if s.get('media_stream') is None else int(s['media_stream'])),float(s.get('media_start',0)),1.
+            return ref,refstream,s.get('reference_target_start',s['target_start'])-plan.get('reference_shift',0),1.
+        samples=[round(x['target_end']*48000)-round(x['target_start']*48000) for x in segs]
+        # Joins are crossfades: each side keeps playing its own audio for a few
+        # milliseconds past the join and the two are blended around the exact
+        # join time, so timing is unchanged and no join dips to silence. Where a
+        # side has no audio to borrow (file start or end, target audio that
+        # starts late or ends early) the join keeps a short fade instead.
+        def extendable(s,before,secs):
+            path,track,ss,sp=where(s)
+            if track is None:return True                       # silence (an image or silent clip)
+            need=secs*sp
+            if before:return ss-need>=0
+            return ss+(s['target_end']-s['target_start'])*sp+need<=pcm.length(path,track)-1e-6
+        half=[0]*len(segs)                                    # half-width (samples) of the crossfade before segment j
+        for j in range(1,len(segs)):
+            h=min(1440 if smooth and language_switch(segs,j) else 480,samples[j-1]//2,samples[j]//2)
+            if h>0 and extendable(segs[j-1],False,h/48000) and extendable(segs[j],True,h/48000):half[j]=h
+        joined=td/'joined.f32';pending=None
+        dest=joined.open('wb')
+        try:
+         for i,s in enumerate(segs):
             start,end=s['target_start'],s['target_end'];dur=end-start
             if dur<=0:raise RuntimeError('Invalid segment duration.')
-            n=round(end*48000)-round(start*48000)
-            if s['kind']=='media' and s.get('media_stream') is None:
-                dst=td/f'{i:04}.f32';parts.append(dst)
-                np.zeros((n,ch),np.float32).tofile(dst);say(f'Rendered {i+1}/{len(plan["segments"])} sections');continue
-            path,track,ss,sp=(audio,stream,s['source_start'],s['speed']) if s['kind']=='audio' else (ref,refstream,s.get('reference_target_start',start)-plan.get('reference_shift',0),1)
-            if s['kind']=='target_outer':path,track,ss,sp=plan['target_video'],plan.get('outer_stream',0),s.get('reference_target_start',start)-plan.get('outer_shift',0),1.
-            if s['kind']=='media':path,track,ss,sp=s['media'],int(s['media_stream']),float(s.get('media_start',0)),1.
-            # A target whose audio starts a little after its picture (stream start
-            # offsets) is silent there in the target itself: reproduce that, never
-            # for source audio and never for more than a second.
-            lead=0
-            if ss<0 and s['kind']!='audio' and ss>-1. and -ss<dur:
-                lead=round(-ss*48000);dur-=-ss;start+=-ss;ss=0.
-            if ss<0:raise RuntimeError('Reference fallback begins before available reference audio.')
-            # Do not hide short decodes with apad. Inspect decoded length before retiming.
-            raw=td/'chunk.f32'
-            pre=post=0.
-            if s['kind']=='audio' and abs(sp-1.)>=1e-10:
-                # Stretch with up to 0.5 s of real context on each side, then keep the
-                # exact middle: atempo's start/end latency falls outside the segment.
-                pre=min(ss,.5);post=max(0.,min(.5,pcm.length(path,track)-(ss+dur*sp)))
-            # Likewise at the end: target audio that stops before its picture
-            # (case 9: 2.4 s) is silent there in the target. At most 5 s.
-            tail=0
-            if s['kind']!='audio':
-                have=pcm.length(path,track)-ss
-                if 0<have<dur and dur-have<=5.:tail=round((dur-have)*48000);dur=have
-            pcm.cut(path,track,ss-pre,dur*sp+pre+post,raw)
-            if tail:
-                with raw.open('ab') as f:f.write(bytes(tail*ch*4))
-                dur+=tail/48000
-            if lead:
-                body=np.fromfile(raw,np.float32);np.concatenate([np.zeros(lead*ch,np.float32),body]).tofile(raw);del body
-                dur+=lead/48000
-            if s['kind']=='verified_gap':
-                data=np.fromfile(raw,np.float32).reshape(-1,ch)
-                blocks=[np.mean(z*z) for z in np.array_split(data,max(1,len(data)//960))]
-                if np.mean(data*data)>4e-6 or max(blocks)>2e-5:raise RuntimeError('Target pause audio is no longer near-silent; refusing automatic replacement.')
-            frames=raw.stat().st_size//(4*ch)
-            if frames/48000<dur*sp+pre+post-.10:raise RuntimeError(f'Source decode too short near {start:.2f}s. No silent padding was added.')
-            if s['kind']=='target_outer' and i==len(plan['segments'])-1 and 0<n-frames<=4800:
-                # Preserve target music timing when its audio ends a few ms before video.
-                # This is the target's existing empty tail, never a missing source section.
-                with raw.open('ab') as f:f.write(bytes((n-frames)*ch*4))
-                frames=n
-            dst=td/f'{i:04}.f32';parts.append(dst)
-            # atempo can return a few ms less: constrain duration with exact final resampling,
-            # never with silent padding. Overall length adjustment is normally <0.1%.
-            stretched=td/'stretch.f32'
-            # Under 0.2 s with no context, atempo's latency dominates; plain resampling
-            # below is exact and its pitch change over such a clip is inaudible.
-            short=dur*sp+pre+post<.2
-            if abs(sp-1.)<1e-10 or short:shutil.copyfile(raw,stretched)
+            n=samples[i];hl=half[i];hr=half[i+1] if i+1<len(segs) else 0;N=hl+n+hr
+            path,track,ss,sp=where(s)
+            if s['kind']=='media' and track is None:
+                fixed=np.zeros((N,ch),np.float32)
             else:
-                vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-f','f32le','-ar','48000','-ac',str(ch),'-i',str(raw),'-af',f'atempo={sp:.10f}','-f','f32le',str(stretched)])
-            x=np.memmap(stretched,dtype=np.float32,mode='r').reshape(-1,ch)
-            try:
-                if pre+post and not short:
-                    lead=round(pre/sp*48000);x=x[lead:lead+n]
-                # 2% relative, but at least 10 ms: atempo latency dominates very short clips.
-                if not short and abs(len(x)-n)>max(.02*n,480):raise RuntimeError('Unexpected time-stretch length error.')
-                from fractions import Fraction
-                ratio=Fraction((n*100000 + len(x)-1)//len(x),100000)
-                fixed=np.array(x) if len(x)==n else signal.resample_poly(np.asarray(x),ratio.numerator,ratio.denominator,axis=0)[:n]
-            finally:
-                # Windows cannot delete a file that is still memory-mapped; an
-                # open map would replace the real error with a cleanup failure.
-                del x
-            if len(fixed)!=n:raise RuntimeError('Exact duration correction failed.')
+                # A target whose audio starts a little after its picture (stream start
+                # offsets) is silent there in the target itself: reproduce that, never
+                # for source audio and never for more than a second.
+                lead=0
+                if ss<0 and s['kind']!='audio' and ss>-1. and -ss<dur:
+                    lead=round(-ss*48000);dur-=-ss;start+=-ss;ss=0.
+                if ss<0:raise RuntimeError('Reference fallback begins before available reference audio.')
+                # Do not hide short decodes with apad. Inspect decoded length before retiming.
+                raw=td/'chunk.f32'
+                ext_pre,ext_post=hl*sp/48000,hr*sp/48000         # the crossfades' borrowed audio, source seconds
+                stretch=abs(sp-1.)>=1e-10
+                pre,post=ext_pre,ext_post
+                if stretch:
+                    # Stretch with up to 0.5 s of real context on each side, then keep the
+                    # exact middle: atempo's start/end latency falls outside the segment.
+                    pre=max(ext_pre,min(ss,.5));post=max(ext_post,min(.5,pcm.length(path,track)-(ss+dur*sp)))
+                # Likewise at the end: target audio that stops before its picture
+                # (case 9: 2.4 s) is silent there in the target. At most 5 s.
+                tail=0
+                if s['kind']!='audio':
+                    have=pcm.length(path,track)-ss
+                    if 0<have<dur and dur-have<=5.:tail=round((dur-have)*48000);dur=have
+                pcm.cut(path,track,ss-pre,dur*sp+pre+post,raw)
+                if tail:
+                    with raw.open('ab') as f:f.write(bytes(tail*ch*4))
+                    dur+=tail/48000
+                if lead:
+                    body=np.fromfile(raw,np.float32);np.concatenate([np.zeros(lead*ch,np.float32),body]).tofile(raw);del body
+                    dur+=lead/48000
+                if s['kind']=='verified_gap':
+                    data=np.fromfile(raw,np.float32).reshape(-1,ch)
+                    blocks=[np.mean(z*z) for z in np.array_split(data,max(1,len(data)//960))]
+                    if np.mean(data*data)>4e-6 or max(blocks)>2e-5:raise RuntimeError('Target pause audio is no longer near-silent; refusing automatic replacement.')
+                frames=raw.stat().st_size//(4*ch)
+                if frames/48000<dur*sp+pre+post-.10:raise RuntimeError(f'Source decode too short near {start:.2f}s. No silent padding was added.')
+                if s['kind']=='target_outer' and i==len(segs)-1 and 0<N-frames<=4800:
+                    # Preserve target music timing when its audio ends a few ms before video.
+                    # This is the target's existing empty tail, never a missing source section.
+                    with raw.open('ab') as f:f.write(bytes((N-frames)*ch*4))
+                    frames=N
+                # Under 0.2 s with no context, atempo's latency dominates; plain resampling
+                # below is exact and its pitch change over such a clip is inaudible.
+                short=dur*sp<.2
+                stretched=td/'stretch.f32'
+                if stretch and not short:
+                    vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-f','f32le','-ar','48000','-ac',str(ch),'-i',str(raw),'-af',f'atempo={sp:.10f}','-f','f32le',str(stretched)])
+                    x=np.memmap(stretched,dtype=np.float32,mode='r').reshape(-1,ch)
+                    first=round(pre/sp*48000)-hl
+                else:
+                    # Unstretched (or too short to stretch): the context is source samples.
+                    shutil.copyfile(raw,stretched)
+                    x=np.memmap(stretched,dtype=np.float32,mode='r').reshape(-1,ch)
+                    first=round((pre-ext_pre)*48000)
+                    if short and stretch:x=x[first:first+round((dur*sp+ext_pre+ext_post)*48000)];first=0
+                try:
+                    if stretch and not short:x=x[first:first+N]
+                    elif first:x=x[first:]
+                    # 2% relative, but at least 10 ms: atempo latency dominates very short clips.
+                    if not short and abs(len(x)-N)>max(.02*N,480):raise RuntimeError('Unexpected time-stretch length error.')
+                    # atempo can return a few ms less: constrain duration with exact final resampling,
+                    # never with silent padding. Overall length adjustment is normally <0.1%.
+                    from fractions import Fraction
+                    ratio=Fraction((N*100000 + len(x)-1)//len(x),100000)
+                    fixed=np.array(x) if len(x)==N else signal.resample_poly(np.asarray(x),ratio.numerator,ratio.denominator,axis=0)[:N]
+                finally:
+                    # Windows cannot delete a file that is still memory-mapped; an
+                    # open map would replace the real error with a cleanup failure.
+                    del x
+                raw.unlink();stretched.unlink()
+            if len(fixed)!=N:raise RuntimeError('Exact duration correction failed.')
             # Matched restored-scene level, and the clip gain set in Preview & Edit.
             g=float(gains.get(i,1.))*10**(float(s.get('gain_db',0) or 0)/20)
             if abs(g-1.)>1e-6:
                 fixed*=np.float32(g)
                 peak=float(np.max(np.abs(fixed))) if len(fixed) else 0.
                 if peak>.98:fixed*=np.float32(.98/peak)   # never clip a boosted clip
-            # Five-millisecond fades at segment joins; 25 ms where a censored dub
-            # switches between dub and original audio; longer where the editor set fades.
-            segs=plan['segments']
-            def fade_at(j):return min((1200 if smooth and language_switch(segs,j) else 240),n//2)
+            # Fades set in Preview & Edit apply to the clip itself; a join without a
+            # crossfade fades out and in over 5 ms (25 ms where a censored dub
+            # switches between dub and original audio).
+            core=fixed[hl:hl+n]
+            def fade_at(j):return 0 if half[j] else min((1200 if smooth and language_switch(segs,j) else 240),n//2)
             fi=min(round(float(s.get('fade_in_ms',0) or 0)*48),n);fo=min(round(float(s.get('fade_out_ms',0) or 0)*48),n)
             f=max(fade_at(i) if i>0 else 0,fi)
-            if f:fixed[:f]*=np.linspace(0,1,f,dtype=np.float32)[:,None]
+            if f:core[:f]*=np.linspace(0,1,f,dtype=np.float32)[:,None]
             f=max(fade_at(i+1) if i<len(segs)-1 else 0,fo)
-            if f:fixed[-f:]*=np.linspace(1,0,f,dtype=np.float32)[:,None]
-            fixed.astype(np.float32).tofile(dst);del fixed
-            raw.unlink();stretched.unlink();say(f'Rendered {i+1}/{len(plan["segments"])} sections')
-        joined=td/'joined.f32'
-        with joined.open('wb') as dest:
-            for part in parts:
-                with part.open('rb') as src:shutil.copyfileobj(src,dest,4*1024*1024)
-                part.unlink()
+            if f:core[-f:]*=np.linspace(1,0,f,dtype=np.float32)[:,None]
+            fixed=fixed.astype(np.float32)
+            body=0
+            if hl:
+                a,b=pending,fixed[:2*hl];pending=None
+                dest.write(crossfade(a,b).tobytes());body=2*hl
+            if hr:
+                dest.write(fixed[body:N-2*hr].tobytes());pending=fixed[N-2*hr:].copy()
+            else:dest.write(fixed[body:].tobytes())
+            del fixed,core
+            say(f'Rendered {i+1}/{len(segs)} sections')
+        finally:dest.close()
         temp=td/'synced.flac'
         vc.run([vc.binary('ffmpeg'),'-v','error','-nostdin','-y','-f','f32le','-ar','48000','-ac',str(ch),'-i',str(joined),'-c:a','flac','-sample_fmt','s32',str(temp)])
         actual=float(vc.probe(temp)['format']['duration'])

@@ -111,8 +111,8 @@ class SmoothSwitch(unittest.TestCase):
     def test_restored_scene_matches_dub_loudness(self):
         rms = self.render(.2)                                                 # 8 dB quieter
         self.assertAlmostEqual(rms(5, 7) / rms(1, 3), 1., delta=.05)
-        # 25 ms fade at the switch: near-silent exactly at the join, full level 40 ms away.
-        self.assertLess(rms(3.999, 4.001), .2 * rms(1, 3))
+        # 60 ms crossfade at the switch: no gap at the join, full level 40 ms away.
+        self.assertGreater(rms(3.995, 4.005), .7 * rms(1, 3))
         self.assertGreater(rms(4.03, 4.05), .8 * rms(1, 3))
 
     def test_large_level_difference_is_matched(self):
