@@ -260,21 +260,37 @@ def clip_scores(FT, FS, i, offsets_frames, r):
     ok_t = (ti >= 0) & (ti < len(FT))
     q = FT[ti[ok_t]]
     out = np.full(len(offsets_frames), -1.)
-    for k, o in enumerate(offsets_frames):
-        sj = np.round(r * ti[ok_t] + o).astype(int)
-        ok = (sj >= 0) & (sj < len(FS))
-        if ok.sum() >= len(CLIP) * .7:
-            out[k] = float(np.mean(np.sum(q[ok] * FS[sj[ok]], axis=1)))
+    if not len(offsets_frames):
+        return out
+    # All offsets at once; the same per-row arithmetic as one offset at a time.
+    sj = np.round(r * ti[ok_t][None, :] + np.asarray(offsets_frames)[:, None]).astype(int)
+    ok = (sj >= 0) & (sj < len(FS))
+    full = ok.all(axis=1) & (ok.shape[1] >= len(CLIP) * .7)
+    if full.any():
+        out[full] = np.mean(np.sum(q[None] * FS[sj[full]], axis=2), axis=1)
+    for k in np.flatnonzero(~full):
+        if ok[k].sum() >= len(CLIP) * .7:
+            out[k] = float(np.mean(np.sum(q[ok[k]] * FS[sj[k][ok[k]]], axis=1)))
     return out
 
 
-def candidates(FT, DT, FS, DS, r, samples, top=8):
-    """Per sample: dict offset(frames, int) -> clip score."""
-    cand = [dict() for _ in samples]
+_TOP = None            # (FT, FS weak references, samples, top, frames): the last top_frames result
+
+
+def top_frames(FT, FS, samples, top=8):
+    """Per sample: its best single-frame source matches, at least 1 s apart.
+
+    Independent of the rate, so the rates tried for one episode share it.
+    """
+    global _TOP
+    key = (samples.tobytes(), top)
+    if _TOP and _TOP[0]() is FT and _TOP[1]() is FS and _TOP[2] == key:
+        return _TOP[3]
+    out = []
     for start in range(0, len(samples), 256):
         idx = samples[start:start + 256]
         sim = FT[idx] @ FS.T
-        for row, i in enumerate(idx):
+        for row in range(len(idx)):
             s = sim[row]
             order = np.argpartition(-s, 80)[:80]; order = order[np.argsort(-s[order])]
             chosen = []
@@ -283,16 +299,33 @@ def candidates(FT, DT, FS, DS, r, samples, top=8):
                     chosen.append(int(j))
                 if len(chosen) >= top:
                     break
-            offs = [int(round(j - r * i)) for j in chosen]
-            for o, v in zip(offs, clip_scores(FT, FS, i, offs, r)):
-                cand[start + row][o] = v
+            out.append(chosen)
+    import weakref
+    _TOP = (weakref.ref(FT), weakref.ref(FS), key, out)
+    return out
+
+
+def candidates(FT, DT, FS, DS, r, samples, top=8):
+    """Per sample: dict offset(frames, int) -> clip score."""
+    cand = [dict() for _ in samples]
+    for k, (i, chosen) in enumerate(zip(samples, top_frames(FT, FS, samples, top))):
+        offs = [int(round(j - r * i)) for j in chosen]
+        for o, v in zip(offs, clip_scores(FT, FS, i, offs, r)):
+            cand[k][o] = v
     # Static shots: the true offset may not be a top single-frame match. Offer
     # every offset that is strongly supported within +-30 s to all samples there.
     strong = [(k, max(c, key=c.get)) for k, c in enumerate(cand) if c and max(c.values()) > .9]
     span = int(30 / STEP)
+    import bisect
+    at = [kk for kk, _ in strong]
     for k, i in enumerate(samples):
-        local = {o for kk, o in strong if abs(kk - k) <= span}
-        extra = [o for o in local if all(abs(o - x) > 1 for x in cand[k])]
+        local = {o for _, o in strong[bisect.bisect_left(at, k - span):bisect.bisect_right(at, k + span)]}
+        if not local:
+            continue
+        loc = list(local)
+        have = np.fromiter(cand[k], int, len(cand[k]))
+        far = np.all(np.abs(np.array(loc)[:, None] - have[None, :]) > 1, axis=1)
+        extra = [o for o, f in zip(loc, far) if f]
         for o, v in zip(extra, clip_scores(FT, FS, i, extra, r)):
             cand[k][o] = v
     return cand
@@ -301,31 +334,34 @@ def candidates(FT, DT, FS, DS, r, samples, top=8):
 def solve(cand, r, match=MATCH, jump=JUMP, allowed=None):
     """Viterbi over offsets (+ target-only state None). Returns offset or None per sample."""
     n = len(cand)
-    states = [sorted(o for o in c if allowed is None or allowed(o)) + [None] for c in cand]
-    def reward(k, o):
-        return 0. if o is None else float(np.clip(cand[k][o] - match, -.5, .2))
-    def cost(a, b):
-        if a is None or b is None:
-            return 0. if a is b else NULL
-        d = (b - a) / FPS          # source seconds
-        if abs(d) <= 1.5 / FPS:
-            return .02 * abs(b - a)
-        c = jump if d > 0 else BACK
-        return c + (FAR if abs(d) > 60 else 0.)
-    score = np.array([reward(0, o) for o in states[0]])
+    states = [sorted(o for o in c if allowed is None or allowed(o)) for c in cand]
+    # Rewards: clip score above the match level; the target-only state (last) earns 0.
+    rewards = [np.append(np.clip(np.array([cand[k][o] for o in s], float) - match, -.5, .2), 0.)
+               for k, s in enumerate(states)]
+    offs = [np.array(s, float) for s in states]
+
+    def transitions(a, b):
+        """Cost of moving from offsets a to offsets b (rows: b), target-only state last on both."""
+        step = b[:, None] - a[None, :]
+        d = step / FPS             # source seconds
+        t = np.where(np.abs(d) <= 1.5 / FPS, .02 * np.abs(step),
+                     np.where(d > 0, jump, BACK) + np.where(np.abs(d) > 60, FAR, 0.))
+        out = np.full((len(b) + 1, len(a) + 1), NULL)
+        out[:-1, :-1] = t
+        out[-1, -1] = 0.
+        return out
+    score = rewards[0]
     back = []
     for k in range(1, n):
-        prev = states[k - 1]; cur = states[k]
-        trans = np.array([[cost(a, b) for a in prev] for b in cur])
-        total = score[None, :] - trans
+        total = score[None, :] - transitions(offs[k - 1], offs[k])
         arg = total.argmax(axis=1)
-        score = total[np.arange(len(cur)), arg] + np.array([reward(k, o) for o in cur])
+        score = total[np.arange(len(total)), arg] + rewards[k]
         back.append(arg)
     path = [int(np.argmax(score))]
     for arg in reversed(back):
         path.append(int(arg[path[-1]]))
     path.reverse()
-    return [states[k][s] for k, s in enumerate(path)]
+    return [states[k][s] if s < len(states[k]) else None for k, s in enumerate(path)]
 
 
 def runs_from_path(path, samples):
@@ -349,17 +385,30 @@ def refine_offset(FT, FS, DT, r, sample_frames, offset):
         return float(offset)
     grid = np.arange(-1.5, 1.51, .25)
     scores = []
+    TI = np.asarray(idx)[:, None] + CLIP[None, :]
     for g in grid:
-        o = offset + g; tot = 0.; cnt = 0
-        for i in idx:
-            ti = i + CLIP; pos = r * ti + o
-            a = np.floor(pos).astype(int); w = (pos - a)[:, None]
-            ok = (a >= 0) & (a + 1 < len(FS)) & (ti >= 0) & (ti < len(FT))
-            if ok.sum() < 5:
-                continue
-            x = FS[a[ok]] * (1 - w[ok]) + FS[a[ok] + 1] * w[ok]
-            x /= np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-6)
-            tot += float(np.mean(np.sum(FT[ti[ok]] * x, axis=1))); cnt += 1
+        o = offset + g
+        # Every sample frame at once; per-frame means added in the original order.
+        pos = r * TI + o
+        a = np.floor(pos).astype(int); w = (pos - a)[..., None]
+        ok = (a >= 0) & (a + 1 < len(FS)) & (TI >= 0) & (TI < len(FT))
+        full = ok.all(axis=1)
+        means = np.zeros(len(idx))
+        if full.any():
+            af, wf, tf = a[full], w[full], TI[full]
+            x = FS[af] * (1 - wf) + FS[af + 1] * wf
+            x /= np.maximum(np.linalg.norm(x, axis=2, keepdims=True), 1e-6)
+            means[full] = np.mean(np.sum(FT[tf] * x, axis=2), axis=1)
+        tot = 0.; cnt = 0
+        for k in range(len(idx)):
+            if not full[k]:
+                if ok[k].sum() < 5:
+                    continue
+                m = ok[k]; ak, wk = a[k][m], w[k][m]
+                x = FS[ak] * (1 - wk) + FS[ak + 1] * wk
+                x /= np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-6)
+                means[k] = float(np.mean(np.sum(FT[TI[k][m]] * x, axis=1)))
+            tot += float(means[k]); cnt += 1
         scores.append(tot / max(cnt, 1))
     scores = np.array(scores); k = int(np.argmax(scores))
     shift = 0.
