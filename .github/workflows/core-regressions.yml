@@ -26,10 +26,16 @@ jobs:
           cache: 'pip'
           cache-dependency-path: AutoSync/requirements.txt
       - name: Install Python dependencies and FFmpeg
+        # FFmpeg 9.0, as bundled in the portable app. Ubuntu's own FFmpeg (6.1)
+        # decodes audio with gaps in its timestamps differently: the audio after
+        # a gap lands early (test_audio_gaps), so it does not test what ships.
         run: |
           python -m pip install --disable-pip-version-check -r AutoSync/requirements.txt
-          sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg
+          curl -fsSL -o "$RUNNER_TEMP/ffmpeg.tar.xz" https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz
+          tar -xf "$RUNNER_TEMP/ffmpeg.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ffmpeg-n9.0-latest-linux64-gpl-9.0/bin" >> "$GITHUB_PATH"
+      - name: Show FFmpeg version
+        run: ffmpeg -version | head -1
       - name: Run all repository unit and synthetic regressions
         working-directory: AutoSync
         run: python -m unittest discover -s . -p 'test_*.py' -v
