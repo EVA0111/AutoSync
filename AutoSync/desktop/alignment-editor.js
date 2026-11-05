@@ -542,7 +542,7 @@ function syncVideos(force=false){
    $(track+'-wait').hidden=false;$(track+'-wait').textContent='Source not used at this point';
    continue;
   }
-  v.hidden=false;$(track+'-wait').hidden=true;
+  v.hidden=false;$(track+'-wait').hidden=true;$(track+'-frame').hidden=true;
   const i=locate(playhead),s=segments[Math.max(0,i)];
   const speed=(track==='source'&&s?.kind==='audio'?s.speed:1)*rate;
   if(Math.abs(v.playbackRate-speed)>.001)v.playbackRate=speed;
@@ -596,6 +596,9 @@ async function updateFrames(){
    try{
     const data=await window.alignment.frame(track,t);
     if(generation!==frameToken)return;
+    // The video may have become ready while this still was decoding: a late
+    // still would then cover the live video and never be replaced.
+    if(videoStatus[track]==='ready'){img.hidden=true;continue;}
     if(data){img.src=data;img.hidden=false;wait.hidden=true;}
    }catch{wait.hidden=false;}
   }
@@ -778,7 +781,10 @@ function applyVolume(){
 }
 function split(){
  if(locked('MIX'))return;
- const s=current();if(!s||playhead<=s.target_start+.05||playhead>=s.target_end-.05)return;
+ // The clip under the playhead (the selection may be another clip).
+ const at=locate(playhead);if(at>=0&&at!==selected)select(at);
+ const s=current();if(!s)return;
+ if(playhead<=s.target_start+.05||playhead>=s.target_end-.05){report('The playhead is on a join: move it into a clip to split it.',true);return;}
  saveHistory();const right={...s,target_start:playhead};
  if(right.kind==='audio')right.source_start=s.source_start+(playhead-s.target_start)*s.speed;
  s.target_end=playhead;segments.splice(selected+1,0,right);selected++;refresh();report('Clip split at '+trimTime(playhead)+'.');
@@ -1167,7 +1173,9 @@ $('zoom-all').onclick=()=>{zoomTo(plan.duration);setScroll(0);};
 function playAcrossJoin(){
  if(!plan)return;
  const s=current();if(!s)return;
- const t=currentIssue?.t??(selected<segments.length-1?s.target_end:s.target_start);
+ // The review point at the playhead, else the join nearest the playhead.
+ const joins=segments.slice(1).map(x=>x.target_start);
+ const t=currentIssue?.t??(joins.length?joins.reduce((a,b)=>Math.abs(b-playhead)<Math.abs(a-playhead)?b:a):s.target_start);
  pause();movePlayhead(Math.max(0,t-2));stopAt=Math.min(plan.duration,t+2);
  play();
  report('Playing 2 s either side of '+trimTime(t)+'. Press A to compare with the target audio.');
@@ -1214,6 +1222,8 @@ async function pasteSelected(){
 }
 async function trimSelected(which){
  if(exporting||locked('MIX'))return;
+ // Trim the clip under the playhead (the selection may be another clip).
+ const at=locate(playhead);if(at>=0&&at!==selected)select(at);
  try{
   const result=await clipEdit(which==='left'?'trim-left':'trim-right',{
    segments,index:selected,at:playhead
@@ -1334,12 +1344,22 @@ function setPanel(side,show){
 }
 $('collapse-issues').onclick=()=>setPanel('left',false);$('show-issues').onclick=()=>setPanel('left',true);
 $('collapse-inspector').onclick=()=>setPanel('right',false);$('show-inspector').onclick=()=>setPanel('right',true);
-function setTimelineHeight(px){
- const max=Math.max(160,window.innerHeight-260);
- const h=clamp(px,150,max);
- document.documentElement.style.setProperty('--timeline-h',h+'px');
- store.set('autosync-editor-timeline',h);requestAnimationFrame(draw);
+// The timeline's height is a share of the window (at most half of it), so the
+// pictures and the review list keep their room on a small screen and when the
+// window is resized. Older versions saved pixels: those are converted once.
+const TIMELINE_DEFAULT=.36,TIMELINE_MAX=.5;
+function timelineShare(){
+ const v=Number(store.get('autosync-editor-timeline'));
+ if(v>0&&v<1)return v;
+ return v>=1?clamp(v/window.innerHeight,.2,TIMELINE_MAX):TIMELINE_DEFAULT;
 }
+function setTimelineHeight(px,save=true){
+ const h=clamp(px,150,Math.max(150,Math.round(window.innerHeight*TIMELINE_MAX)));
+ document.documentElement.style.setProperty('--timeline-h',h+'px');
+ if(save)store.set('autosync-editor-timeline',+(h/window.innerHeight).toFixed(4));
+ requestAnimationFrame(draw);
+}
+window.addEventListener('resize',()=>setTimelineHeight(timelineShare()*window.innerHeight,false));
 const splitter=$('splitter');
 splitter.addEventListener('pointerdown',e=>{
  splitter.setPointerCapture(e.pointerId);splitter.classList.add('drag');
@@ -1653,7 +1673,7 @@ document.addEventListener('DOMContentLoaded',()=>{if(globalThis.I18N)$('help').b
   if(prefs.view)setView(prefs.view);
   if(prefs.left===false)setPanel('left',false);
   if(prefs.right===false)setPanel('right',false);
-  setTimelineHeight(prefs.h||Math.min(300,Math.round(window.innerHeight*.36)));
+  setTimelineHeight(timelineShare()*window.innerHeight);
   const saved_=store.get(autosaveKey());
   if(saved_){
    reviewed=new Set(saved_.reviewed||[]);notes=saved_.notes||{};

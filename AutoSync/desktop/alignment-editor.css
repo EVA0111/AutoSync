@@ -30,7 +30,7 @@ kbd{font:10px Consolas,monospace;color:#bcd0e2;margin-left:3px;opacity:.85}
 
 /* Top bar */
 .topbar{display:flex;align-items:center;gap:14px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex:none}
-.title{min-width:0;flex:1}
+.title{min-width:120px;flex:1 1 120px}.title h1{white-space:nowrap}
 #project-path{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .chips{display:flex;gap:6px}
 .chip{font-size:12px;padding:3px 10px;border-radius:99px;background:#1f2b39;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}
@@ -122,13 +122,16 @@ kbd{font:10px Consolas,monospace;color:#bcd0e2;margin-left:3px;opacity:.85}
 .summary b{color:var(--text)}
 fieldset{border:0;border-top:1px solid var(--line);margin:0;padding:8px 12px 9px;display:flex;flex-direction:column;gap:7px}
 legend{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:0 4px 0 0}
-.fields{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.fields label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
-.fields input{width:100%;font:12px Consolas,monospace;padding:4px 6px}
+/* Fieldsets refuse to shrink below their content by default: in languages with
+   longer labels the clip panel then overflowed and clipped its fields. */
+#inspector fieldset{min-width:0}
+.fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px}
+.fields label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px;min-width:0}
+.fields input{width:100%;min-width:0;box-sizing:border-box;font:12px Consolas,monospace;padding:4px 6px}
 .wide{width:100%}
-.nudge{display:flex;align-items:center;gap:4px}
-.nudge span{font-size:11px;color:var(--muted);flex:1}
-.nudge button{padding:4px 6px;font-size:12px}
+.nudge{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.nudge span{font-size:11px;color:var(--muted);flex:1 0 100%}
+.nudge button{padding:4px 6px;font-size:12px;flex:1 1 auto}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:5px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
 .grid2 button,.grid3 button{padding:5px 4px}
