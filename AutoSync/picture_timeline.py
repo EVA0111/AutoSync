@@ -1022,18 +1022,117 @@ def choose_rate(FT, DT, FS, DS, r0):
     (each pair spanning some of them leans the same way); the solved sections
     themselves tell which rate holds the picture still within them.
     """
-    sols = {r0: solve_sections(FT, DT, FS, DS, r0)}
+    ready = solve_rates(FT, DT, FS, DS, [r0] + list(KNOWN))
+    sols = {r0: ready[r0]}
     for k in KNOWN:
         if abs(k - r0) < .05 and all(abs(k - x) > 1e-9 for x in sols):
-            sols[k] = solve_sections(FT, DT, FS, DS, k)
+            sols[k] = ready[k]
     score = {x: still_span(v, FT, FS, DT, x) for x, v in sols.items()}
+    # Every solved rate goes back: other_rate_sections looks for acts at the others.
+    every = {**sols, **{k: v for k, v in ready.items() if all(abs(k - x) > 1e-9 for x in sols)}}
     most = max(span for span, _ in score.values())
     if most <= 0:
-        return r0, sols[r0], sols
+        return r0, sols[r0], every
     # Near-equal still spans (within 5 %): the rate whose sections slide least.
     near = [x for x, (span, _) in score.items() if span >= .95 * most]
     best = min(near, key=lambda x: score[x][1])
-    return best, sols[best], sols
+    return best, sols[best], every
+
+
+# --- Solving several rates at once --------------------------------------------
+_W = {}                # a worker process's shared arrays
+
+
+def _attach(spec, samples, top, frames):
+    """Worker start: map the shared feature arrays and the shared frame matches."""
+    import weakref
+    from multiprocessing import shared_memory
+    global _TOP
+    for name, (shm_name, shape, dtype) in spec.items():
+        shm = shared_memory.SharedMemory(name=shm_name)
+        _W[name + '_shm'] = shm
+        _W[name] = np.ndarray(shape, dtype, buffer=shm.buf)
+    _TOP = (weakref.ref(_W['FT']), weakref.ref(_W['FS']), (samples.tobytes(), top), frames)
+
+
+def _solve_one(r):
+    return r, solve_sections(_W['FT'], _W['DT'], _W['FS'], _W['DS'], r)
+
+
+def _ready():
+    return 'FT' in _W
+
+
+def _can_spawn():
+    """Worker processes re-import the main program: it must be a script file or a module.
+
+    Not from stdin or an interactive session (a worker would die while starting
+    and the pool would wait forever), and never from inside a worker.
+    """
+    import os, sys
+    import multiprocessing
+    if multiprocessing.parent_process() is not None:
+        return False
+    main = sys.modules.get('__main__')
+    if getattr(getattr(main, '__spec__', None), 'name', None):
+        return True
+    path = getattr(main, '__file__', None)
+    return bool(path) and os.path.isfile(path)
+
+
+def solve_rates(FT, DT, FS, DS, rates):
+    """{rate: sections} for each rate (duplicates once), solved in parallel processes.
+
+    Each rate is solved by the same code as alone, so the result is identical;
+    only the waiting changes. The frame matches all rates share are computed
+    here once. If worker processes cannot be started, rates are solved in turn.
+    """
+    rates = [r for i, r in enumerate(rates) if all(abs(r - x) > 1e-9 for x in rates[:i])]
+    samples = np.arange(int(FPS * STEP), len(FT) - int(FPS * STEP), int(FPS * STEP))
+    frames = top_frames(FT, FS, samples)
+    import os
+    workers = min(len(rates), max(1, (os.cpu_count() or 1) // 2), int(os.environ.get('AUTOSYNC_RATE_WORKERS', '8')))
+    # Starting workers costs about a second: worth it for an episode, not a short clip.
+    if workers > 1 and len(FT) >= 600 * FPS and _can_spawn():
+        from multiprocessing import shared_memory, get_context
+        from concurrent.futures import ProcessPoolExecutor
+        shms, spec = [], {}
+        saved = {k: os.environ.get(k) for k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS')}
+        try:
+            for name, a in (('FT', FT), ('DT', DT), ('FS', FS), ('DS', DS)):
+                a = np.ascontiguousarray(a)
+                shm = shared_memory.SharedMemory(create=True, size=max(1, a.nbytes)); shms.append(shm)
+                np.ndarray(a.shape, a.dtype, buffer=shm.buf)[...] = a
+                spec[name] = (shm.name, a.shape, a.dtype.str)
+            # One math thread per worker: the workers are the parallelism.
+            os.environ.update({k: '1' for k in saved})
+            pool = ProcessPoolExecutor(workers, mp_context=get_context('spawn'), initializer=_attach,
+                                       initargs=(spec, samples, 8, frames))
+            try:
+                # A worker that dies while starting (its parent script cannot be
+                # re-imported) leaves the pool waiting forever: require a quick
+                # answer first, and stop the workers on any failure.
+                if not pool.submit(_ready).result(timeout=60):
+                    raise RuntimeError('workers did not receive the features')
+                result = dict(pool.map(_solve_one, rates))
+            except BaseException:
+                for p in list((getattr(pool, '_processes', None) or {}).values()):
+                    p.terminate()
+                pool.shutdown(wait=False, cancel_futures=True)
+                raise
+            pool.shutdown(wait=True)
+            return result
+        except Exception as e:  # no worker processes here: solve in turn
+            print(f'Picture timeline: parallel rate solving unavailable ({e}); solving in turn', flush=True)
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            for shm in shms:
+                shm.close(); shm.unlink()
+    return {r: solve_sections(FT, DT, FS, DS, r) for r in rates}
 
 
 def other_rate_sections(sections, FT, DT, FS, DS, r, progress=print, min_len=20, solved=None):

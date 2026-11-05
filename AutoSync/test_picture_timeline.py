@@ -73,6 +73,25 @@ class Recap(unittest.TestCase):
         self.assertEqual(source_rewinds(segs), [])
 
 
+class ParallelRates(unittest.TestCase):
+    def test_parallel_and_one_at_a_time_solves_are_identical(self):
+        import os
+        S = unique_frames(640 * FPS, 7)                     # long enough to solve in parallel
+        T = np.vstack([S[:300 * FPS], S[304 * FPS:]])
+        D = np.full(len(S), 20.), np.full(len(T), 20.)
+        rates = [1., 25 / 24, 24 / 25]
+        par = pt.solve_rates(T, D[1], S, D[0], rates)
+        old = os.environ.get('AUTOSYNC_RATE_WORKERS')
+        os.environ['AUTOSYNC_RATE_WORKERS'] = '1'
+        try:
+            seq = pt.solve_rates(T, D[1], S, D[0], rates)
+        finally:
+            os.environ.pop('AUTOSYNC_RATE_WORKERS') if old is None else os.environ.update(AUTOSYNC_RATE_WORKERS=old)
+        self.assertEqual(list(par), rates)
+        self.assertEqual(par, seq)
+        self.assertEqual(par[1.], pt.solve_sections(T, D[1], S, D[0], 1.))
+
+
 class StaticSpan(unittest.TestCase):
     def test_cut_inside_a_static_shot_is_bounded(self):
         S = unique_frames(120 * FPS, 4)
