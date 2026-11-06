@@ -80,7 +80,7 @@ Check / set up engine
 Install subtitle AI
 Install AI Sync models
 Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.
-AutoSync v1.4.1 · Preview & Edit
+AutoSync v1.4.2 · Preview & Edit
 Opening an alignment plan…
 — to review
 No changes

@@ -1,4 +1,4 @@
-# How syncing works (v1.4.1)
+# How syncing works (v1.4.2)
 
 ## The idea
 
@@ -18,15 +18,15 @@ If one of the videos is missing (audio-only jobs), the older audio-matching engi
 
 ## How accurate is it?
 
-AutoSync v1.4.1 was measured on 9 real episode pairs (anime and live action; DVD and Blu-ray; 25/24 fps speed-ups; different openings, recaps, censored scenes) in all 4 output modes, **36 runs**. An independent tool compares every finished output with the original source (picture against sound), without using anything AutoSync computed.
+AutoSync v1.4.2 was measured on 9 real episode pairs (anime and live action; DVD and Blu-ray; 25/24 fps speed-ups; different openings, recaps, censored scenes) in all 4 output modes, **36 runs**. An independent tool compares every finished output with the original source (picture against sound), without using anything AutoSync computed.
 
 | | Runs passing |
 | --- | --- |
 | v1.2.5 | 0 of 56 |
 | v1.3.0 | 64 of 64 (8 pairs, two matching methods) |
-| **v1.4.1** | **36 of 36** |
+| **v1.4.2** | **36 of 36** |
 
-Passing means at least 95 % of measured moments within 100 ms, no 2 s or longer stretch more than 200 ms off, and no repeated audio. Typical error in v1.4.1 is **9–17 ms**. Two test episodes pass with declared exceptions: spots where the target release itself has its picture out of sync with its own soundtrack. AutoSync follows the soundtrack there, as the target does.
+Passing means at least 95 % of measured moments within 100 ms, no 2 s or longer stretch more than 200 ms off, and no repeated audio. Typical error in v1.4.2 is **9–17 ms**. Two test episodes pass with declared exceptions: spots where the target release itself has its picture out of sync with its own soundtrack. AutoSync follows the soundtrack there, as the target does.
 
 Full details: [Sync audit report](Sync-Audit-Report.md).
 

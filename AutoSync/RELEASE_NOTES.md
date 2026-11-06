@@ -1,10 +1,18 @@
-# AutoSync v1.4.1
+# AutoSync v1.4.2
 
 Windows x64 portable release by [EVA0111](https://github.com/EVA0111).
 
-v1.4.1 replaces v1.4.0, which was withdrawn because of problems in Preview & Edit. It contains everything listed below, plus these fixes:
+v1.4.2 makes Preview & Edit open much faster. It contains everything in v1.4.1 and v1.4, listed below.
 
-### Preview & Edit fixes
+### Faster Preview & Edit
+
+- **Opens about 4 times faster.** The picture analysis behind Preview & Edit does the same work with far fewer calculations. Sync results are identical to v1.4.1.
+- **Hard pairs no longer stall.** On pairs where the pictures barely match (for example a low frame rate dub with replaced shots), picture matching could keep trying thousands of positions and appear to never open. It now keeps the most promising ones.
+- **Shows its progress.** While it prepares, Preview & Edit says which of its 4 steps it is on (reading the audio, decoding the pictures, matching the pictures, opening the editor), in every interface language.
+
+## Fixes in v1.4.1
+
+v1.4.1 replaced v1.4.0, which was withdrawn because of problems in Preview & Edit.
 
 - **Fits smaller windows.** The timeline takes a share of the window (at most half) and follows resizing; on a 1280×720 screen it used to take most of the window and shrink the pictures to thumbnails.
 - **Always shows the right pictures.** A still frame loaded while a video was starting could stay on top of it, so one viewer kept showing an old or black frame at every jump.
@@ -56,9 +64,9 @@ v1.4.1 replaces v1.4.0, which was withdrawn because of problems in Preview & Edi
 
 ## Installation
 
-1. Download **AutoSync-v1.4.1-Windows-Portable.zip**.
+1. Download **AutoSync-v1.4.2-Windows-Portable.zip**.
 2. Extract it into a writable location.
-3. Open **AutoSync.exe** inside the extracted **AutoSync-v1.4.1-Windows-Portable** folder.
+3. Open **AutoSync.exe** inside the extracted **AutoSync-v1.4.2-Windows-Portable** folder.
 
 New to AutoSync? Read the [wiki](https://github.com/EVA0111/AutoSync/blob/main/docs/Home.md).
 
@@ -66,4 +74,4 @@ Listen across flagged joins before distributing outputs. AutoSync never overwrit
 
 ## Source
 
-The source repository includes the portable Windows build scripts under `build/windows`. All application windows and package metadata display **v1.4.1**.
+The source repository includes the portable Windows build scripts under `build/windows`. All application windows and package metadata display **v1.4.2**.

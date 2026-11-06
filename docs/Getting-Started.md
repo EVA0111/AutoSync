@@ -1,4 +1,4 @@
-# Getting started — your first sync (v1.4.1)
+# Getting started — your first sync (v1.4.2)
 
 This guide is for people who have never used a sync tool. You need a **Windows 10/11 64-bit** computer, two versions of a video, and some free disk space.
 
@@ -6,10 +6,10 @@ This guide is for people who have never used a sync tool. You need a **Windows 1
 
 ## 1. Download and open AutoSync
 
-1. Open the [AutoSync v1.4.1 release page](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.1).
-2. Under **Assets**, download **AutoSync-v1.4.1-Windows-Portable.zip** (not the "Source code" ZIP).
+1. Open the [AutoSync v1.4.2 release page](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.2).
+2. Under **Assets**, download **AutoSync-v1.4.2-Windows-Portable.zip** (not the "Source code" ZIP).
 3. Right-click the ZIP and choose **Extract All…**, into a folder you can write to, such as **Documents\AutoSync**.
-4. Open the extracted **AutoSync-v1.4.1-Windows-Portable** folder and double-click **AutoSync.exe**.
+4. Open the extracted **AutoSync-v1.4.2-Windows-Portable** folder and double-click **AutoSync.exe**.
 
 Python and FFmpeg are already included. If the app opens but says the engine is not ready, open **Settings → Engine → Check / set up engine**.
 

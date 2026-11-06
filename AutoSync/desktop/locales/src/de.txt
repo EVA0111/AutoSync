@@ -80,7 +80,7 @@ Engine prüfen / einrichten
 Untertitel-KI installieren
 AI-Sync-Modelle installieren
 Prüfen Sie markierte Abschnitte und Übergänge, bevor Sie das Ergebnis verwenden. Übereinstimmungswerte garantieren keine Lippensynchronität.
-AutoSync v1.4.1 · Vorschau & Bearbeiten
+AutoSync v1.4.2 · Vorschau & Bearbeiten
 Ausrichtungsplan wird geöffnet…
 — zu prüfen
 Keine Änderungen

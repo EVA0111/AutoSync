@@ -1,4 +1,4 @@
-# Censored and edited dubs (v1.4.1)
+# Censored and edited dubs (v1.4.2)
 
 Many older dubs (for example Arabic dubs of Japanese anime) **removed scenes** the studio considered unsuitable, or **re-cut** them from other shots so the story still flowed. If you want the dub's audio on the original, uncut video, AutoSync can find every such change and let you decide what happens to each one.
 

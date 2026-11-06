@@ -1667,7 +1667,7 @@ document.addEventListener('DOMContentLoaded',()=>{if(globalThis.I18N)$('help').b
   vtracks=VT.planTracks(plan);if(!vtracks.length)vtracks=[{clips:[],locked:false,hidden:false}];
   if(plan.editor_tracks?.locks){locks.V1=!!plan.editor_tracks.locks.V1;locks.MIX=!!plan.editor_tracks.locks.MIX;}
   $('project-path').textContent=data.file;$('project-path').title=data.file;
-  document.title='AutoSync v1.4.1 · Preview & Edit · '+String(data.file).split(/[\\/]/).slice(-2).join('/');
+  document.title='AutoSync v1.4.2 · Preview & Edit · '+String(data.file).split(/[\\/]/).slice(-2).join('/');
   if(!segments.length)throw Error('No editable clips in the selected plan.');
   const prefs={view:store.get('autosync-editor-view'),left:store.get('autosync-editor-left'),right:store.get('autosync-editor-right'),h:store.get('autosync-editor-timeline')};
   if(prefs.view)setView(prefs.view);
