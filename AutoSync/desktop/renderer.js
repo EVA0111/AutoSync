@@ -135,6 +135,14 @@ $('alignment-editor-open').onclick=async()=>{
  }catch(e){error(e);}
  finally{editorOpening=false;button.textContent=caption;button.disabled=false;}
 };
+// While Preview & Edit analyzes a pair, the status line says which stage it is
+// in (the full log stays in Activity), so a long analysis never looks frozen.
+const PREVIEW_STAGES=[[/^Reading .*audio/,'Preview & Edit: reading the audio (1 of 4)…'],
+ [/^Picture timeline: decoding/,'Preview & Edit: decoding the pictures (2 of 4)…'],
+ [/^Picture timeline: (framing|source\/target rate)/,'Preview & Edit: matching the pictures (3 of 4)…'],
+ [/^(Method:|Review intervals:|Alignment saved)/,'Preview & Edit: opening the editor (4 of 4)…']];
 window.autosync.onEvent(({type,data})=>{
- if(type==='alignment-log')log(data);
+ if(type!=='alignment-log')return;
+ log(data);
+ for(const line of String(data).split('\n'))for(const [re,text] of PREVIEW_STAGES)if(re.test(line.trim()))$('status').textContent=text;
 });

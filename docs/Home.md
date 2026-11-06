@@ -1,4 +1,4 @@
-# AutoSync Wiki — v1.4.1
+# AutoSync Wiki — v1.4.2
 
 **AutoSync** is a Windows program that takes the audio from one version of a video and fits it to the picture of another version, even when the two releases are edited differently. It can also sync subtitles.
 
@@ -14,7 +14,7 @@ No coding is needed: download the Windows portable release, unzip it and run **A
 | **[How syncing works](How-Syncing-Works.md)** | You want to know what AutoSync does, how accurate it is and where it can go wrong. |
 | **[Troubleshooting](Troubleshooting.md)** | Something did not work. |
 
-- [Download AutoSync v1.4.1](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.1)
+- [Download AutoSync v1.4.2](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.2)
 - [Ask a question / report a problem](https://github.com/EVA0111/AutoSync/issues)
 
 ## Source and target
@@ -27,7 +27,11 @@ No coding is needed: download the Windows portable release, unzip it and run **A
 
 Keep your videos wherever you like; you do not need special folders.
 
-## What's new in v1.4.1
+## What's new in v1.4.2
+
+- **Preview & Edit opens about 4 times faster** and shows which step it is on; hard pairs no longer take minutes to open.
+
+## What's new in v1.4
 
 - **Smoother sound at joins.** Where the synced audio jumps, it now crossfades instead of dipping to silence for a moment.
 - **Tiny cuts found reliably**, and more stable speed detection, including single acts at another speed.

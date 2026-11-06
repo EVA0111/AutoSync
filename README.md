@@ -1,10 +1,11 @@
-# AutoSync v1.4.1
+# AutoSync v1.4.2
 
 An Electron + Python/FFmpeg tool for matching audio and subtitles between
 different video editions, including different playback speeds, openings,
 scene edits, censored scenes and missing footage.
 
-**New in v1.4.1:** smooth crossfaded joins instead of brief dips, tiny cuts
+**New in v1.4.2:** Preview & Edit opens about 4 times faster and shows
+its progress. **New in v1.4:** smooth crossfaded joins instead of brief dips, tiny cuts
 found reliably, more than twice as fast, a "recreate" option for censored
 dubs, a full video editor in Preview & Edit and the interface in 10 more
 languages. AI-assisted sync is removed. 36 of 36 regression runs pass,
@@ -20,7 +21,7 @@ build\windows\build-portable.cmd
 ```
 
 The builder installs dependencies in a private build environment and produces
-`dist/AutoSync-v1.4.1-Windows-Portable.zip`. Unzip the result and run
+`dist/AutoSync-v1.4.2-Windows-Portable.zip`. Unzip the result and run
 `AutoSync.exe`; the finished portable application includes Electron,
 Python 3.12, NumPy, SciPy, FFmpeg and FFprobe.
 
@@ -28,7 +29,7 @@ See [build/windows/README.md](build/windows/README.md) for requirements,
 custom destinations and CI build instructions. There are no application
 patchers or merges involved.
 
-## Wiki (v1.4.1)
+## Wiki (v1.4.2)
 
 New to AutoSync? Start with the **[Wiki](docs/Home.md)**:
 [Getting started](docs/Getting-Started.md) ·

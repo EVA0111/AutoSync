@@ -83,7 +83,7 @@
 "Install subtitle AI": "자막 AI 설치",
 "Install AI Sync models": "AI Sync 모델 설치",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "결과를 사용하기 전에 표시된 구간과 이음새를 확인하세요. 매칭 점수가 입모양 일치를 보장하지는 않습니다.",
-"AutoSync v1.4.1 · Preview & Edit": "AutoSync v1.4.1 · 미리보기 및 편집",
+"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · 미리보기 및 편집",
 "Opening an alignment plan…": "정렬 계획을 여는 중…",
 "— to review": "— 확인 필요",
 "No changes": "변경 없음",
@@ -1021,5 +1021,9 @@
 "source audio unavailable; reference fallback needed": "소스 오디오를 사용할 수 없음; 참조로 대체 필요",
 "Shared opening music: use aligned source audio, not target audio": "공통 오프닝 음악: 대상 오디오가 아니라 맞춘 소스 오디오 사용",
 "fit scatter {0}s; inspect sync": "맞춤 편차 {0}초; 동기 확인",
-"sparse matches; estimated timing with source audio retained": "일치가 드묾; 소스 오디오를 유지한 추정 타이밍"
+"sparse matches; estimated timing with source audio retained": "일치가 드묾; 소스 오디오를 유지한 추정 타이밍",
+"Preview & Edit: reading the audio (1 of 4)…": "미리보기 및 편집: 오디오 읽는 중 (4단계 중 1)…",
+"Preview & Edit: decoding the pictures (2 of 4)…": "미리보기 및 편집: 영상 디코딩 중 (4단계 중 2)…",
+"Preview & Edit: matching the pictures (3 of 4)…": "미리보기 및 편집: 영상 맞추는 중 (4단계 중 3)…",
+"Preview & Edit: opening the editor (4 of 4)…": "미리보기 및 편집: 편집기 여는 중 (4단계 중 4)…"
 };

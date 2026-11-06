@@ -83,7 +83,7 @@
 "Install subtitle AI": "تثبيت ذكاء الترجمة",
 "Install AI Sync models": "تثبيت نماذج AI Sync",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "راجع الأجزاء المعلَّمة والوصلات قبل استخدام النتيجة. درجات المطابقة لا تضمن تزامن الشفاه.",
-"AutoSync v1.4.1 · Preview & Edit": "AutoSync v1.4.1 · المعاينة والتحرير",
+"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · المعاينة والتحرير",
 "Opening an alignment plan…": "جارٍ فتح خطة المحاذاة…",
 "— to review": "— للمراجعة",
 "No changes": "لا تغييرات",
@@ -1021,5 +1021,9 @@
 "source audio unavailable; reference fallback needed": "صوت المصدر غير متاح؛ يلزم الرجوع إلى المرجع",
 "Shared opening music: use aligned source audio, not target audio": "موسيقى المقدمة مشتركة: استخدم صوت المصدر المحاذى لا صوت الهدف",
 "fit scatter {0}s; inspect sync": "تشتت المطابقة {0} ث؛ افحص المزامنة",
-"sparse matches; estimated timing with source audio retained": "مطابقات متفرقة؛ توقيت تقديري مع الإبقاء على صوت المصدر"
+"sparse matches; estimated timing with source audio retained": "مطابقات متفرقة؛ توقيت تقديري مع الإبقاء على صوت المصدر",
+"Preview & Edit: reading the audio (1 of 4)…": "المعاينة والتحرير: قراءة الصوت (1 من 4)…",
+"Preview & Edit: decoding the pictures (2 of 4)…": "المعاينة والتحرير: فك ترميز الصور (2 من 4)…",
+"Preview & Edit: matching the pictures (3 of 4)…": "المعاينة والتحرير: مطابقة الصور (3 من 4)…",
+"Preview & Edit: opening the editor (4 of 4)…": "المعاينة والتحرير: فتح المحرر (4 من 4)…"
 };

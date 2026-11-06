@@ -50,8 +50,8 @@ jobs:
       - name: Upload finished portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: AutoSync-v1.4.1-Windows-Portable
-          path: dist/AutoSync-v1.4.1-Windows-Portable.zip
+          name: AutoSync-v1.4.2-Windows-Portable
+          path: dist/AutoSync-v1.4.2-Windows-Portable.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -64,12 +64,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: AutoSync-v1.4.1-Windows-Portable
+          name: AutoSync-v1.4.2-Windows-Portable
           path: release-assets
-      - name: Publish v1.4.1 Windows release
+      - name: Publish v1.4.2 Windows release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          test -s release-assets/AutoSync-v1.4.1-Windows-Portable.zip
-          if gh release view v1.4.1 >/dev/null 2>&1; then echo 'v1.4.1 already published'; exit 0; fi
-          gh release create v1.4.1 release-assets/AutoSync-v1.4.1-Windows-Portable.zip --title 'AutoSync v1.4.1' --notes-file AutoSync/RELEASE_NOTES.md --target "$GITHUB_SHA" --latest
+          test -s release-assets/AutoSync-v1.4.2-Windows-Portable.zip
+          if gh release view v1.4.2 >/dev/null 2>&1; then echo 'v1.4.2 already published'; exit 0; fi
+          gh release create v1.4.2 release-assets/AutoSync-v1.4.2-Windows-Portable.zip --title 'AutoSync v1.4.2' --notes-file AutoSync/RELEASE_NOTES.md --target "$GITHUB_SHA" --latest

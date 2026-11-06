@@ -80,7 +80,7 @@ Vérifier / installer le moteur
 Installer l’IA sous-titres
 Installer les modèles AI Sync
 Vérifiez les passages signalés et les raccords avant d’utiliser le résultat. Les scores de correspondance ne garantissent pas la synchro labiale.
-AutoSync v1.4.1 · Aperçu & Montage
+AutoSync v1.4.2 · Aperçu & Montage
 Ouverture d’un plan d’alignement…
 — à vérifier
 Aucune modification
@@ -1019,3 +1019,7 @@ audio source indisponible ; recours à la référence nécessaire
 Musique de générique commune : utiliser l’audio source aligné, pas l’audio cible
 dispersion de l’ajustement {0} s ; vérifiez la synchro
 correspondances éparses ; timing estimé, audio source conservé
+Aperçu & Montage : lecture de l’audio (1 sur 4)…
+Aperçu & Montage : décodage des images (2 sur 4)…
+Aperçu & Montage : correspondance des images (3 sur 4)…
+Aperçu & Montage : ouverture de l’éditeur (4 sur 4)…

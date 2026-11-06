@@ -83,7 +83,7 @@
 "Install subtitle AI": "字幕 AI をインストール",
 "Install AI Sync models": "AI Sync モデルをインストール",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "結果を使う前に、印の付いた区間とつなぎ目を確認してください。照合スコアは口の動きとの一致を保証しません。",
-"AutoSync v1.4.1 · Preview & Edit": "AutoSync v1.4.1 · プレビューと編集",
+"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · プレビューと編集",
 "Opening an alignment plan…": "アライメントプランを開いています…",
 "— to review": "— 件の確認",
 "No changes": "変更なし",
@@ -1021,5 +1021,9 @@
 "source audio unavailable; reference fallback needed": "ソース音声がありません。参照音声への切り替えが必要です",
 "Shared opening music: use aligned source audio, not target audio": "共通のオープニング曲: ターゲット音声ではなく、合わせたソース音声を使用",
 "fit scatter {0}s; inspect sync": "フィットのばらつき {0} 秒、同期を確認",
-"sparse matches; estimated timing with source audio retained": "一致が少ない、ソース音声を保ったまま推定タイミング"
+"sparse matches; estimated timing with source audio retained": "一致が少ない、ソース音声を保ったまま推定タイミング",
+"Preview & Edit: reading the audio (1 of 4)…": "プレビューと編集：音声を読み込み中（4 中 1）…",
+"Preview & Edit: decoding the pictures (2 of 4)…": "プレビューと編集：映像をデコード中（4 中 2）…",
+"Preview & Edit: matching the pictures (3 of 4)…": "プレビューと編集：映像を照合中（4 中 3）…",
+"Preview & Edit: opening the editor (4 of 4)…": "プレビューと編集：エディターを開いています（4 中 4）…"
 };

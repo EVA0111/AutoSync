@@ -83,7 +83,7 @@
 "Install subtitle AI": "安装字幕 AI",
 "Install AI Sync models": "安装 AI Sync 模型",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "使用结果前，请检查标记的片段和衔接。匹配分数不能保证口型同步。",
-"AutoSync v1.4.1 · Preview & Edit": "AutoSync v1.4.1 · 预览与编辑",
+"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · 预览与编辑",
 "Opening an alignment plan…": "正在打开对齐方案…",
 "— to review": "— 待检查",
 "No changes": "无更改",
@@ -1021,5 +1021,9 @@
 "source audio unavailable; reference fallback needed": "源音频不可用；需要回退到参考音频",
 "Shared opening music: use aligned source audio, not target audio": "共享片头音乐：使用对齐后的源音频，而非目标音频",
 "fit scatter {0}s; inspect sync": "拟合离散度 {0} 秒；请检查同步",
-"sparse matches; estimated timing with source audio retained": "匹配稀少；保留源音频的估计时间"
+"sparse matches; estimated timing with source audio retained": "匹配稀少；保留源音频的估计时间",
+"Preview & Edit: reading the audio (1 of 4)…": "预览与编辑：正在读取音频（第 1 步，共 4 步）…",
+"Preview & Edit: decoding the pictures (2 of 4)…": "预览与编辑：正在解码画面（第 2 步，共 4 步）…",
+"Preview & Edit: matching the pictures (3 of 4)…": "预览与编辑：正在匹配画面（第 3 步，共 4 步）…",
+"Preview & Edit: opening the editor (4 of 4)…": "预览与编辑：正在打开编辑器（第 4 步，共 4 步）…"
 };

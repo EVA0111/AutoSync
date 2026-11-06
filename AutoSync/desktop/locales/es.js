@@ -83,7 +83,7 @@
 "Install subtitle AI": "Instalar IA de subtítulos",
 "Install AI Sync models": "Instalar modelos de AI Sync",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "Revise las partes marcadas y las uniones antes de usar el resultado. Las puntuaciones de coincidencia no garantizan la sincronía labial.",
-"AutoSync v1.4.1 · Preview & Edit": "AutoSync v1.4.1 · Vista previa y edición",
+"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · Vista previa y edición",
 "Opening an alignment plan…": "Abriendo un plan de alineación…",
 "— to review": "— por revisar",
 "No changes": "Sin cambios",
@@ -1021,5 +1021,9 @@
 "source audio unavailable; reference fallback needed": "audio de origen no disponible; se necesita recurrir a la referencia",
 "Shared opening music: use aligned source audio, not target audio": "Música de apertura compartida: usa el audio de origen alineado, no el de destino",
 "fit scatter {0}s; inspect sync": "dispersión del ajuste {0} s; revisa la sincronía",
-"sparse matches; estimated timing with source audio retained": "pocas coincidencias; tiempos estimados conservando el audio de origen"
+"sparse matches; estimated timing with source audio retained": "pocas coincidencias; tiempos estimados conservando el audio de origen",
+"Preview & Edit: reading the audio (1 of 4)…": "Vista previa y edición: leyendo el audio (1 de 4)…",
+"Preview & Edit: decoding the pictures (2 of 4)…": "Vista previa y edición: decodificando las imágenes (2 de 4)…",
+"Preview & Edit: matching the pictures (3 of 4)…": "Vista previa y edición: emparejando las imágenes (3 de 4)…",
+"Preview & Edit: opening the editor (4 of 4)…": "Vista previa y edición: abriendo el editor (4 de 4)…"
 };

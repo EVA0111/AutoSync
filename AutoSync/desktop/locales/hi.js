@@ -83,7 +83,7 @@
 "Install subtitle AI": "सबटाइटल AI इंस्टॉल करें",
 "Install AI Sync models": "AI Sync मॉडल इंस्टॉल करें",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "परिणाम उपयोग करने से पहले चिह्नित हिस्से और जोड़ जाँचें। मिलान स्कोर होंठों के मेल की गारंटी नहीं हैं।",
-"AutoSync v1.4.1 · Preview & Edit": "AutoSync v1.4.1 · पूर्वावलोकन और संपादन",
+"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · पूर्वावलोकन और संपादन",
 "Opening an alignment plan…": "संरेखण योजना खुल रही है…",
 "— to review": "— समीक्षा के लिए",
 "No changes": "कोई बदलाव नहीं",
@@ -1021,5 +1021,9 @@
 "source audio unavailable; reference fallback needed": "स्रोत ऑडियो उपलब्ध नहीं; संदर्भ पर लौटना ज़रूरी",
 "Shared opening music: use aligned source audio, not target audio": "साझा ओपनिंग संगीत: लक्ष्य ऑडियो नहीं, संरेखित स्रोत ऑडियो उपयोग करें",
 "fit scatter {0}s; inspect sync": "फ़िट बिखराव {0} s; सिंक जाँचें",
-"sparse matches; estimated timing with source audio retained": "विरल मिलान; स्रोत ऑडियो रखते हुए अनुमानित टाइमिंग"
+"sparse matches; estimated timing with source audio retained": "विरल मिलान; स्रोत ऑडियो रखते हुए अनुमानित टाइमिंग",
+"Preview & Edit: reading the audio (1 of 4)…": "पूर्वावलोकन और संपादन: ऑडियो पढ़ा जा रहा है (4 में से 1)…",
+"Preview & Edit: decoding the pictures (2 of 4)…": "पूर्वावलोकन और संपादन: चित्र डिकोड हो रहे हैं (4 में से 2)…",
+"Preview & Edit: matching the pictures (3 of 4)…": "पूर्वावलोकन और संपादन: चित्रों का मिलान हो रहा है (4 में से 3)…",
+"Preview & Edit: opening the editor (4 of 4)…": "पूर्वावलोकन और संपादन: संपादक खुल रहा है (4 में से 4)…"
 };

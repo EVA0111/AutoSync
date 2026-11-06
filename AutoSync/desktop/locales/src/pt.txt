@@ -80,7 +80,7 @@ Verificar / configurar o mecanismo
 Instalar IA de legendas
 Instalar modelos do AI Sync
 Revise os trechos sinalizados e as junções antes de usar o resultado. As pontuações de correspondência não garantem sincronia labial.
-AutoSync v1.4.1 · Visualizar e editar
+AutoSync v1.4.2 · Visualizar e editar
 Abrindo um plano de alinhamento…
 — para revisar
 Sem alterações
@@ -1019,3 +1019,7 @@ Planos substituídos pela dublagem ({0} s) reconstruídos com os quadros do dest
 Música de abertura compartilhada: use o áudio de origem alinhado, não o de destino
 dispersão do ajuste {0} s; confira a sincronia
 poucas correspondências; tempo estimado mantendo o áudio de origem
+Visualizar e editar: lendo o áudio (1 de 4)…
+Visualizar e editar: decodificando as imagens (2 de 4)…
+Visualizar e editar: comparando as imagens (3 de 4)…
+Visualizar e editar: abrindo o editor (4 de 4)…

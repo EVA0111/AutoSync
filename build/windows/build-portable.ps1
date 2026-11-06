@@ -19,7 +19,7 @@ if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repo 'dist' }
 $output = [IO.Path]::GetFullPath($OutputDirectory.Trim('"'))
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 $version = (Get-Content -LiteralPath (Join-Path $source 'package.json') -Raw | ConvertFrom-Json).version
-if ($version -ne '1.4.1') { throw "Expected AutoSync v1.4.1, found v$version" }
+if ($version -ne '1.4.2') { throw "Expected AutoSync v1.4.2, found v$version" }
 $bundle = Join-Path $output ("AutoSync-v{0}-Windows-Portable" -f $version)
 $zip = Join-Path $output ("AutoSync-v{0}-Windows-Portable.zip" -f $version)
 if ((Test-Path -LiteralPath $bundle) -or (Test-Path -LiteralPath $zip)) {
