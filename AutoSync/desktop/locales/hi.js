@@ -83,7 +83,7 @@
 "Install subtitle AI": "सबटाइटल AI इंस्टॉल करें",
 "Install AI Sync models": "AI Sync मॉडल इंस्टॉल करें",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "परिणाम उपयोग करने से पहले चिह्नित हिस्से और जोड़ जाँचें। मिलान स्कोर होंठों के मेल की गारंटी नहीं हैं।",
-"AutoSync v1.4.0 · Preview & Edit": "AutoSync v1.4.0 · पूर्वावलोकन और संपादन",
+"AutoSync v1.4.1 · Preview & Edit": "AutoSync v1.4.1 · पूर्वावलोकन और संपादन",
 "Opening an alignment plan…": "संरेखण योजना खुल रही है…",
 "— to review": "— समीक्षा के लिए",
 "No changes": "कोई बदलाव नहीं",
