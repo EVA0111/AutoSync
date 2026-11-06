@@ -1,8 +1,18 @@
-# AutoSync v1.4.0
+# AutoSync v1.4.1
 
 Windows x64 portable release by [EVA0111](https://github.com/EVA0111).
 
-## What's new in v1.4.0
+v1.4.1 replaces v1.4.0, which was withdrawn because of problems in Preview & Edit. It contains everything listed below, plus these fixes:
+
+### Preview & Edit fixes
+
+- **Fits smaller windows.** The timeline takes a share of the window (at most half) and follows resizing; on a 1280×720 screen it used to take most of the window and shrink the pictures to thumbnails.
+- **Always shows the right pictures.** A still frame loaded while a video was starting could stay on top of it, so one viewer kept showing an old or black frame at every jump.
+- **Split (S) and trim (Q / W) work at the playhead**, whichever clip is selected; before, they could do nothing after the playhead moved.
+- **Play across join (P)** plays the join nearest the playhead.
+- The clip panel no longer cuts off its fields in Arabic and Persian.
+
+## What's new in v1.4
 
 ### Cleaner, more accurate sound
 
@@ -46,9 +56,9 @@ Windows x64 portable release by [EVA0111](https://github.com/EVA0111).
 
 ## Installation
 
-1. Download **AutoSync-v1.4.0-Windows-Portable.zip**.
+1. Download **AutoSync-v1.4.1-Windows-Portable.zip**.
 2. Extract it into a writable location.
-3. Open **AutoSync.exe** inside the extracted **AutoSync-v1.4.0-Windows-Portable** folder.
+3. Open **AutoSync.exe** inside the extracted **AutoSync-v1.4.1-Windows-Portable** folder.
 
 New to AutoSync? Read the [wiki](https://github.com/EVA0111/AutoSync/blob/main/docs/Home.md).
 
@@ -56,4 +66,4 @@ Listen across flagged joins before distributing outputs. AutoSync never overwrit
 
 ## Source
 
-The source repository includes the portable Windows build scripts under `build/windows`. All application windows and package metadata display **v1.4.0**.
+The source repository includes the portable Windows build scripts under `build/windows`. All application windows and package metadata display **v1.4.1**.

@@ -1,4 +1,4 @@
-# AutoSync Wiki — v1.4.0
+# AutoSync Wiki — v1.4.1
 
 **AutoSync** is a Windows program that takes the audio from one version of a video and fits it to the picture of another version, even when the two releases are edited differently. It can also sync subtitles.
 
@@ -14,7 +14,7 @@ No coding is needed: download the Windows portable release, unzip it and run **A
 | **[How syncing works](How-Syncing-Works.md)** | You want to know what AutoSync does, how accurate it is and where it can go wrong. |
 | **[Troubleshooting](Troubleshooting.md)** | Something did not work. |
 
-- [Download AutoSync v1.4.0](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.0)
+- [Download AutoSync v1.4.1](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.1)
 - [Ask a question / report a problem](https://github.com/EVA0111/AutoSync/issues)
 
 ## Source and target
@@ -27,13 +27,14 @@ No coding is needed: download the Windows portable release, unzip it and run **A
 
 Keep your videos wherever you like; you do not need special folders.
 
-## What's new in v1.4.0
+## What's new in v1.4.1
 
 - **Smoother sound at joins.** Where the synced audio jumps, it now crossfades instead of dipping to silence for a moment.
 - **Tiny cuts found reliably**, and more stable speed detection, including single acts at another speed.
 - **More than twice as fast**, with identical results.
 - **Censored dubs:** a new *Recreate* option rebuilds the dub's own freezes and repeats from the original pictures. See [Censored and edited dubs](Censored-and-Edited-Dubs.md).
 - **Preview & Edit is a full video editor:** video tracks, a media pool with drag and drop, track locks and *Fill motion*. See [Preview & Edit](Preview-and-Edit.md).
+- **Preview & Edit fits smaller windows**, always shows the right pictures, and splits and trims at the playhead.
 - **10 more interface languages**, chosen from the top bar.
 - **AI-assisted sync is removed**: the picture engine does not need it. Subtitle AI is unchanged.
 

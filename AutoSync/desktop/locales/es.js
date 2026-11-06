@@ -83,7 +83,7 @@
 "Install subtitle AI": "Instalar IA de subtítulos",
 "Install AI Sync models": "Instalar modelos de AI Sync",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "Revise las partes marcadas y las uniones antes de usar el resultado. Las puntuaciones de coincidencia no garantizan la sincronía labial.",
-"AutoSync v1.4.0 · Preview & Edit": "AutoSync v1.4.0 · Vista previa y edición",
+"AutoSync v1.4.1 · Preview & Edit": "AutoSync v1.4.1 · Vista previa y edición",
 "Opening an alignment plan…": "Abriendo un plan de alineación…",
 "— to review": "— por revisar",
 "No changes": "Sin cambios",

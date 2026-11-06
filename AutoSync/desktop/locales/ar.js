@@ -83,7 +83,7 @@
 "Install subtitle AI": "تثبيت ذكاء الترجمة",
 "Install AI Sync models": "تثبيت نماذج AI Sync",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "راجع الأجزاء المعلَّمة والوصلات قبل استخدام النتيجة. درجات المطابقة لا تضمن تزامن الشفاه.",
-"AutoSync v1.4.0 · Preview & Edit": "AutoSync v1.4.0 · المعاينة والتحرير",
+"AutoSync v1.4.1 · Preview & Edit": "AutoSync v1.4.1 · المعاينة والتحرير",
 "Opening an alignment plan…": "جارٍ فتح خطة المحاذاة…",
 "— to review": "— للمراجعة",
 "No changes": "لا تغييرات",
