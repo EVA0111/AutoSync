@@ -1021,5 +1021,9 @@
 "source audio unavailable; reference fallback needed": "áudio de origem indisponível; é preciso recorrer à referência",
 "Shared opening music: use aligned source audio, not target audio": "Música de abertura compartilhada: use o áudio de origem alinhado, não o de destino",
 "fit scatter {0}s; inspect sync": "dispersão do ajuste {0} s; confira a sincronia",
-"sparse matches; estimated timing with source audio retained": "poucas correspondências; tempo estimado mantendo o áudio de origem"
+"sparse matches; estimated timing with source audio retained": "poucas correspondências; tempo estimado mantendo o áudio de origem",
+"Preview & Edit: reading the audio (1 of 4)…": "Visualizar e editar: lendo o áudio (1 de 4)…",
+"Preview & Edit: decoding the pictures (2 of 4)…": "Visualizar e editar: decodificando as imagens (2 de 4)…",
+"Preview & Edit: matching the pictures (3 of 4)…": "Visualizar e editar: comparando as imagens (3 de 4)…",
+"Preview & Edit: opening the editor (4 of 4)…": "Visualizar e editar: abrindo o editor (4 de 4)…"
 };

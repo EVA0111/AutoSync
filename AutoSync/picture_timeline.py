@@ -33,6 +33,7 @@ KNOWN = (1., 25 / 24, 25025 / 24000, 24 / 25, 24000 / 25025, 1001 / 1000, 1000 /
 RATE_CHECK = 2e-4       # rate error matched sections must show before a re-solve (real releases: < 6e-5)
 RATE_SNAP = 3e-4        # a corrected rate this close to a standard ratio is that ratio
 MATCH = .82              # clip score above which a match is evidence
+POOL_MAX = 800           # candidate offsets one gap re-solve may weigh (real episodes: under 610)
 JUMP, BACK, FAR, NULL = 1.5, 3.0, 4.0, .6
 
 
@@ -548,6 +549,20 @@ def refine_gaps(sections, cand, samples, FT, FS, r):
             out.append(x); continue
         ks = [k for k in range(len(samples)) if x['first'] <= samples[k] <= x['last']]
         pool = sorted({o for k in ks for o in cand[k] if lo <= o <= hi} | {int(round(oa)), int(round(ob))})
+        if len(pool) > POOL_MAX:
+            # At a wrong rate almost nothing matches: a gap spans most of the
+            # episode and its pool holds thousands of offsets, so scoring and
+            # solving it (pool squared per sample) takes minutes. Keep the
+            # neighbours' offsets and the best-supported others. Real episodes
+            # at their own rate stay well under the limit, so they are unchanged.
+            best = {}
+            for k in ks:
+                for o, v in cand[k].items():
+                    if lo <= o <= hi and v > best.get(o, -2.):
+                        best[o] = v
+            keep = {int(round(oa)), int(round(ob))}
+            keep |= set(sorted(best, key=lambda o: -best[o])[:POOL_MAX - len(keep)])
+            pool = sorted(keep)
         local = []
         for k in ks:
             c = dict(cand[k])
@@ -652,22 +667,48 @@ STEP_CUT = 2             # frames (80 ms): a forward step at least this large is
 
 def drift_scores(FT, FS, DT, r, frames, base):
     """Clip score of each target frame at base + DRIFT_GRID (sub-frame, interpolated source)."""
+    # The interpolated source picture x = (1-w) S[a] + w S[a+1] is never built:
+    #   x . t     = (1-w) S[a].t + w S[a+1].t
+    #   |x|^2     = (1-w)^2 |S[a]|^2 + 2 w (1-w) S[a].S[a+1] + w^2 |S[a+1]|^2
+    # so each frame needs only its clip's dot products with a short run of
+    # source frames (the same values, up to rounding in the last digits).
     out = np.zeros((len(frames), len(DRIFT_GRID)))
     informative = np.zeros(len(frames), bool)
+    sq, nxt = _source_products(FS)
     for k, i in enumerate(frames):
         ti = i + CLIP
         ok = (ti >= 0) & (ti < len(FT))
         if DT[i] <= 6 or ok.sum() < len(CLIP) * .7:
             continue
-        pos = r * ti[ok][:, None] + base + DRIFT_GRID[None, :]
-        a = np.floor(pos).astype(int); w = (pos - a)[..., None]
+        ti = ti[ok]
+        pos = r * ti[:, None] + base + DRIFT_GRID[None, :]
+        a = np.floor(pos).astype(int); w = pos - a
         if a.min() < 0 or a.max() + 1 >= len(FS):
             continue
-        x = FS[a] * (1 - w) + FS[a + 1] * w
-        x /= np.maximum(np.linalg.norm(x, axis=2, keepdims=True), 1e-6)
-        out[k] = np.mean(np.sum(x * FT[ti[ok]][:, None, :], axis=2), axis=0)
+        lo, hi = int(a.min()), int(a.max()) + 2
+        dots = FT[ti].astype(np.float64) @ FS[lo:hi].astype(np.float64).T     # (clip frames, source run)
+        row = np.arange(len(ti))[:, None]
+        d0, d1 = dots[row, a - lo], dots[row, a + 1 - lo]
+        norm = np.sqrt(np.maximum((1 - w) ** 2 * sq[a] + 2 * w * (1 - w) * nxt[a] + w ** 2 * sq[a + 1], 0.))
+        out[k] = np.mean(((1 - w) * d0 + w * d1) / np.maximum(norm, 1e-6), axis=0)
         informative[k] = True
     return out, informative
+
+
+_PRODUCTS = None       # (FS weak reference, |S[j]|^2, S[j].S[j+1]) for the last source
+
+
+def _source_products(FS):
+    """Squared norms of the source frames and dot products of neighbours (cached per source)."""
+    global _PRODUCTS
+    if _PRODUCTS and _PRODUCTS[0]() is FS:
+        return _PRODUCTS[1], _PRODUCTS[2]
+    import weakref
+    F = FS.astype(np.float64)
+    sq = np.einsum('ij,ij->i', F, F)
+    nxt = np.append(np.einsum('ij,ij->i', F[:-1], F[1:]), 0.)
+    _PRODUCTS = (weakref.ref(FS), sq, nxt)
+    return sq, nxt
 
 
 def drift_path(gain, informative):

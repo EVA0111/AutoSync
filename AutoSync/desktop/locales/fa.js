@@ -1021,5 +1021,9 @@
 "source audio unavailable; reference fallback needed": "صدای مبدأ در دسترس نیست؛ بازگشت به مرجع لازم است",
 "Shared opening music: use aligned source audio, not target audio": "موسیقی آغاز مشترک است: از صدای هم‌ترازشدهٔ مبدأ استفاده کنید، نه صدای مقصد",
 "fit scatter {0}s; inspect sync": "پراکندگی برازش {0} ثانیه؛ همگامی را بررسی کنید",
-"sparse matches; estimated timing with source audio retained": "تطبیق‌های پراکنده؛ زمان‌بندی تخمینی با حفظ صدای مبدأ"
+"sparse matches; estimated timing with source audio retained": "تطبیق‌های پراکنده؛ زمان‌بندی تخمینی با حفظ صدای مبدأ",
+"Preview & Edit: reading the audio (1 of 4)…": "پیش‌نمایش و ویرایش: خواندن صدا (۱ از ۴)…",
+"Preview & Edit: decoding the pictures (2 of 4)…": "پیش‌نمایش و ویرایش: رمزگشایی تصاویر (۲ از ۴)…",
+"Preview & Edit: matching the pictures (3 of 4)…": "پیش‌نمایش و ویرایش: تطبیق تصاویر (۳ از ۴)…",
+"Preview & Edit: opening the editor (4 of 4)…": "پیش‌نمایش و ویرایش: باز کردن ویرایشگر (۴ از ۴)…"
 };

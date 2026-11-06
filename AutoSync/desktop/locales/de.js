@@ -1021,5 +1021,9 @@
 "source audio unavailable; reference fallback needed": "Quellton nicht verfügbar; Rückgriff auf die Referenz nötig",
 "Shared opening music: use aligned source audio, not target audio": "Gemeinsame Vorspannmusik: abgeglichenen Quellton statt Zielton verwenden",
 "fit scatter {0}s; inspect sync": "Streuung der Anpassung {0} s; Synchronität prüfen",
-"sparse matches; estimated timing with source audio retained": "wenige Treffer; geschätztes Timing, Quellton beibehalten"
+"sparse matches; estimated timing with source audio retained": "wenige Treffer; geschätztes Timing, Quellton beibehalten",
+"Preview & Edit: reading the audio (1 of 4)…": "Vorschau & Bearbeiten: Audio wird gelesen (1 von 4)…",
+"Preview & Edit: decoding the pictures (2 of 4)…": "Vorschau & Bearbeiten: Bilder werden dekodiert (2 von 4)…",
+"Preview & Edit: matching the pictures (3 of 4)…": "Vorschau & Bearbeiten: Bilder werden abgeglichen (3 von 4)…",
+"Preview & Edit: opening the editor (4 of 4)…": "Vorschau & Bearbeiten: Editor wird geöffnet (4 von 4)…"
 };
