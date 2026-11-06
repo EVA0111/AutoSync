@@ -65,6 +65,36 @@ class Scenes(unittest.TestCase):
             censorship.annotate(episode(), 'mute')
 
 
+class DubOwnFootage(unittest.TestCase):
+    """Shots the dub replaced with material the original lacks here (a new title card, re-cut
+    footage) or shows far away (cases 3 and 8): reported, never rebuilt, with or without the option."""
+    def plan(self):
+        p = episode()
+        p['segments'][3]['dub_own'] = [dict(source=38., length=4.), dict(source=45., length=3., elsewhere=612.4)]
+        return p
+
+    def test_reported_as_replaced_shots_and_kept(self):
+        for p in (self.plan(), censorship.annotate(self.plan(), 'recreate')):
+            found = [s for s in censorship.scenes(p) if s['kind'] == 'replaced']
+            self.assertEqual([(s['start'], s['length'], s['footage'], s['action']) for s in found],
+                             [(55., 4., 'own', 'keep'), (62., 3., 'elsewhere', 'keep')])
+        text = '\n'.join(censorship.report(self.plan()))
+        self.assertIn("shot replaced by the dub with the dub's own footage (4.0 s)", text)
+        self.assertIn('shot replaced by the dub with a shot from 10:12.40 of the original (3.0 s)', text)
+
+    def test_reported_without_the_option(self):
+        found = censorship.scenes(self.plan())
+        removed = [s for s in found if s['kind'] == 'removed']
+        self.assertEqual([(s['start'], s['end'], s['action']) for s in removed], [(40, 50, 'keep')])
+        self.assertTrue(censorship.report(self.plan())[0].startswith('EDITS IN THE SOURCE (censored-dub option off)'))
+        self.assertIn('kept with the original audio', '\n'.join(censorship.report(self.plan())))
+
+    def test_outer_sections_and_unverified_target_audio_are_not_edits(self):
+        p = episode()
+        p['segments'][2].pop('verified_insert')
+        self.assertEqual([s for s in censorship.scenes(p) if s['kind'] == 'removed'], [])
+
+
 class RestoredSubtitles(unittest.TestCase):
     def test_only_lines_inside_restored_scenes_at_output_time(self):
         with tempfile.TemporaryDirectory() as d:
@@ -314,3 +344,29 @@ class DesktopOption(unittest.TestCase):
                 build_command(self.values(d, restored_subtitles=str(Path(d) / 'subs.srt')), 'Single episode')
             with self.assertRaises(ValueError):
                 build_command(self.values(d, censored_dub='mute'), 'Single episode')
+
+
+class SafetyNet(unittest.TestCase):
+    """Pictures the plan maps that no check could confirm or explain are reported as unexplained
+    differences (in the report and for review), and the share confirmed is kept with the plan."""
+    def plan(self):
+        p = episode()
+        p['segments'][1]['unexplained'] = [dict(source=12., length=2.5)]
+        p['segments'][1]['_check'] = [750, 700]
+        p['segments'][3]['_check'] = [500, 500]
+        return p
+
+    def test_reported_and_flagged_for_review(self):
+        p = self.plan()
+        p['picture_check'] = censorship.picture_check(p['segments'])
+        self.assertEqual(p['picture_check'], dict(checked_s=50., confirmed_s=48., confirmed_share=.96))
+        self.assertFalse(any('_check' in s for s in p['segments']))
+        odd = [s for s in censorship.scenes(p) if s['kind'] == 'unexplained']
+        self.assertEqual([(s['start'], s['end']) for s in odd], [(22., 24.5)])
+        self.assertIn('1 unexplained picture difference(s) (2.5 s)', censorship.report(p)[0])
+        review = censorship.unexplained_review(p)
+        self.assertEqual((review[0]['start'], review[0]['end'], review[0]['confidence']), (22., 24.5, 'uncertain'))
+        self.assertTrue(review[0]['reason'].startswith('Unexplained picture difference'))
+
+    def test_no_picture_timeline_no_check(self):
+        self.assertIsNone(censorship.picture_check(episode()['segments']))

@@ -83,7 +83,7 @@
 "Install subtitle AI": "字幕 AI をインストール",
 "Install AI Sync models": "AI Sync モデルをインストール",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "結果を使う前に、印の付いた区間とつなぎ目を確認してください。照合スコアは口の動きとの一致を保証しません。",
-"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · プレビューと編集",
+"AutoSync v1.4.3 · Preview & Edit": "AutoSync v1.4.3 · プレビューと編集",
 "Opening an alignment plan…": "アライメントプランを開いています…",
 "— to review": "— 件の確認",
 "No changes": "変更なし",
@@ -1025,5 +1025,11 @@
 "Preview & Edit: reading the audio (1 of 4)…": "プレビューと編集：音声を読み込み中（4 中 1）…",
 "Preview & Edit: decoding the pictures (2 of 4)…": "プレビューと編集：映像をデコード中（4 中 2）…",
 "Preview & Edit: matching the pictures (3 of 4)…": "プレビューと編集：映像を照合中（4 中 3）…",
-"Preview & Edit: opening the editor (4 of 4)…": "プレビューと編集：エディターを開いています（4 中 4）…"
+"Preview & Edit: opening the editor (4 of 4)…": "プレビューと編集：エディターを開いています（4 中 4）…",
+"Only in the original": "オリジナルのみ",
+"This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "このシーン（{0} 秒）はオリジナルにのみあります（吹き替え版で削除）。オリジナルの映像と音声を残します。",
+"The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "吹き替え版はここで {1} 秒間、オリジナルの {0} のカットを表示しています。オリジナルのカットを残します。",
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "吹き替え版はここで {0} 秒間、独自の映像を表示しています（オリジナルにはありません）。オリジナルのカットを残します。",
+"Unexplained difference": "原因不明の違い",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "ソースはここで {0} 秒間オリジナルと異なる映像を表示していますが、AutoSync には理由がわかりません（不明な種類の編集、またはタイミングの問題）。確認してください。"
 };

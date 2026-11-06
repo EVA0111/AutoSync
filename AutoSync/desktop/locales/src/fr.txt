@@ -80,7 +80,7 @@ Vérifier / installer le moteur
 Installer l’IA sous-titres
 Installer les modèles AI Sync
 Vérifiez les passages signalés et les raccords avant d’utiliser le résultat. Les scores de correspondance ne garantissent pas la synchro labiale.
-AutoSync v1.4.2 · Aperçu & Montage
+AutoSync v1.4.3 · Aperçu & Montage
 Ouverture d’un plan d’alignement…
 — à vérifier
 Aucune modification
@@ -1023,3 +1023,9 @@ Aperçu & Montage : lecture de l’audio (1 sur 4)…
 Aperçu & Montage : décodage des images (2 sur 4)…
 Aperçu & Montage : correspondance des images (3 sur 4)…
 Aperçu & Montage : ouverture de l’éditeur (4 sur 4)…
+Seulement dans l’original
+Cette scène ({0} s) n’existe que dans l’original (le doublage l’a supprimée). L’image et le son originaux sont conservés.
+Le doublage montre ici pendant {1} s un plan de {0} de l’original ; le plan original est conservé.
+Le doublage montre ici ses propres images pendant {0} s (absentes de l’original) ; le plan original est conservé.
+Différence inexpliquée
+La source montre ici pendant {0} s une image différente de l’original et AutoSync ne sait pas pourquoi (une modification d’un type inconnu ou un problème de synchronisation). Vérifiez-la.

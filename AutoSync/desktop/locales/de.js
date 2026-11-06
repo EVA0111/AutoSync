@@ -83,7 +83,7 @@
 "Install subtitle AI": "Untertitel-KI installieren",
 "Install AI Sync models": "AI-Sync-Modelle installieren",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "Prüfen Sie markierte Abschnitte und Übergänge, bevor Sie das Ergebnis verwenden. Übereinstimmungswerte garantieren keine Lippensynchronität.",
-"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · Vorschau & Bearbeiten",
+"AutoSync v1.4.3 · Preview & Edit": "AutoSync v1.4.3 · Vorschau & Bearbeiten",
 "Opening an alignment plan…": "Ausrichtungsplan wird geöffnet…",
 "— to review": "— zu prüfen",
 "No changes": "Keine Änderungen",
@@ -1025,5 +1025,11 @@
 "Preview & Edit: reading the audio (1 of 4)…": "Vorschau & Bearbeiten: Audio wird gelesen (1 von 4)…",
 "Preview & Edit: decoding the pictures (2 of 4)…": "Vorschau & Bearbeiten: Bilder werden dekodiert (2 von 4)…",
 "Preview & Edit: matching the pictures (3 of 4)…": "Vorschau & Bearbeiten: Bilder werden abgeglichen (3 von 4)…",
-"Preview & Edit: opening the editor (4 of 4)…": "Vorschau & Bearbeiten: Editor wird geöffnet (4 von 4)…"
+"Preview & Edit: opening the editor (4 of 4)…": "Vorschau & Bearbeiten: Editor wird geöffnet (4 von 4)…",
+"Only in the original": "Nur im Original",
+"This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "Diese Szene ({0} s) gibt es nur im Original (die Synchronfassung hat sie entfernt). Bild und Ton des Originals bleiben erhalten.",
+"The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "Die Synchronfassung zeigt hier {1} s lang eine Einstellung von {0} des Originals; die Originaleinstellung bleibt erhalten.",
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "Die Synchronfassung zeigt hier {0} s lang eigenes Material (nicht im Original); die Originaleinstellung bleibt erhalten.",
+"Unexplained difference": "Unerklärter Unterschied",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "Die Quelle zeigt hier {0} s lang ein anderes Bild als das Original, und AutoSync kann nicht sagen, warum (eine Bearbeitung unbekannter Art oder ein Timing-Problem). Bitte prüfen."
 };

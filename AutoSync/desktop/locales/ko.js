@@ -83,7 +83,7 @@
 "Install subtitle AI": "자막 AI 설치",
 "Install AI Sync models": "AI Sync 모델 설치",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "결과를 사용하기 전에 표시된 구간과 이음새를 확인하세요. 매칭 점수가 입모양 일치를 보장하지는 않습니다.",
-"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · 미리보기 및 편집",
+"AutoSync v1.4.3 · Preview & Edit": "AutoSync v1.4.3 · 미리보기 및 편집",
 "Opening an alignment plan…": "정렬 계획을 여는 중…",
 "— to review": "— 확인 필요",
 "No changes": "변경 없음",
@@ -1025,5 +1025,11 @@
 "Preview & Edit: reading the audio (1 of 4)…": "미리보기 및 편집: 오디오 읽는 중 (4단계 중 1)…",
 "Preview & Edit: decoding the pictures (2 of 4)…": "미리보기 및 편집: 영상 디코딩 중 (4단계 중 2)…",
 "Preview & Edit: matching the pictures (3 of 4)…": "미리보기 및 편집: 영상 맞추는 중 (4단계 중 3)…",
-"Preview & Edit: opening the editor (4 of 4)…": "미리보기 및 편집: 편집기 여는 중 (4단계 중 4)…"
+"Preview & Edit: opening the editor (4 of 4)…": "미리보기 및 편집: 편집기 여는 중 (4단계 중 4)…",
+"Only in the original": "원본에만 있음",
+"This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "이 장면({0}초)은 원본에만 있습니다(더빙판에서 삭제). 원본 화면과 오디오를 유지합니다.",
+"The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "더빙판은 여기서 {1}초 동안 원본 {0}의 장면을 보여 줍니다. 원본 장면을 유지합니다.",
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "더빙판은 여기서 {0}초 동안 자체 영상을 보여 줍니다(원본에 없음). 원본 장면을 유지합니다.",
+"Unexplained difference": "설명되지 않은 차이",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "소스가 여기서 {0}초 동안 원본과 다른 화면을 보여 주지만 AutoSync는 이유를 알 수 없습니다(알 수 없는 종류의 편집 또는 타이밍 문제). 확인하세요."
 };

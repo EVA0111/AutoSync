@@ -80,7 +80,7 @@ Engine prüfen / einrichten
 Untertitel-KI installieren
 AI-Sync-Modelle installieren
 Prüfen Sie markierte Abschnitte und Übergänge, bevor Sie das Ergebnis verwenden. Übereinstimmungswerte garantieren keine Lippensynchronität.
-AutoSync v1.4.2 · Vorschau & Bearbeiten
+AutoSync v1.4.3 · Vorschau & Bearbeiten
 Ausrichtungsplan wird geöffnet…
 — zu prüfen
 Keine Änderungen
@@ -1023,3 +1023,9 @@ Vorschau & Bearbeiten: Audio wird gelesen (1 von 4)…
 Vorschau & Bearbeiten: Bilder werden dekodiert (2 von 4)…
 Vorschau & Bearbeiten: Bilder werden abgeglichen (3 von 4)…
 Vorschau & Bearbeiten: Editor wird geöffnet (4 von 4)…
+Nur im Original
+Diese Szene ({0} s) gibt es nur im Original (die Synchronfassung hat sie entfernt). Bild und Ton des Originals bleiben erhalten.
+Die Synchronfassung zeigt hier {1} s lang eine Einstellung von {0} des Originals; die Originaleinstellung bleibt erhalten.
+Die Synchronfassung zeigt hier {0} s lang eigenes Material (nicht im Original); die Originaleinstellung bleibt erhalten.
+Unerklärter Unterschied
+Die Quelle zeigt hier {0} s lang ein anderes Bild als das Original, und AutoSync kann nicht sagen, warum (eine Bearbeitung unbekannter Art oder ein Timing-Problem). Bitte prüfen.

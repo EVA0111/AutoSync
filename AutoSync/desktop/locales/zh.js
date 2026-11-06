@@ -83,7 +83,7 @@
 "Install subtitle AI": "安装字幕 AI",
 "Install AI Sync models": "安装 AI Sync 模型",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "使用结果前，请检查标记的片段和衔接。匹配分数不能保证口型同步。",
-"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · 预览与编辑",
+"AutoSync v1.4.3 · Preview & Edit": "AutoSync v1.4.3 · 预览与编辑",
 "Opening an alignment plan…": "正在打开对齐方案…",
 "— to review": "— 待检查",
 "No changes": "无更改",
@@ -1025,5 +1025,11 @@
 "Preview & Edit: reading the audio (1 of 4)…": "预览与编辑：正在读取音频（第 1 步，共 4 步）…",
 "Preview & Edit: decoding the pictures (2 of 4)…": "预览与编辑：正在解码画面（第 2 步，共 4 步）…",
 "Preview & Edit: matching the pictures (3 of 4)…": "预览与编辑：正在匹配画面（第 3 步，共 4 步）…",
-"Preview & Edit: opening the editor (4 of 4)…": "预览与编辑：正在打开编辑器（第 4 步，共 4 步）…"
+"Preview & Edit: opening the editor (4 of 4)…": "预览与编辑：正在打开编辑器（第 4 步，共 4 步）…",
+"Only in the original": "仅原版有",
+"This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "此场景（{0} 秒）仅原版有（配音版删除了它）。保留原版画面和音频。",
+"The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "配音版此处 {1} 秒显示的是原版 {0} 处的镜头；保留原版镜头。",
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "配音版此处 {0} 秒显示的是其自有画面（原版没有）；保留原版镜头。",
+"Unexplained difference": "无法解释的差异",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "源视频此处 {0} 秒显示的画面与原版不同，AutoSync 无法判断原因（未知类型的剪辑或时间问题）。请检查。"
 };

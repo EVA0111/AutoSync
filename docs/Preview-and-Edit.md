@@ -1,4 +1,4 @@
-# Preview & Edit (v1.4.2)
+# Preview & Edit (v1.4.3)
 
 Preview & Edit lets you see and hear exactly what AutoSync did, and fix anything by hand. Nothing is changed until you save; the target's picture is never changed, only the timing of the audio.
 

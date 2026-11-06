@@ -1543,6 +1543,21 @@ def fine_vectors(frames):
     return f / np.maximum(np.linalg.norm(f, axis=1, keepdims=True), 1e-6)
 
 
+def layout_vectors(frames, sigma=6.):
+    """Unit vectors of where a picture is bright or dark, ignoring grading and fine detail:
+    each frame's brightness ranks (a tint or contrast change keeps them), heavily blurred (a
+    shot a few frames ahead still lines up), logo corners masked. The same shot in a tinted,
+    soft or retimed dub stays alike; a different picture does not."""
+    flat = frames.reshape(len(frames), -1).astype(np.intp)
+    r = np.empty(flat.shape, np.float32)
+    for i, x in enumerate(flat):                      # mid rank of each gray level (ties share it)
+        c = np.bincount(x, minlength=256).astype(np.float32); cdf = np.cumsum(c)
+        r[i] = ((cdf - c / 2) / len(x))[x]
+    r = ndimage.gaussian_filter(r.reshape(frames.shape), (0, sigma, sigma))[:, FINE_MASK]
+    r -= r.mean(axis=1, keepdims=True)
+    return r / np.maximum(np.linalg.norm(r, axis=1, keepdims=True), 1e-6)
+
+
 def _border():
     m = np.zeros((FH, FW), bool); k = max(2, int(FW * .08))
     m[:k], m[-k:], m[:, :k], m[:, -k:] = True, True, True, True
@@ -1734,6 +1749,40 @@ def replaced_candidates(FS, FT, DS, frames, src, window=60, margin=.08, low=.85,
         if idx[b] + 1 - idx[a] >= min_len:
             runs.append((int(idx[a]), int(idx[b]) + 1))
         a = b + 1
+    return runs
+
+
+def mapped_similarity(FT, FS, frames, src, tol=2):
+    """Coarse similarity of each target frame with the dub frame the plan maps to it (best within
+    +-tol frames, so a join a frame or two off does not count); -1 where the dub has no frame."""
+    out = np.full(len(frames), -1., np.float32)
+    ok = (src >= tol) & (src < len(FS) - tol) & (frames >= 0) & (frames < len(FT))
+    if ok.any():
+        f, j = frames[ok], src[ok]
+        out[ok] = np.max([np.einsum('ij,ij->i', FT[f], FS[j + k]) for k in range(-tol, tol + 1)], axis=0)
+    return out
+
+
+def own_footage_level(ms, informative):
+    """(low, context) similarity levels for own_footage_candidates, from how well the matched
+    episode agrees overall: a colour-shifted or soft dub matches lower everywhere."""
+    good = ms[informative & (ms > -1)]
+    base = float(np.median(good)) if len(good) else .9
+    return min(.65, base - .28), base - .12
+
+
+def own_footage_candidates(ms, informative, low, context, min_len=12, gap=6, side=2 * FPS):
+    """[(i0, i1)] runs where the dub's picture clearly differs from the mapped original frame
+    inside a matched section: well below the episode's level, while the frames on both sides
+    (where present) match normally. A murky or tinted shot that matches poorly throughout is
+    not a replacement; a sharp drop with good matches around it is."""
+    runs = []
+    for i0, i1 in runs_of((ms < low) & (ms > -1) & informative, gap=gap, min_len=min_len):
+        if np.median(ms[i0:i1]) >= low:
+            continue
+        around = [x for x in (ms[max(0, i0 - side):max(0, i0 - 3)], ms[i1 + 3:i1 + side]) if len(x) >= FPS // 2]
+        if around and min(float(np.median(x)) for x in around) >= context:
+            runs.append((i0, i1))
     return runs
 
 
