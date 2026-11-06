@@ -1029,5 +1029,7 @@
 "Only in the original": "في الأصل فقط",
 "This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "هذا المشهد ({0} ث) موجود في الأصل فقط (حذفته الدبلجة). تبقى صورة الأصل وصوته.",
 "The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "تعرض الدبلجة هنا لقطة من {0} في الأصل لمدة {1} ث؛ تبقى لقطة الأصل.",
-"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "تعرض الدبلجة هنا لقطات خاصة بها لمدة {0} ث (غير موجودة في الأصل)؛ تبقى لقطة الأصل."
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "تعرض الدبلجة هنا لقطات خاصة بها لمدة {0} ث (غير موجودة في الأصل)؛ تبقى لقطة الأصل.",
+"Unexplained difference": "اختلاف غير مفسَّر",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "يعرض المصدر هنا صورة مختلفة عن الأصل لمدة {0} ث ولا يستطيع AutoSync تحديد السبب (تعديل من نوع غير معروف أو مشكلة في التوقيت). تحقَّق منه."
 };

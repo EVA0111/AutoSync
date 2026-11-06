@@ -249,14 +249,22 @@ def build(case, source, insert, out):
 #                      'zoom' (1.4x crop-in)
 #   freeze_over(a, b)  clean a..b's audio over its first frame held (same length)
 #   repeat_over(a, b, r) clean a..b's audio over clean r..r+(b-a) (same length)
+#   title_over(a, b)   clean a..b's audio over a new title card (the dub's own
+#                      footage: coloured background and text), same length
+#   far_over(a, b, r)  clean a..b's audio over clean r..r+(b-a) from far away
+#                      (more than 60 s off), same length
 #   dub_hold(t, d)     dub-only: frame t held d s, other-episode audio
 #   dub_repeat(r, d)   dub-only: clean r..r+d repeated, other-episode audio
+# A case may also be (ops, look): the whole dub then gets a look of its own, as
+# old broadcast copies do: 'tint15' (green tint, 15 fps, soft picture).
 # truth.json adds "censorship": removed [[t0,t1]] and replaced [[t0,t1]] in
 # target seconds, dub_only [[s0,s1]] in source seconds.
 
 def keep(a, b, fx=None): return ('keep', a, b, fx)
 def freeze_over(a, b): return ('freeze_over', a, b)
 def repeat_over(a, b, r): return ('repeat_over', a, b, r)
+def title_over(a, b): return ('title_over', a, b)
+def far_over(a, b, r): return ('far_over', a, b, r)
 def dub_hold(t, d): return ('dub_hold', t, d)
 def dub_repeat(r, d): return ('dub_repeat', r, d)
 
@@ -295,6 +303,16 @@ CENSORED_1 = {
     # Scenes removed and covered by shorter dub-only material.
     'cover_short': [keep(60, 163.88), dub_repeat(160., 1.5), keep(166.84, 313.44), dub_hold(313.4, 2.),
                     keep(323.16, 360)],
+    # Shots replaced at the same length by the dub's own title card and by a
+    # shot from far away in the episode (cases 3 and 8).
+    'title_card': [keep(60, 119.96), title_over(119.96, 125.5), keep(125.5, 221.52), far_over(221.52, 225.48, 330.),
+                   keep(225.48, 360)],
+    # A green-tinted, soft 15 fps copy (case 9) with a removed scene, a
+    # replaced shot and a far-away shot: the look alone is not an edit.
+    'tinted_dub': ([keep(60, 148.04), keep(156.44, 221.52), title_over(221.52, 225.48), keep(225.48, 289.28),
+                    far_over(289.28, 291.48, 120.), keep(291.48, 360)], 'tint15'),
+    # Nothing changed except the look.
+    'tinted_only': ([keep(60, 360)], 'tint15'),
     # Everything at once, with a mosaic shot next to a removed scene.
     'censor_mix': [keep(60, 125), keep(129, 148.04), keep(156.44, 160, 'mosaic'), keep(160, 207.64),
                    repeat_over(207.64, 210.56, 204.7), keep(210.56, 225.48), keep(225.48, 244.76, 'zoom'),
@@ -305,6 +323,9 @@ CENSORED_1 = {
 # 202.91 203.91 ... 238.86 242.33 253.96 258.42 ... 282.70 295.34 298.17 303.26
 # 307.06 309.77 ...
 CENSORED_4 = {
+    'title_card': [keep(60, 125.71), title_over(125.71, 130.), keep(130., 238.86), far_over(238.86, 242.33, 330.),
+                   keep(242.33, 360)],
+    'tinted_dub': ([keep(60, 151.19), keep(157.12, 238.86), far_over(238.86, 242.33, 120.), keep(242.33, 360)], 'tint15'),
     'scenes_removed': [keep(60, 151.19), keep(157.12, 201.45), keep(202.91, 242.33), keep(253.96, 303.26),
                        keep(307.06, 360)],
     'shots_trimmed': [keep(60, 95), keep(99, 287), keep(289.5, 360)],
@@ -317,6 +338,7 @@ CENSORED = {'1': CENSORED_1, '4': CENSORED_4}
 
 
 def build_censored(ops, clean, other, out, lo=60., hi=360.):
+    ops, look = ops if isinstance(ops, tuple) else (ops, None)
     W, H, F, V0 = probe(clean)
     frame_at = lambda t: math.ceil((t - V0) * F - 1e-6)
     t_first = frame_at(lo)
@@ -341,7 +363,7 @@ def build_censored(ops, clean, other, out, lo=60., hi=360.):
 
     for k, op in enumerate(ops):
         kind = op[0]
-        if kind in ('keep', 'freeze_over', 'repeat_over'):
+        if kind in ('keep', 'freeze_over', 'repeat_over', 'title_over', 'far_over'):
             ka, kb = frame_at(op[1]), frame_at(op[2]); n = kb - ka
             if kind == 'keep':
                 v = f'[0:v]trim=start_frame={ka}:end_frame={kb},setpts=PTS-STARTPTS'
@@ -363,11 +385,16 @@ def build_censored(ops, clean, other, out, lo=60., hi=360.):
                 elif fx == 'zoom':
                     v += f',crop=trunc(iw/1.4/2)*2:trunc(ih/1.4/2)*2,scale={W}:{H},setsar=1'
                 graph.append(v + f'[v{k}]')
+            elif kind == 'title_over':
+                graph.append(f'color=c=0x2a3a8a:s={W}x{H}:r={F}:d={n / F:.9f},format=yuv420p,'
+                             f"drawtext=fontfile='{FONT}':text='EPISODE {k}':x=(w-tw)/2:y=(h-th)/2:fontsize={H // 6}:"
+                             f'fontcolor=white,trim=end_frame={n},setpts=PTS-STARTPTS[v{k}]')
+                cens['replaced'].append([tsec(ka), tsec(kb)])
             elif kind == 'freeze_over':
                 graph.append(f'[0:v]trim=start_frame={ka}:end_frame={ka + 1},setpts=PTS-STARTPTS,'
                              f'tpad=stop_mode=clone:stop={n - 1}[v{k}]')
                 cens['replaced'].append([tsec(ka), tsec(kb)])
-            else:
+            else:                                   # repeat_over / far_over
                 kr = frame_at(op[3])
                 graph.append(f'[0:v]trim=start_frame={kr}:end_frame={kr + n},setpts=PTS-STARTPTS[v{k}]')
                 cens['replaced'].append([tsec(ka), tsec(kb)])
@@ -391,7 +418,12 @@ def build_censored(ops, clean, other, out, lo=60., hi=360.):
     if kend > clean_at:
         pieces.append(dict(kind='none', start=tsec(clean_at), end=tsec(kend), source_start=None))
         cens['removed'].append([tsec(clean_at), tsec(kend)])
-    graph.append(''.join(labels) + f'concat=n={len(ops)}:v=1:a=1[ov][oa]')
+    if look == 'tint15':                        # green tint, soft, 15 fps shown at the original rate
+        graph.append(''.join(labels) + f'concat=n={len(ops)}:v=1:a=1[cv][oa]')
+        graph.append(f'[cv]colorchannelmixer=rr=.55:gg=1.1:bb=.6:gb=.1,eq=contrast=.8:brightness=-.04,'
+                     f'gblur=sigma=1.2,fps=15,fps={F}[ov]')
+    else:
+        graph.append(''.join(labels) + f'concat=n={len(ops)}:v=1:a=1[ov][oa]')
     out.mkdir(parents=True, exist_ok=True)
     (out / 'graph.txt').write_text(';\n'.join(graph), encoding='utf-8')
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(clean), '-i', str(other), '-filter_complex_script',

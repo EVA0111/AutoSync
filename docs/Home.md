@@ -30,6 +30,7 @@ Keep your videos wherever you like; you do not need special folders.
 ## What's new in v1.4.3
 
 - **More dub edits found.** Shots a dub replaced with its own footage (a new title card, re-cut material) or with a shot from elsewhere in the episode are now reported. See [Censored and edited dubs](Censored-and-Edited-Dubs.md).
+- **Nothing passes silently:** anything in the dub's picture that differs from the original and fits no known kind of edit is flagged as an *unexplained difference*, and each report states how much of the episode the pictures confirm.
 - **Every edit is listed**, in the report and in Preview & Edit's *Censorship* list, even with the censored-dub option off.
 
 ## What's new in v1.4.2

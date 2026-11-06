@@ -1029,5 +1029,7 @@
 "Only in the original": "فقط در نسخهٔ اصلی",
 "This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "این صحنه ({0} ث) فقط در نسخهٔ اصلی هست (دوبله آن را حذف کرده). تصویر و صدای اصلی حفظ می‌شود.",
 "The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "دوبله اینجا به مدت {1} ث نمایی از {0} نسخهٔ اصلی را نشان می‌دهد؛ نمای اصلی حفظ می‌شود.",
-"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "دوبله اینجا به مدت {0} ث تصاویر خودش را نشان می‌دهد (در نسخهٔ اصلی نیست)؛ نمای اصلی حفظ می‌شود."
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "دوبله اینجا به مدت {0} ث تصاویر خودش را نشان می‌دهد (در نسخهٔ اصلی نیست)؛ نمای اصلی حفظ می‌شود.",
+"Unexplained difference": "تفاوت توضیح‌داده‌نشده",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "منبع اینجا به مدت {0} ث تصویری متفاوت با نسخهٔ اصلی نشان می‌دهد و AutoSync نمی‌تواند علتش را بگوید (ویرایشی از نوع ناشناخته یا مشکل زمان‌بندی). بررسی کنید."
 };

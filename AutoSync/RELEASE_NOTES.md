@@ -8,7 +8,13 @@ v1.4.3 finds more of what censored and edited dubs changed, and always shows it.
 
 - **Replaced shots the dub filled with other material are found.** Before, a replaced shot was only reported when the dub reused a picture from close by (a freeze or a repeat). Shots replaced with the dub's own footage (for example a new title card) or with a shot from far away in the episode were missed. They are now reported, with where the shot comes from when the original has it. On the test episodes this finds 1 more change in one episode and 4 more in another, and no false reports on a tinted, low-quality dub.
 - **Every edit is listed even with the censored-dub option off.** The report and Preview & Edit's *Censorship* list now show removed scenes, dub-only material and replaced shots whenever they are found; the option still decides whether removed scenes are restored or cut.
+- **A safety net for edits of unknown kinds.** After matching, every second of the dub's picture is checked against the original moment it is synced to. Whatever is neither confirmed nor explained by a known kind of edit is listed as an **unexplained difference** (in the report, in Preview & Edit's *Flagged* and *Censorship* lists), instead of passing unnoticed. A tinted, soft or low frame rate copy, a mosaic or a painted patch is recognised as the same picture. Each report also states how much of the episode the pictures confirm, for example "Picture check: 99.3% of the synced pictures confirmed".
 - Sync results are unchanged: these are reports only.
+
+### Verification
+
+- New synthetic censored dubs with title cards, shots reused from far away and a green-tinted, soft 15 fps look: all 20 censored cases report every edit, with no false reports. A replaced shot that is not reported at all now fails the test (before, only false reports did).
+- The edits found in 4 real censored dubs are recorded and checked on every change, so a fixed detection cannot quietly break again.
 
 ## v1.4.2: faster Preview & Edit
 

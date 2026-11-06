@@ -27,6 +27,7 @@ import json
 from pathlib import Path
 
 ACTIONS = ('restore', 'cut')
+FPS = 25                         # picture timeline frame grid (picture_timeline.FPS)
 MODES = ACTIONS + ('recreate',)
 
 
@@ -95,7 +96,34 @@ def scenes(plan):
                 out.append(dict(kind='replaced', start=round(t, 3), end=round(t + x['length'], 3), length=x['length'],
                                 action='keep', footage='elsewhere' if 'elsewhere' in x else 'own',
                                 **({'elsewhere': x['elsewhere']} if 'elsewhere' in x else {})))
+            for x in s.get('unexplained') or []:
+                t = s['target_start'] + (x['source'] - s['source_start']) / s['speed']
+                out.append(dict(kind='unexplained', start=round(t, 3), end=round(t + x['length'], 3),
+                                length=x['length'], action='keep'))
     return sorted(out, key=lambda x: x['start'])
+
+
+def picture_check(segments):
+    """Share of the synced episode's informative pictures confirmed by picture (the safety net in
+    autosync.dub_only_pictures). Removes the per-segment counts; None without a picture timeline."""
+    total = ok = 0; seen = False
+    for s in segments:
+        c = s.pop('_check', None)
+        if c:
+            seen = True; total += c[0]; ok += c[1]
+    if not seen:
+        return None
+    return dict(checked_s=round(total / FPS, 1), confirmed_s=round(ok / FPS, 1),
+                confirmed_share=round(ok / total, 4) if total else 1.)
+
+
+def unexplained_review(plan):
+    """Review entries for pictures that differ from the original for no reason AutoSync can name."""
+    return [dict(start=s['start'], end=s['end'], confidence='uncertain',
+                 reason=f"Unexplained picture difference ({s['length']:.1f}s): the source shows a different picture "
+                        f"than the original here and AutoSync cannot tell why (an edit of an unknown kind, or a "
+                        f"timing problem); check it")
+            for s in scenes(plan) if s['kind'] == 'unexplained']
 
 
 def recreatable(before, after):
@@ -118,11 +146,14 @@ def report(plan):
     removed = [s for s in found if s['kind'] == 'removed']
     extra = [s for s in found if s['kind'] == 'dub_only']
     swapped = [s for s in found if s['kind'] == 'replaced']
+    odd = [s for s in found if s['kind'] == 'unexplained']
     head = 'CENSORED / EDITED DUB' if plan.get('censorship') else 'EDITS IN THE SOURCE (censored-dub option off)'
     lines = [f"{head}: {len(removed)} scene(s) the dub removed "
              f"({sum(s['length'] for s in removed):.1f} s), {len(extra)} spot(s) of dub-only material "
              f"({sum(s['length'] for s in extra):.1f} s), {len(swapped)} shot(s) it replaced with other footage "
-             f"({sum(s['length'] for s in swapped):.1f} s). Times are output times."]
+             f"({sum(s['length'] for s in swapped):.1f} s)"
+             + (f", {len(odd)} unexplained picture difference(s) ({sum(s['length'] for s in odd):.1f} s)" if odd else '')
+             + ". Times are output times."]
     for s in found:
         if s['kind'] == 'removed':
             what = {'restore': 'restored with the original audio', 'cut': 'cut from the video'}.get(
@@ -135,6 +166,9 @@ def report(plan):
             by = {'own': " with the dub's own footage",
                   'elsewhere': f" with a shot from {clock(s.get('elsewhere', 0.))} of the original"}.get(s.get('footage'), '')
             lines.append(f"  {clock(s['start'])}–{clock(s['end'])}  shot replaced by the dub{by} ({s['length']:.1f} s): {what}")
+        elif s['kind'] == 'unexplained':
+            lines.append(f"  {clock(s['start'])}–{clock(s['end'])}  UNEXPLAINED picture difference ({s['length']:.1f} s): "
+                         f"check it; the timing is kept")
         else:
             what = ('rebuilt from held or repeated frames; dub audio kept' if s['action'] == 'recreate'
                     else 'no original picture; dub audio skipped')

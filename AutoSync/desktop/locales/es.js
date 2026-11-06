@@ -1029,5 +1029,7 @@
 "Only in the original": "Solo en el original",
 "This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "Esta escena ({0} s) solo está en el original (el doblaje la eliminó). Conserva la imagen y el audio originales.",
 "The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "El doblaje muestra aquí durante {1} s un plano de {0} del original; se conserva el plano original.",
-"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "El doblaje muestra aquí material propio durante {0} s (no está en el original); se conserva el plano original."
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "El doblaje muestra aquí material propio durante {0} s (no está en el original); se conserva el plano original.",
+"Unexplained difference": "Diferencia sin explicar",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "La fuente muestra aquí durante {0} s una imagen distinta del original y AutoSync no sabe por qué (una edición de tipo desconocido o un problema de sincronía). Revísalo."
 };

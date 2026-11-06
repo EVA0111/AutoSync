@@ -683,28 +683,60 @@ def dub_only_pictures(tl,segments,shift,ts,source_video,target):
             # Shots the dub replaced with pictures the check above cannot pair with nearby original
             # footage: its own material (a new title card, re-cut footage) or a shot from far away.
             own=[]
-            ms=pt.mapped_similarity(FT,FS,f,src)
+            ms=pt.mapped_similarity(FT,FS,f,src);inf=informative(f,src)
             free=np.ones(len(f),bool)
             for a,b in taken:free[a:b]=False          # already reported as a replaced shot
-            for c0,c1 in pt.own_footage_candidates(ms,informative(f,src),low,context):
-              for i0,i1 in pt.runs_of(free[c0:c1],gap=0,min_len=12):
-                i0,i1=c0+i0,c0+i1
-                # A mosaic, blur or painted patch over part of the same shot is not a replacement.
-                if np.median(pt.block_similarity(FT[f[i0:i1]],FS[np.clip(src[i0:i1],0,len(FS)-1)]))>=.7:continue
+            def same_shot(i0,i1):
+                """The dub shows the mapped original shot here, altered at most: 'patched' (a mosaic,
+                blur or painted patch over part of it), 'same' (tinted, soft or slightly retimed:
+                the picture layout agrees, case 9) or None (another picture)."""
+                if np.median(pt.block_similarity(FT[f[i0:i1]],FS[np.clip(src[i0:i1],0,len(FS)-1)]))>=.7:return 'patched'
                 k=np.arange(i0,i1,3);j0,j1=int(src[k].min()),int(src[k].max())+1
                 D=pt.layout_vectors(fd.dub(j0,j1-j0)[src[k]-j0])
                 tidx,T=fd.orig(f[k]);pos={int(t):n for n,t in enumerate(tidx)}
                 Tv=pt.layout_vectors(T)[[pos[int(t)] for t in f[k]]]
-                # The same shot in a tinted, soft or slightly retimed dub keeps its layout (case 9).
-                if np.median(np.einsum('ij,ij->i',D,Tv))>=.45:continue
+                return 'same' if np.median(np.einsum('ij,ij->i',D,Tv))>=.45 else None
+            def where(i0,i1):
+                return dict(source=round(s['source_start']+(f[i0]/F+ts-s['target_start'])*s['speed'],6),length=round((i1-i0)/F,6))
+            for c0,c1 in pt.own_footage_candidates(ms,inf,low,context):
+              for i0,i1 in pt.runs_of(free[c0:c1],gap=0,min_len=12):
+                i0,i1=c0+i0,c0+i1
+                if same_shot(i0,i1):continue
                 mid=int(src[(i0+i1)//2]);sim=FT@FS[mid];best=int(np.argmax(sim))
-                x=dict(source=round(s['source_start']+(f[i0]/F+ts-s['target_start'])*s['speed'],6),length=round((i1-i0)/F,6))
+                x=where(i0,i1)
                 if sim[best]>=context and abs(best-f[(i0+i1)//2])>10*F:x['elsewhere']=round(best/F+ts,3)
-                own.append(x)
-            if own:s['dub_own']=own
+                own.append(x);free[i0:i1]=False
+            # Safety net: every informative second the plan maps must be confirmed by picture or
+            # explained above. Anything left is reported as an unexplained difference, so an edit
+            # of a kind no check above knows is flagged for review instead of passing silently.
+            checked=inf&free;ok=checked&(ms>=context);odd=[]
+            for i0,i1 in pt.runs_of(checked&~ok,gap=12,min_len=F):
+                if same_shot(i0,i1):ok[i0:i1]|=checked[i0:i1];continue
+                # Next to a replaced shot it is that replacement's less clear-cut first or last
+                # frames: report it as the dub's own footage there, not as unexplained.
+                if (~free[max(0,i0-12):i0]).any() or (~free[i1:i1+12]).any():
+                    own.append(where(i0,i1));free[i0:i1]=False
+                else:odd.append(where(i0,i1))
+            if own:s['dub_own']=sorted(own,key=lambda x:x['source'])
+            checked&=free;ok&=free
+            s['_check']=[int(checked.sum()),int(ok.sum())]
+            if odd:s['unexplained']=odd
         except (RuntimeError,ValueError,OSError) as e:
             say(f'Censored-dub pictures unavailable near {s["target_start"]:.1f}s: {e}')
         prev=s
+    # An unexplained span touching a replaced shot across a section join is that replacement too.
+    def spans(s,key):
+        return [(s['target_start']+(x['source']-s['source_start'])/s['speed'],x['length']) for x in s.get(key) or []]
+    known=[(t,t+n) for s in segments if s['kind']=='audio' for key in ('dub_replaced','dub_own') for t,n in spans(s,key)]
+    for s in segments:
+        if s['kind']!='audio' or not s.get('unexplained'):continue
+        keep=[]
+        for x,(t,n) in zip(s['unexplained'],spans(s,'unexplained')):
+            if any(a-.5<=t+n and t<=b+.5 for a,b in known):s.setdefault('dub_own',[]).append(x)
+            else:keep.append(x)
+        if keep:s['unexplained']=keep
+        else:s.pop('unexplained')
+        if s.get('dub_own'):s['dub_own'].sort(key=lambda x:x['source'])
 
 
 def run_job(job,args):
@@ -842,6 +874,11 @@ def _run_job(job,args):
         segments,models,review=build_plan(anchors,speed,duration,sl,ref,energy,sf,refine_cut,visual if method.startswith('audio') else None)
         if len(used)!=len(manual_times):raise ValueError('A supplied --cut-times value is outside detected cut search intervals. Check target seconds against the report.')
     plan=dict(source_crop=source_crop,target_crop=target_crop,source_cuts=source_cuts(segments),audio=audio,audio_stream=stream,reference=reference,reference_stream=rs,reference_shift=refshift,source_video=source_video,target_video=target,duration=duration,method=method,segments=segments,models=models,review=review,warnings=warnings)
+    import censorship
+    check=censorship.picture_check(segments)
+    if check:
+        plan['picture_check']=check
+        review.extend(censorship.unexplained_review(plan))
     np.savez_compressed(out/'matching_diagnostics.npz',visual=visual,anchors=anchors)
     # Recover shared source opening music.
     # Keep-target-OP/ED deliberately uses the target's outside soundtrack.
@@ -898,7 +935,9 @@ def _run_job(job,args):
     (out/'plan.json').write_text(json.dumps(plan,indent=2),encoding='utf-8')
     with (out/'matches.csv').open('w',newline='') as f:
         w=csv.writer(f);w.writerow(['target_seconds','source_audio_seconds','similarity']);w.writerows(anchors)
-    lines=[f'Method: {method}',f'{len(anchors)} accepted matches; {len(models)} timing sections.', 'Within the synced main section, unmatched areas retain source audio with estimated timing; verified near-silent black pauses may use target audio.', 'Similarity is not a calibrated probability. Spot-check estimated spans and edits.', *warnings,'','Review intervals:']
+    pc=plan.get('picture_check')
+    lines=[f'Method: {method}',f'{len(anchors)} accepted matches; {len(models)} timing sections.',
+           *([f"Picture check: {pc['confirmed_share']:.1%} of the synced pictures confirmed ({pc['confirmed_s']:.0f} of {pc['checked_s']:.0f} s with picture detail)."] if pc else []), 'Within the synced main section, unmatched areas retain source audio with estimated timing; verified near-silent black pauses may use target audio.', 'Similarity is not a calibrated probability. Spot-check estimated spans and edits.', *warnings,'','Review intervals:']
     if args.main_only:lines.insert(0,f"MAIN EPISODE: keep original target {plan['main_trim']['target_start']:.3f}–{plan['main_trim']['target_end']:.3f}s; output duration {plan['duration']:.3f}s. All review times below refer to the trimmed output.")
     if args.keep_target_op_ed:lines.insert(0,'KEEP TARGET OP/ED: complete target timeline; opening/ending use target audio. Main episode uses synced source audio.')
     for c in source_cuts(segments):lines.append(f"Skip source {c['source_start']:.3f}–{c['source_end']:.3f}s ({c['removed_seconds']:.3f}s) at target {c['target_time']:.3f}s")

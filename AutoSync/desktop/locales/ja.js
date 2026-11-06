@@ -1029,5 +1029,7 @@
 "Only in the original": "オリジナルのみ",
 "This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "このシーン（{0} 秒）はオリジナルにのみあります（吹き替え版で削除）。オリジナルの映像と音声を残します。",
 "The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "吹き替え版はここで {1} 秒間、オリジナルの {0} のカットを表示しています。オリジナルのカットを残します。",
-"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "吹き替え版はここで {0} 秒間、独自の映像を表示しています（オリジナルにはありません）。オリジナルのカットを残します。"
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "吹き替え版はここで {0} 秒間、独自の映像を表示しています（オリジナルにはありません）。オリジナルのカットを残します。",
+"Unexplained difference": "原因不明の違い",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "ソースはここで {0} 秒間オリジナルと異なる映像を表示していますが、AutoSync には理由がわかりません（不明な種類の編集、またはタイミングの問題）。確認してください。"
 };

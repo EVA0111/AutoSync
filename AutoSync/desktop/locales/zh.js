@@ -1029,5 +1029,7 @@
 "Only in the original": "仅原版有",
 "This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "此场景（{0} 秒）仅原版有（配音版删除了它）。保留原版画面和音频。",
 "The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "配音版此处 {1} 秒显示的是原版 {0} 处的镜头；保留原版镜头。",
-"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "配音版此处 {0} 秒显示的是其自有画面（原版没有）；保留原版镜头。"
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "配音版此处 {0} 秒显示的是其自有画面（原版没有）；保留原版镜头。",
+"Unexplained difference": "无法解释的差异",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "源视频此处 {0} 秒显示的画面与原版不同，AutoSync 无法判断原因（未知类型的剪辑或时间问题）。请检查。"
 };

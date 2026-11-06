@@ -91,6 +91,9 @@ def score_censorship(plan, truth):
     both edges within CENSOR_EDGE; no report may lie outside a true one.
     replaced: same-length covers must be reported where they are, and nothing
     else may be reported as replaced (a mosaic or zoom is not a replacement).
+    A cover reported only as an unexplained difference counts as flagged, not
+    missed (it is shown for review); an unexplained difference where nothing was
+    edited is a false alarm. A silent miss fails the case.
     dub_only: dub-only material in source seconds (edge errors reported).
     """
     import censorship
@@ -130,9 +133,18 @@ def score_censorship(plan, truth):
     res['dub_only'] = dict(true=len(c['dub_only']), missed=missed,
                            false=sum(not any(_overlap(r, t) > 0 for t in c['dub_only']) for r in rep),
                            edge_max_ms=round(max(edges) * 1000, 1) if edges else None)
+    odd = [(x['start'], x['end']) for x in found if x['kind'] == 'unexplained']
+    edits = c['removed'] + c['replaced']
+    reported = [(x['start'], x['end']) for x in found if x['kind'] == 'replaced']
+    silent = [t for t in c['replaced'] if not any(_overlap(r, t) > 0 for r in reported + odd)]
+    res['replaced']['flagged_only'] = sum(1 for t in c['replaced'] if not any(_overlap(r, t) > 0 for r in reported)
+                                          and any(_overlap(r, t) > 0 for r in odd))
+    res['replaced']['silent'] = len(silent)
+    res['unexplained'] = dict(count=len(odd), false=sum(1 for r in odd if not any(_overlap(r, t) > 0 for t in edits)))
     rm, rp = res['removed'], res['replaced']
     res['pass'] = bool(rm['missed'] == 0 and rm['false'] == 0 and (rm['edges_ok'] in (None, 1.)) and
-                       rp['false'] == 0 and res['dub_only']['missed'] == 0)
+                       rp['false'] == 0 and rp['silent'] == 0 and res['unexplained']['false'] == 0 and
+                       res['dub_only']['missed'] == 0)
     return res
 
 
@@ -184,7 +196,9 @@ def main():
             c = res['censorship']
             print(f"{'':24} censor {'PASS' if c['pass'] else 'FAIL'}  " + '  '.join(
                 f"{k}: {v['true'] - v['missed']}/{v['true']} false={v['false']} edge_max={v['edge_max_ms']}ms"
-                for k, v in c.items() if k != 'pass'), flush=True)
+                + (f" silent={v['silent']} flagged_only={v['flagged_only']}" if 'silent' in v else '')
+                for k, v in c.items() if k not in ('pass', 'unexplained'))
+                + f"  unexplained: {c['unexplained']['count']} false={c['unexplained']['false']}", flush=True)
     sys.exit(1 if failed else 0)
 
 

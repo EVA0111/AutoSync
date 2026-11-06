@@ -1029,5 +1029,7 @@
 "Only in the original": "केवल मूल में",
 "This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "यह दृश्य ({0} सेकंड) केवल मूल में है (डब ने इसे हटा दिया)। मूल चित्र और ऑडियो रखे जाते हैं।",
 "The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "डब यहाँ {1} सेकंड तक मूल के {0} का एक शॉट दिखाता है; मूल शॉट रखा जाता है।",
-"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "डब यहाँ {0} सेकंड तक अपनी फ़ुटेज दिखाता है (मूल में नहीं); मूल शॉट रखा जाता है।"
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "डब यहाँ {0} सेकंड तक अपनी फ़ुटेज दिखाता है (मूल में नहीं); मूल शॉट रखा जाता है।",
+"Unexplained difference": "अस्पष्ट अंतर",
+"The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.": "स्रोत यहाँ {0} सेकंड तक मूल से अलग चित्र दिखाता है और AutoSync कारण नहीं बता सकता (अज्ञात प्रकार का संपादन या टाइमिंग की समस्या)। इसे जाँचें।"
 };

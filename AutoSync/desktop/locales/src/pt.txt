@@ -1027,3 +1027,5 @@ Só no original
 Esta cena ({0} s) só existe no original (a dublagem a removeu). A imagem e o áudio originais são mantidos.
 A dublagem mostra aqui por {1} s uma cena de {0} do original; a cena original é mantida.
 A dublagem mostra aqui imagens próprias por {0} s (não estão no original); a cena original é mantida.
+Diferença sem explicação
+A fonte mostra aqui por {0} s uma imagem diferente do original e o AutoSync não sabe por quê (uma edição de tipo desconhecido ou um problema de sincronia). Verifique.

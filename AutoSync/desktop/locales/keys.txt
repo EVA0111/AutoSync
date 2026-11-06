@@ -1027,3 +1027,5 @@ Only in the original
 This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.
 The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.
 The dub shows its own footage here for {0} s (not in the original); the original shot is kept.
+Unexplained difference
+The source shows a different picture than the original here for {0} s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.

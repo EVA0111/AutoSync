@@ -344,3 +344,29 @@ class DesktopOption(unittest.TestCase):
                 build_command(self.values(d, restored_subtitles=str(Path(d) / 'subs.srt')), 'Single episode')
             with self.assertRaises(ValueError):
                 build_command(self.values(d, censored_dub='mute'), 'Single episode')
+
+
+class SafetyNet(unittest.TestCase):
+    """Pictures the plan maps that no check could confirm or explain are reported as unexplained
+    differences (in the report and for review), and the share confirmed is kept with the plan."""
+    def plan(self):
+        p = episode()
+        p['segments'][1]['unexplained'] = [dict(source=12., length=2.5)]
+        p['segments'][1]['_check'] = [750, 700]
+        p['segments'][3]['_check'] = [500, 500]
+        return p
+
+    def test_reported_and_flagged_for_review(self):
+        p = self.plan()
+        p['picture_check'] = censorship.picture_check(p['segments'])
+        self.assertEqual(p['picture_check'], dict(checked_s=50., confirmed_s=48., confirmed_share=.96))
+        self.assertFalse(any('_check' in s for s in p['segments']))
+        odd = [s for s in censorship.scenes(p) if s['kind'] == 'unexplained']
+        self.assertEqual([(s['start'], s['end']) for s in odd], [(22., 24.5)])
+        self.assertIn('1 unexplained picture difference(s) (2.5 s)', censorship.report(p)[0])
+        review = censorship.unexplained_review(p)
+        self.assertEqual((review[0]['start'], review[0]['end'], review[0]['confidence']), (22., 24.5, 'uncertain'))
+        self.assertTrue(review[0]['reason'].startswith('Unexplained picture difference'))
+
+    def test_no_picture_timeline_no_check(self):
+        self.assertIsNone(censorship.picture_check(episode()['segments']))

@@ -1055,6 +1055,11 @@ function buildIssues(){
     items.push({t,end:t+x.length,kind:'dubonly',label:rebuild?'Replaced shot · rebuilt':'Replaced shot',
      reason:'The dub shows another shot here for '+Number(x.length).toFixed(1)+' s'+(rebuild?'; the exported video shows it too, rebuilt from the original\'s frames.':'.'),confidence:''});
    }
+   for(const x of s.unexplained||[]){
+    const t=s.target_start+(x.source-s.source_start)/s.speed;
+    items.push({t,end:t+x.length,kind:'flag',unexplained:true,label:'Unexplained difference',
+     reason:'The source shows a different picture than the original here for '+Number(x.length).toFixed(1)+' s and AutoSync cannot tell why (an edit of an unknown kind, or a timing problem). Check it.',confidence:'uncertain'});
+   }
    for(const x of s.dub_own||[]){
     const t=s.target_start+(x.source-s.source_start)/s.speed,len=Number(x.length).toFixed(1);
     items.push({t,end:t+x.length,kind:'dubonly',label:'Replaced shot',
@@ -1071,7 +1076,8 @@ function buildIssues(){
   const flagged=r.confidence!=='supported'&&r.confidence!=='manual'||/\b(uncertain|review|fallback|rewind)/i.test(r.reason||'');
   const insert=/target-only|insert|target audio used/i.test(r.reason||'');
   if(plan.censorship&&items.some(x=>x.kind==='censor'&&Math.abs(x.t-t)<.06))continue;
-  if(insert&&items.some(x=>x.removed&&t>=x.t-.06&&t<=x.end+.06))continue;   // listed as "Only in the original"
+  if(insert&&items.some(x=>x.removed&&t>=x.t-.06&&t<=x.end+.06))continue;
+  if(/^Unexplained picture difference/.test(r.reason||''))continue;   // listed from the segment   // listed as "Only in the original"
   items.push({t,kind:flagged?'flag':insert?'insert':'join',label:flagged?'Needs review':insert?'Target footage':'Join',reason:r.reason||'',confidence:r.confidence||''});
  }
  for(const s of segments.slice(1)){
@@ -1079,7 +1085,7 @@ function buildIssues(){
   items.push({t:s.target_start,kind:'join',label:'Clip boundary',reason:'Edited or computed join between clips.',confidence:''});
  }
  // One item per moment; a dub edit wins over a join or flag at the same frame.
- const rank=x=>['censor','dubonly'].includes(x.kind)?0:1;
+ const rank=x=>['censor','dubonly'].includes(x.kind)||x.unexplained?0:1;
  items.forEach(x=>{x.key=issueKey(x.t);});
  items.sort((a,b)=>a.key===b.key?rank(a)-rank(b):a.t-b.t);
  const seen=new Set();
@@ -1087,7 +1093,7 @@ function buildIssues(){
  renderIssues();
 }
 function visibleIssues(){
- return issueItems.filter(x=>issueFilter==='all'||(issueFilter==='flagged'?x.kind==='flag':issueFilter==='censor'?['censor','dubonly'].includes(x.kind):issueFilter==='markers'?x.kind==='marker':!reviewed.has(x.key)));
+ return issueItems.filter(x=>issueFilter==='all'||(issueFilter==='flagged'?x.kind==='flag':issueFilter==='censor'?(['censor','dubonly'].includes(x.kind)||x.unexplained):issueFilter==='markers'?x.kind==='marker':!reviewed.has(x.key)));
 }
 // Markers: K toggles one at the playhead (snapped to a frame); saved with the plan.
 function toggleMarker(){
@@ -1708,7 +1714,7 @@ document.addEventListener('DOMContentLoaded',()=>{if(globalThis.I18N)$('help').b
    }
   }
   buildIssues();
-  document.querySelector('[data-filter=censor]').hidden=!plan.censorship&&!issueItems.some(x=>x.kind==='dubonly');
+  document.querySelector('[data-filter=censor]').hidden=!plan.censorship&&!issueItems.some(x=>x.kind==='dubonly'||x.unexplained);
   setupVideos(data.media);
   refreshMarkLabels();
   resetZoom();select(0);movePlayhead(0);setButtons();
