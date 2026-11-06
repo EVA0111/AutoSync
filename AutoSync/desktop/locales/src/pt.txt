@@ -80,7 +80,7 @@ Verificar / configurar o mecanismo
 Instalar IA de legendas
 Instalar modelos do AI Sync
 Revise os trechos sinalizados e as junções antes de usar o resultado. As pontuações de correspondência não garantem sincronia labial.
-AutoSync v1.4.2 · Visualizar e editar
+AutoSync v1.4.3 · Visualizar e editar
 Abrindo um plano de alinhamento…
 — para revisar
 Sem alterações
@@ -1023,3 +1023,7 @@ Visualizar e editar: lendo o áudio (1 de 4)…
 Visualizar e editar: decodificando as imagens (2 de 4)…
 Visualizar e editar: comparando as imagens (3 de 4)…
 Visualizar e editar: abrindo o editor (4 de 4)…
+Só no original
+Esta cena ({0} s) só existe no original (a dublagem a removeu). A imagem e o áudio originais são mantidos.
+A dublagem mostra aqui por {1} s uma cena de {0} do original; a cena original é mantida.
+A dublagem mostra aqui imagens próprias por {0} s (não estão no original); a cena original é mantida.

@@ -80,7 +80,7 @@ Check / set up engine
 Install subtitle AI
 Install AI Sync models
 Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.
-AutoSync v1.4.2 · Preview & Edit
+AutoSync v1.4.3 · Preview & Edit
 Opening an alignment plan…
 — to review
 No changes
@@ -1023,3 +1023,7 @@ Preview & Edit: reading the audio (1 of 4)…
 Preview & Edit: decoding the pictures (2 of 4)…
 Preview & Edit: matching the pictures (3 of 4)…
 Preview & Edit: opening the editor (4 of 4)…
+Only in the original
+This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.
+The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.
+The dub shows its own footage here for {0} s (not in the original); the original shot is kept.

@@ -61,13 +61,17 @@ def scenes(plan):
     """Removed scenes and dub-only material, in plan (output) time."""
     segs, out = plan['segments'], []
     audio = [i for i, s in enumerate(segs) if s['kind'] == 'audio']
+    marked = bool(plan.get('censorship'))
     for i, s in enumerate(segs):
-        if s.get('censored_action') in ACTIONS and not s.get('censored_outer'):
+        # Without the censored-dub option, picture-verified target-only footage inside the
+        # episode is still reported; the export keeps it with the target's audio.
+        unmarked = (not marked and s['kind'] == 'reference' and s.get('verified_insert') and not _outer(plan, i, s))
+        if (s.get('censored_action') in ACTIONS and not s.get('censored_outer')) or unmarked:
             before = next((segs[j] for j in reversed(audio) if j < i), None)
             after = next((segs[j] for j in audio if j > i), None)
             replaced = after['source_start'] - _source_end(before) if before and after else 0.
             out.append(dict(kind='removed', start=s['target_start'], end=s['target_end'],
-                            length=s['target_end'] - s['target_start'], action=s['censored_action'],
+                            length=s['target_end'] - s['target_start'], action=s.get('censored_action', 'keep'),
                             dub_replacement_s=round(max(0., replaced), 3)))
     rebuild = plan.get('censorship', {}).get('recreate')
     for a, b in zip(audio, audio[1:]):
@@ -85,6 +89,12 @@ def scenes(plan):
                 t = s['target_start'] + (x['source'] - s['source_start']) / s['speed']
                 out.append(dict(kind='replaced', start=round(t, 3), end=round(t + x['length'], 3), length=x['length'],
                                 action='recreate' if rebuild else 'keep'))
+            # Shots replaced by material the original lacks here (or shows far away): never rebuilt.
+            for x in s.get('dub_own') or []:
+                t = s['target_start'] + (x['source'] - s['source_start']) / s['speed']
+                out.append(dict(kind='replaced', start=round(t, 3), end=round(t + x['length'], 3), length=x['length'],
+                                action='keep', footage='elsewhere' if 'elsewhere' in x else 'own',
+                                **({'elsewhere': x['elsewhere']} if 'elsewhere' in x else {})))
     return sorted(out, key=lambda x: x['start'])
 
 
@@ -108,19 +118,23 @@ def report(plan):
     removed = [s for s in found if s['kind'] == 'removed']
     extra = [s for s in found if s['kind'] == 'dub_only']
     swapped = [s for s in found if s['kind'] == 'replaced']
-    lines = [f"CENSORED / EDITED DUB: {len(removed)} scene(s) the dub removed "
+    head = 'CENSORED / EDITED DUB' if plan.get('censorship') else 'EDITS IN THE SOURCE (censored-dub option off)'
+    lines = [f"{head}: {len(removed)} scene(s) the dub removed "
              f"({sum(s['length'] for s in removed):.1f} s), {len(extra)} spot(s) of dub-only material "
              f"({sum(s['length'] for s in extra):.1f} s), {len(swapped)} shot(s) it replaced with other footage "
              f"({sum(s['length'] for s in swapped):.1f} s). Times are output times."]
     for s in found:
         if s['kind'] == 'removed':
-            what = 'restored with the original audio' if s['action'] == 'restore' else 'cut from the video'
+            what = {'restore': 'restored with the original audio', 'cut': 'cut from the video'}.get(
+                s['action'], 'kept with the original audio')
             extra_note = f"; the dub shows {s['dub_replacement_s']:.1f} s of other footage here" if s['dub_replacement_s'] > .25 else ''
             lines.append(f"  {clock(s['start'])}–{clock(s['end'])}  removed by the dub ({s['length']:.1f} s): {what}{extra_note}")
         elif s['kind'] == 'replaced':
             what = ('rebuilt from the target frames the dub shows' if s['action'] == 'recreate'
                     else 'the original shot is kept (the dub audio fits either)')
-            lines.append(f"  {clock(s['start'])}–{clock(s['end'])}  shot replaced by the dub ({s['length']:.1f} s): {what}")
+            by = {'own': " with the dub's own footage",
+                  'elsewhere': f" with a shot from {clock(s.get('elsewhere', 0.))} of the original"}.get(s.get('footage'), '')
+            lines.append(f"  {clock(s['start'])}–{clock(s['end'])}  shot replaced by the dub{by} ({s['length']:.1f} s): {what}")
         else:
             what = ('rebuilt from held or repeated frames; dub audio kept' if s['action'] == 'recreate'
                     else 'no original picture; dub audio skipped')

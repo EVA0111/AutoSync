@@ -1,4 +1,4 @@
-# AutoSync Wiki — v1.4.2
+# AutoSync Wiki — v1.4.3
 
 **AutoSync** is a Windows program that takes the audio from one version of a video and fits it to the picture of another version, even when the two releases are edited differently. It can also sync subtitles.
 
@@ -14,7 +14,7 @@ No coding is needed: download the Windows portable release, unzip it and run **A
 | **[How syncing works](How-Syncing-Works.md)** | You want to know what AutoSync does, how accurate it is and where it can go wrong. |
 | **[Troubleshooting](Troubleshooting.md)** | Something did not work. |
 
-- [Download AutoSync v1.4.2](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.2)
+- [Download AutoSync v1.4.3](https://github.com/EVA0111/AutoSync/releases/tag/v1.4.3)
 - [Ask a question / report a problem](https://github.com/EVA0111/AutoSync/issues)
 
 ## Source and target
@@ -26,6 +26,11 @@ No coding is needed: download the Windows portable release, unzip it and run **A
 | **Output** | A new synced audio file (FLAC), and in some modes an edited video. Your original files are never changed. |
 
 Keep your videos wherever you like; you do not need special folders.
+
+## What's new in v1.4.3
+
+- **More dub edits found.** Shots a dub replaced with its own footage (a new title card, re-cut material) or with a shot from elsewhere in the episode are now reported. See [Censored and edited dubs](Censored-and-Edited-Dubs.md).
+- **Every edit is listed**, in the report and in Preview & Edit's *Censorship* list, even with the censored-dub option off.
 
 ## What's new in v1.4.2
 

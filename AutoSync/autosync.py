@@ -636,6 +636,18 @@ def dub_only_pictures(tl,segments,shift,ts,source_video,target):
             if sway:x['sway']=[round(sway[0]/F,6),round(sway[1]/F,6)]
             out.append(x)
         return out
+    DT=d['DT']
+    def mapping(s):
+        f=np.arange(int(np.ceil((s['target_start']-ts)*F)),int(np.floor((s['target_end']-ts)*F)))
+        f=f[(f>=0)&(f<len(FT))]
+        return f,np.round((s['source_start']+(f/F+ts-s['target_start'])*s['speed']-shift)*F).astype(int)
+    def informative(f,src):
+        return (DT[np.clip(f,0,len(DT)-1)]>8)&(DS[np.clip(src,0,len(DS)-1)]>8)
+    # How well this episode's matched pictures agree overall (a tinted or soft dub is lower everywhere).
+    maps=[mapping(s) for s in segments if s['kind']=='audio']
+    if maps:
+        low,context=pt.own_footage_level(np.concatenate([pt.mapped_similarity(FT,FS,f,j) for f,j in maps]),
+                                         np.concatenate([informative(f,j) for f,j in maps]))
     prev=None
     for s in segments:
         if s['kind']!='audio':continue
@@ -652,10 +664,8 @@ def dub_only_pictures(tl,segments,shift,ts,source_video,target):
                             got=pieces(path,D,tidx,T)
                             for x in got:x['at']=round(x.pop('frame')/F+ts-s['target_start'],6)
                             s['dub_pictures']=dict(source_length=round(skip,6),pieces=got)
-            f=np.arange(int(np.ceil((s['target_start']-ts)*F)),int(np.floor((s['target_end']-ts)*F)))
-            f=f[(f>=0)&(f<len(FT))]
-            src=np.round((s['source_start']+(f/F+ts-s['target_start'])*s['speed']-shift)*F).astype(int)
-            spans=[]
+            f,src=mapping(s)
+            spans=[];taken=[]
             for i0,i1 in pt.replaced_candidates(FS,FT,DS,f,src):
                 a,b=max(0,i0-12),min(len(f),i1+12)
                 ok=(src[a:b]>=0)&(src[a:b]<len(FS))
@@ -668,7 +678,30 @@ def dub_only_pictures(tl,segments,shift,ts,source_video,target):
                     for x in got:x['rel']=round((x.pop('frame')-f[a+r0])/F,6)
                     spans.append(dict(source=round(s['source_start']+(f[a+r0]/F+ts-s['target_start'])*s['speed'],6),
                                       length=round((r1-r0)/F,6),pieces=got))
+                    taken.append((a+r0,a+r1))
             if spans:s['dub_replaced']=sorted(spans,key=lambda x:x['source'])
+            # Shots the dub replaced with pictures the check above cannot pair with nearby original
+            # footage: its own material (a new title card, re-cut footage) or a shot from far away.
+            own=[]
+            ms=pt.mapped_similarity(FT,FS,f,src)
+            free=np.ones(len(f),bool)
+            for a,b in taken:free[a:b]=False          # already reported as a replaced shot
+            for c0,c1 in pt.own_footage_candidates(ms,informative(f,src),low,context):
+              for i0,i1 in pt.runs_of(free[c0:c1],gap=0,min_len=12):
+                i0,i1=c0+i0,c0+i1
+                # A mosaic, blur or painted patch over part of the same shot is not a replacement.
+                if np.median(pt.block_similarity(FT[f[i0:i1]],FS[np.clip(src[i0:i1],0,len(FS)-1)]))>=.7:continue
+                k=np.arange(i0,i1,3);j0,j1=int(src[k].min()),int(src[k].max())+1
+                D=pt.layout_vectors(fd.dub(j0,j1-j0)[src[k]-j0])
+                tidx,T=fd.orig(f[k]);pos={int(t):n for n,t in enumerate(tidx)}
+                Tv=pt.layout_vectors(T)[[pos[int(t)] for t in f[k]]]
+                # The same shot in a tinted, soft or slightly retimed dub keeps its layout (case 9).
+                if np.median(np.einsum('ij,ij->i',D,Tv))>=.45:continue
+                mid=int(src[(i0+i1)//2]);sim=FT@FS[mid];best=int(np.argmax(sim))
+                x=dict(source=round(s['source_start']+(f[i0]/F+ts-s['target_start'])*s['speed'],6),length=round((i1-i0)/F,6))
+                if sim[best]>=context and abs(best-f[(i0+i1)//2])>10*F:x['elsewhere']=round(best/F+ts,3)
+                own.append(x)
+            if own:s['dub_own']=own
         except (RuntimeError,ValueError,OSError) as e:
             say(f'Censored-dub pictures unavailable near {s["target_start"]:.1f}s: {e}')
         prev=s
@@ -875,8 +908,9 @@ def _run_job(job,args):
     for item in review:lines.append(f"{item['start']:.2f}–{item['end']:.2f}s: {item['reason']}")
     if unresolved_cuts(plan):lines.append('DEFAULT EXPORT BLOCKED: unresolved source-only cut(s). Picture/audio evidence did not locate the join reliably.')
     if source_rewinds(segments):lines.append('DEFAULT EXPORT BLOCKED: backwards source-audio joins would repeat earlier audio. Open Preview & Edit to correct or explicitly override.')
-    if plan.get('censorship'):
-        import censorship
+    import censorship
+    if plan.get('censorship') or censorship.scenes(plan):
+        # Edits the source made are reported even with the censored-dub option off.
         lines=censorship.report(plan)+lines;censorship.write_report(plan,out)
     (out/'report.txt').write_text('\n'.join(lines),encoding='utf-8');say('\n'.join(lines))
     if not args.analyze_only:

@@ -1,4 +1,4 @@
-# Troubleshooting (v1.4.2)
+# Troubleshooting (v1.4.3)
 
 | Problem | Try this |
 | --- | --- |

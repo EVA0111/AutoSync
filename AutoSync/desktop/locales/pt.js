@@ -83,7 +83,7 @@
 "Install subtitle AI": "Instalar IA de legendas",
 "Install AI Sync models": "Instalar modelos do AI Sync",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "Revise os trechos sinalizados e as junções antes de usar o resultado. As pontuações de correspondência não garantem sincronia labial.",
-"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · Visualizar e editar",
+"AutoSync v1.4.3 · Preview & Edit": "AutoSync v1.4.3 · Visualizar e editar",
 "Opening an alignment plan…": "Abrindo um plano de alinhamento…",
 "— to review": "— para revisar",
 "No changes": "Sem alterações",
@@ -1025,5 +1025,9 @@
 "Preview & Edit: reading the audio (1 of 4)…": "Visualizar e editar: lendo o áudio (1 de 4)…",
 "Preview & Edit: decoding the pictures (2 of 4)…": "Visualizar e editar: decodificando as imagens (2 de 4)…",
 "Preview & Edit: matching the pictures (3 of 4)…": "Visualizar e editar: comparando as imagens (3 de 4)…",
-"Preview & Edit: opening the editor (4 of 4)…": "Visualizar e editar: abrindo o editor (4 de 4)…"
+"Preview & Edit: opening the editor (4 of 4)…": "Visualizar e editar: abrindo o editor (4 de 4)…",
+"Only in the original": "Só no original",
+"This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "Esta cena ({0} s) só existe no original (a dublagem a removeu). A imagem e o áudio originais são mantidos.",
+"The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "A dublagem mostra aqui por {1} s uma cena de {0} do original; a cena original é mantida.",
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "A dublagem mostra aqui imagens próprias por {0} s (não estão no original); a cena original é mantida."
 };

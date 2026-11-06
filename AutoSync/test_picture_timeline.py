@@ -651,3 +651,64 @@ class UnsupportedExcursion(unittest.TestCase):
         FT[20 * FPS + 12:22 * FPS + 1] = FS[20 * FPS + 12 - 25:22 * FPS + 1 - 25]   # target shows source 1 s earlier
         out = pt.absorb_unsupported(self.sections(-25.), FT, FS, self.DT, 1.)
         self.assertEqual(out[1]['offset'], -25.)
+
+
+class DubOwnFootage(unittest.TestCase):
+    """A shot the dub replaced with material the original lacks here: a sharp drop in how well
+    the mapped pictures agree, with normal agreement around it (cases 3 and 8). A tinted or soft
+    dub that agrees less everywhere (case 9) sets a lower level and is not flagged."""
+    def ms(self, base=.92, drop=None, at=(250, 350)):
+        rng = np.random.default_rng(1)
+        ms = np.clip(base + rng.normal(0, .02, 1000), -1, 1).astype(np.float32)
+        if drop is not None:
+            ms[at[0]:at[1]] = drop
+        return ms
+
+    def test_sharp_drop_is_found(self):
+        ms = self.ms(drop=.2); inf = np.ones(len(ms), bool)
+        low, context = pt.own_footage_level(ms, inf)
+        self.assertEqual(pt.own_footage_candidates(ms, inf, low, context), [(250, 350)])
+
+    def test_partly_alike_picture_is_found(self):
+        # a title card over the same background agrees about 0.6
+        ms = self.ms(drop=.59); inf = np.ones(len(ms), bool)
+        self.assertEqual(pt.own_footage_candidates(ms, inf, *pt.own_footage_level(ms, inf)), [(250, 350)])
+
+    def test_murky_stretch_is_not_a_replacement(self):
+        ms = self.ms(base=.84)
+        ms[200:400] = np.linspace(.62, .5, 200); ms[280:320] = .45    # poor all along, dips inside
+        inf = np.ones(len(ms), bool)
+        self.assertEqual(pt.own_footage_candidates(ms, inf, *pt.own_footage_level(ms, inf)), [])
+
+    def test_short_or_blank_drops_are_ignored(self):
+        ms = self.ms(drop=.1, at=(250, 258)); inf = np.ones(len(ms), bool)
+        self.assertEqual(pt.own_footage_candidates(ms, inf, *pt.own_footage_level(ms, inf)), [])
+        ms = self.ms(drop=.1); inf[240:360] = False                          # black / flat frames
+        self.assertEqual(pt.own_footage_candidates(ms, inf, *pt.own_footage_level(ms, inf)), [])
+
+    def test_mapped_similarity_tolerates_a_frame_or_two(self):
+        rng = np.random.default_rng(2)
+        F = rng.normal(size=(200, 8)).astype(np.float32); F /= np.linalg.norm(F, axis=1, keepdims=True)
+        frames = np.arange(10, 190)
+        self.assertGreater(pt.mapped_similarity(F, F, frames, frames + 2).min(), .999)
+        self.assertEqual(pt.mapped_similarity(F, F, np.array([5]), np.array([199]))[0], -1)
+
+    def test_layout_ignores_tint_and_small_retiming_but_not_another_picture(self):
+        rng = np.random.default_rng(3)
+        shot = (ndimage_blur(rng.random((pt.FH, pt.FW))) * 255).astype(np.uint8)
+        other = (ndimage_blur(rng.random((pt.FH, pt.FW))) * 255).astype(np.uint8)
+        tinted = np.clip(shot * .5 + 20, 0, 255).astype(np.uint8)               # darker, lower contrast
+        moved = np.roll(shot, 3, axis=1)                                          # a few frames ahead
+        v = pt.layout_vectors(np.stack([shot, tinted, moved, other]))
+        self.assertGreater(v[0] @ v[1], .95)
+        self.assertGreater(v[0] @ v[2], .8)
+        self.assertLess(v[0] @ v[3], .45)
+        black = np.zeros((pt.FH, pt.FW), np.uint8); black[50:55, 60:90] = 200     # sparse lines on black
+        noisy = np.clip(black * .6 + rng.normal(30, 3, black.shape), 0, 255).astype(np.uint8)
+        w = pt.layout_vectors(np.stack([black, noisy]))
+        self.assertGreater(w[0] @ w[1], .6)
+
+
+def ndimage_blur(x):
+    from scipy import ndimage
+    return ndimage.gaussian_filter(x, 8) * 8 % 1

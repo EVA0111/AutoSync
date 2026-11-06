@@ -83,7 +83,7 @@
 "Install subtitle AI": "تثبيت ذكاء الترجمة",
 "Install AI Sync models": "تثبيت نماذج AI Sync",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "راجع الأجزاء المعلَّمة والوصلات قبل استخدام النتيجة. درجات المطابقة لا تضمن تزامن الشفاه.",
-"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · المعاينة والتحرير",
+"AutoSync v1.4.3 · Preview & Edit": "AutoSync v1.4.3 · المعاينة والتحرير",
 "Opening an alignment plan…": "جارٍ فتح خطة المحاذاة…",
 "— to review": "— للمراجعة",
 "No changes": "لا تغييرات",
@@ -1025,5 +1025,9 @@
 "Preview & Edit: reading the audio (1 of 4)…": "المعاينة والتحرير: قراءة الصوت (1 من 4)…",
 "Preview & Edit: decoding the pictures (2 of 4)…": "المعاينة والتحرير: فك ترميز الصور (2 من 4)…",
 "Preview & Edit: matching the pictures (3 of 4)…": "المعاينة والتحرير: مطابقة الصور (3 من 4)…",
-"Preview & Edit: opening the editor (4 of 4)…": "المعاينة والتحرير: فتح المحرر (4 من 4)…"
+"Preview & Edit: opening the editor (4 of 4)…": "المعاينة والتحرير: فتح المحرر (4 من 4)…",
+"Only in the original": "في الأصل فقط",
+"This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "هذا المشهد ({0} ث) موجود في الأصل فقط (حذفته الدبلجة). تبقى صورة الأصل وصوته.",
+"The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "تعرض الدبلجة هنا لقطة من {0} في الأصل لمدة {1} ث؛ تبقى لقطة الأصل.",
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "تعرض الدبلجة هنا لقطات خاصة بها لمدة {0} ث (غير موجودة في الأصل)؛ تبقى لقطة الأصل."
 };

@@ -1024,15 +1024,22 @@ const issueKey=t=>(Math.round(t*100)/100).toFixed(2);
 function buildIssues(){
  if(!plan)return;
  const items=[];
- if(plan.censorship){
+ {
   // Censored / re-edited dub: scenes the dub removed (each restore or cut) and dub-only material.
+  // Found edits are listed even without the censored-dub option (then they cannot be cut).
+  const outer=(s,i)=>!!s.picture_outer||(i===0&&s.target_start<=1e-3)||(i===segments.length-1&&Math.abs(s.target_end-plan.duration)<=1e-3);
   segments.forEach((s,i)=>{
-   if(!['restore','cut'].includes(s.censored_action)||s.censored_outer)return;
    const len=s.target_end-s.target_start;
+   if(!plan.censorship&&s.kind==='reference'&&s.verified_insert&&!outer(s,i)){
+    items.push({t:s.target_start,end:s.target_end,kind:'dubonly',removed:true,label:'Only in the original',
+     reason:'This '+len.toFixed(1)+' s scene is only in the original (the dub removed it). It keeps the original picture and audio.',confidence:''});
+    return;
+   }
+   if(!['restore','cut'].includes(s.censored_action)||s.censored_outer)return;
    items.push({t:s.target_start,end:s.target_end,segment:i,kind:'censor',label:s.censored_action==='cut'?'Removed · cut':'Removed · restored',
     reason:'The dub removed this '+len.toFixed(1)+' s scene. '+(s.censored_action==='cut'?'It is cut from the exported video.':'It keeps the original picture and audio.'),confidence:''});
   });
-  const rebuild=!!plan.censorship.recreate;
+  const rebuild=!!plan.censorship?.recreate;
   let prev=null;
   segments.forEach(s=>{
    if(s.kind!=='audio')return;
@@ -1048,6 +1055,12 @@ function buildIssues(){
     items.push({t,end:t+x.length,kind:'dubonly',label:rebuild?'Replaced shot · rebuilt':'Replaced shot',
      reason:'The dub shows another shot here for '+Number(x.length).toFixed(1)+' s'+(rebuild?'; the exported video shows it too, rebuilt from the original\'s frames.':'.'),confidence:''});
    }
+   for(const x of s.dub_own||[]){
+    const t=s.target_start+(x.source-s.source_start)/s.speed,len=Number(x.length).toFixed(1);
+    items.push({t,end:t+x.length,kind:'dubonly',label:'Replaced shot',
+     reason:x.elsewhere!=null?'The dub shows a shot from '+shortTime(x.elsewhere)+' of the original here for '+len+' s; the original shot is kept.':
+      'The dub shows its own footage here for '+len+' s (not in the original); the original shot is kept.',confidence:''});
+   }
    prev=s;
   });
  }
@@ -1058,13 +1071,17 @@ function buildIssues(){
   const flagged=r.confidence!=='supported'&&r.confidence!=='manual'||/\b(uncertain|review|fallback|rewind)/i.test(r.reason||'');
   const insert=/target-only|insert|target audio used/i.test(r.reason||'');
   if(plan.censorship&&items.some(x=>x.kind==='censor'&&Math.abs(x.t-t)<.06))continue;
+  if(insert&&items.some(x=>x.removed&&t>=x.t-.06&&t<=x.end+.06))continue;   // listed as "Only in the original"
   items.push({t,kind:flagged?'flag':insert?'insert':'join',label:flagged?'Needs review':insert?'Target footage':'Join',reason:r.reason||'',confidence:r.confidence||''});
  }
  for(const s of segments.slice(1)){
   if(items.some(x=>Math.abs(x.t-s.target_start)<.06))continue;
   items.push({t:s.target_start,kind:'join',label:'Clip boundary',reason:'Edited or computed join between clips.',confidence:''});
  }
- items.sort((a,b)=>a.t-b.t);
+ // One item per moment; a dub edit wins over a join or flag at the same frame.
+ const rank=x=>['censor','dubonly'].includes(x.kind)?0:1;
+ items.forEach(x=>{x.key=issueKey(x.t);});
+ items.sort((a,b)=>a.key===b.key?rank(a)-rank(b):a.t-b.t);
  const seen=new Set();
  issueItems=items.filter(x=>{x.key=issueKey(x.t);if(seen.has(x.key))return false;seen.add(x.key);return true;});
  renderIssues();
@@ -1667,7 +1684,7 @@ document.addEventListener('DOMContentLoaded',()=>{if(globalThis.I18N)$('help').b
   vtracks=VT.planTracks(plan);if(!vtracks.length)vtracks=[{clips:[],locked:false,hidden:false}];
   if(plan.editor_tracks?.locks){locks.V1=!!plan.editor_tracks.locks.V1;locks.MIX=!!plan.editor_tracks.locks.MIX;}
   $('project-path').textContent=data.file;$('project-path').title=data.file;
-  document.title='AutoSync v1.4.2 · Preview & Edit · '+String(data.file).split(/[\\/]/).slice(-2).join('/');
+  document.title='AutoSync v1.4.3 · Preview & Edit · '+String(data.file).split(/[\\/]/).slice(-2).join('/');
   if(!segments.length)throw Error('No editable clips in the selected plan.');
   const prefs={view:store.get('autosync-editor-view'),left:store.get('autosync-editor-left'),right:store.get('autosync-editor-right'),h:store.get('autosync-editor-timeline')};
   if(prefs.view)setView(prefs.view);
@@ -1690,8 +1707,8 @@ document.addEventListener('DOMContentLoaded',()=>{if(globalThis.I18N)$('help').b
     $('restore-no').onclick=()=>{$('restore-banner').hidden=true;store.set(autosaveKey(),{segments:null,reviewed:[...reviewed],notes,at:Date.now()});report('Discarded the earlier unsaved edits.');};
    }
   }
-  document.querySelector('[data-filter=censor]').hidden=!plan.censorship;
   buildIssues();
+  document.querySelector('[data-filter=censor]').hidden=!plan.censorship&&!issueItems.some(x=>x.kind==='dubonly');
   setupVideos(data.media);
   refreshMarkLabels();
   resetZoom();select(0);movePlayhead(0);setButtons();

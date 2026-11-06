@@ -83,7 +83,7 @@
 "Install subtitle AI": "نصب هوش مصنوعی زیرنویس",
 "Install AI Sync models": "نصب مدل‌های AI Sync",
 "Check flagged sections and joins before using the result. Matching scores are not a guarantee of lip-sync.": "پیش از استفاده از نتیجه، بخش‌ها و اتصال‌های علامت‌خورده را بررسی کنید. امتیاز تطبیق تضمینی برای هماهنگی لب نیست.",
-"AutoSync v1.4.2 · Preview & Edit": "AutoSync v1.4.2 · پیش‌نمایش و ویرایش",
+"AutoSync v1.4.3 · Preview & Edit": "AutoSync v1.4.3 · پیش‌نمایش و ویرایش",
 "Opening an alignment plan…": "در حال باز کردن طرح هم‌ترازی…",
 "— to review": "— برای بازبینی",
 "No changes": "بدون تغییر",
@@ -1025,5 +1025,9 @@
 "Preview & Edit: reading the audio (1 of 4)…": "پیش‌نمایش و ویرایش: خواندن صدا (۱ از ۴)…",
 "Preview & Edit: decoding the pictures (2 of 4)…": "پیش‌نمایش و ویرایش: رمزگشایی تصاویر (۲ از ۴)…",
 "Preview & Edit: matching the pictures (3 of 4)…": "پیش‌نمایش و ویرایش: تطبیق تصاویر (۳ از ۴)…",
-"Preview & Edit: opening the editor (4 of 4)…": "پیش‌نمایش و ویرایش: باز کردن ویرایشگر (۴ از ۴)…"
+"Preview & Edit: opening the editor (4 of 4)…": "پیش‌نمایش و ویرایش: باز کردن ویرایشگر (۴ از ۴)…",
+"Only in the original": "فقط در نسخهٔ اصلی",
+"This {0} s scene is only in the original (the dub removed it). It keeps the original picture and audio.": "این صحنه ({0} ث) فقط در نسخهٔ اصلی هست (دوبله آن را حذف کرده). تصویر و صدای اصلی حفظ می‌شود.",
+"The dub shows a shot from {0} of the original here for {1} s; the original shot is kept.": "دوبله اینجا به مدت {1} ث نمایی از {0} نسخهٔ اصلی را نشان می‌دهد؛ نمای اصلی حفظ می‌شود.",
+"The dub shows its own footage here for {0} s (not in the original); the original shot is kept.": "دوبله اینجا به مدت {0} ث تصاویر خودش را نشان می‌دهد (در نسخهٔ اصلی نیست)؛ نمای اصلی حفظ می‌شود."
 };

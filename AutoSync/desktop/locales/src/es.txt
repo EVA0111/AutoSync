@@ -80,7 +80,7 @@ Comprobar / configurar el motor
 Instalar IA de subtítulos
 Instalar modelos de AI Sync
 Revise las partes marcadas y las uniones antes de usar el resultado. Las puntuaciones de coincidencia no garantizan la sincronía labial.
-AutoSync v1.4.2 · Vista previa y edición
+AutoSync v1.4.3 · Vista previa y edición
 Abriendo un plan de alineación…
 — por revisar
 Sin cambios
@@ -1023,3 +1023,7 @@ Vista previa y edición: leyendo el audio (1 de 4)…
 Vista previa y edición: decodificando las imágenes (2 de 4)…
 Vista previa y edición: emparejando las imágenes (3 de 4)…
 Vista previa y edición: abriendo el editor (4 de 4)…
+Solo en el original
+Esta escena ({0} s) solo está en el original (el doblaje la eliminó). Conserva la imagen y el audio originales.
+El doblaje muestra aquí durante {1} s un plano de {0} del original; se conserva el plano original.
+El doblaje muestra aquí material propio durante {0} s (no está en el original); se conserva el plano original.

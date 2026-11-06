@@ -65,6 +65,36 @@ class Scenes(unittest.TestCase):
             censorship.annotate(episode(), 'mute')
 
 
+class DubOwnFootage(unittest.TestCase):
+    """Shots the dub replaced with material the original lacks here (a new title card, re-cut
+    footage) or shows far away (cases 3 and 8): reported, never rebuilt, with or without the option."""
+    def plan(self):
+        p = episode()
+        p['segments'][3]['dub_own'] = [dict(source=38., length=4.), dict(source=45., length=3., elsewhere=612.4)]
+        return p
+
+    def test_reported_as_replaced_shots_and_kept(self):
+        for p in (self.plan(), censorship.annotate(self.plan(), 'recreate')):
+            found = [s for s in censorship.scenes(p) if s['kind'] == 'replaced']
+            self.assertEqual([(s['start'], s['length'], s['footage'], s['action']) for s in found],
+                             [(55., 4., 'own', 'keep'), (62., 3., 'elsewhere', 'keep')])
+        text = '\n'.join(censorship.report(self.plan()))
+        self.assertIn("shot replaced by the dub with the dub's own footage (4.0 s)", text)
+        self.assertIn('shot replaced by the dub with a shot from 10:12.40 of the original (3.0 s)', text)
+
+    def test_reported_without_the_option(self):
+        found = censorship.scenes(self.plan())
+        removed = [s for s in found if s['kind'] == 'removed']
+        self.assertEqual([(s['start'], s['end'], s['action']) for s in removed], [(40, 50, 'keep')])
+        self.assertTrue(censorship.report(self.plan())[0].startswith('EDITS IN THE SOURCE (censored-dub option off)'))
+        self.assertIn('kept with the original audio', '\n'.join(censorship.report(self.plan())))
+
+    def test_outer_sections_and_unverified_target_audio_are_not_edits(self):
+        p = episode()
+        p['segments'][2].pop('verified_insert')
+        self.assertEqual([s for s in censorship.scenes(p) if s['kind'] == 'removed'], [])
+
+
 class RestoredSubtitles(unittest.TestCase):
     def test_only_lines_inside_restored_scenes_at_output_time(self):
         with tempfile.TemporaryDirectory() as d:
